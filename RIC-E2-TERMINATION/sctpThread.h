@@ -62,13 +62,13 @@
 
 #include <mdclog/mdclog.h>
 
-#include "asn1cFiles/E2AP-PDU.h"
-#include <asn1cFiles/ProtocolIE-Container.h>
-#include "asn1cFiles/InitiatingMessage.h"
-#include "asn1cFiles/SuccessfulOutcome.h"
-#include "asn1cFiles/UnsuccessfulOutcome.h"
-#include "asn1cFiles/ProtocolIE-Container.h"
-#include "asn1cFiles/ProtocolIE-Field.h"
+#include "3rdparty/asn1cFiles/E2AP-PDU.h"
+#include <3rdparty/asn1cFiles/ProtocolIE-Container.h>
+#include "3rdparty/asn1cFiles/InitiatingMessage.h"
+#include "3rdparty/asn1cFiles/SuccessfulOutcome.h"
+#include "3rdparty/asn1cFiles/UnsuccessfulOutcome.h"
+#include "3rdparty/asn1cFiles/ProtocolIE-Container.h"
+#include "3rdparty/asn1cFiles/ProtocolIE-Field.h"
 
 #ifdef __TRACING__
 #include "openTracing.h"
