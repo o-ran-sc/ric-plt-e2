@@ -16,13 +16,20 @@
 ..  limitations under the License.
 ..
 
+E2 Terminator Release Notes 
+============================================================================================
+The following is a list of release highlights for E2 Terminator:
 
-
-This document provides the release notes for <RELEASE> of <COMPONENT>.
-
-.. contents::
-   :depth: 3
-   :local:
+2019 October 31; version 2.0.7.5 
+-------------------------------------------------------------------------------------------- 
+The following flows are supported:
+- ENDC Setup
+- X2 Setup
+- ENDC Configuration Update
+- X2 Configuration Update
+- Reset
+- Shutdown
+- Load Information
 
 
 Version history
