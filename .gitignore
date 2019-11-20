@@ -36,3 +36,6 @@ RIC-E2-TERMINATION/tracelibcpp/CMakeLists.txt
 RIC-E2-TERMINATION/nlohmann/
 RIC-E2-TERMINATION/concurrentqueue/
 /RIC-E2-TERMINATION/base64/
+# documentation
+.tox
+docs/_build/
