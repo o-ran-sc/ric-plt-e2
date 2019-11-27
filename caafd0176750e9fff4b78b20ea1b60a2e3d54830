@@ -1,0 +1,142 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "56effe91_a33292d4",
+        "filename": "docs/conf.py",
+        "patchSetId": 1
+      },
+      "lineNbr": 10,
+      "author": {
+        "id": 1000067
+      },
+      "writtenOn": "2019-11-27T03:31:26Z",
+      "side": 1,
+      "message": "please delete these contents, these are for doc repo",
+      "range": {
+        "startLine": 7,
+        "startChar": 0,
+        "endLine": 10,
+        "endChar": 115
+      },
+      "revId": "caafd0176750e9fff4b78b20ea1b60a2e3d54830",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "845dfd17_49e1b60b",
+        "filename": "docs/conf.yaml",
+        "patchSetId": 1
+      },
+      "lineNbr": 3,
+      "author": {
+        "id": 1000067
+      },
+      "writtenOn": "2019-11-27T03:31:26Z",
+      "side": 1,
+      "message": "your project name is ric-plt/e2",
+      "range": {
+        "startLine": 3,
+        "startChar": 9,
+        "endLine": 3,
+        "endChar": 11
+      },
+      "revId": "caafd0176750e9fff4b78b20ea1b60a2e3d54830",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "d48627ec_d229a5f5",
+        "filename": "docs/index.rst",
+        "patchSetId": 1
+      },
+      "lineNbr": 6,
+      "author": {
+        "id": 1000067
+      },
+      "writtenOn": "2019-11-27T03:31:26Z",
+      "side": 1,
+      "message": "The underline symbol \u0027\u003d\u0027 should be the same length as the text",
+      "range": {
+        "startLine": 5,
+        "startChar": 0,
+        "endLine": 6,
+        "endChar": 43
+      },
+      "revId": "caafd0176750e9fff4b78b20ea1b60a2e3d54830",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "7bdb5761_ec6d6d9b",
+        "filename": "docs/index.rst",
+        "patchSetId": 1
+      },
+      "lineNbr": 17,
+      "author": {
+        "id": 1000067
+      },
+      "writtenOn": "2019-11-27T03:31:26Z",
+      "side": 1,
+      "message": "those files indicated that you will have every one in you docs/ directory. I only see overview.rst, if you do not need others please delete relative lines. We suggest that you at least have overview.rst and release-notes.",
+      "range": {
+        "startLine": 12,
+        "startChar": 3,
+        "endLine": 17,
+        "endChar": 15
+      },
+      "revId": "caafd0176750e9fff4b78b20ea1b60a2e3d54830",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "b7951392_4db0bb98",
+        "filename": "docs/index.rst",
+        "patchSetId": 1
+      },
+      "lineNbr": 19,
+      "author": {
+        "id": 1000067
+      },
+      "writtenOn": "2019-11-27T03:31:26Z",
+      "side": 1,
+      "message": "please delete this line, this line should be in doc repo, I will do it.",
+      "range": {
+        "startLine": 19,
+        "startChar": 0,
+        "endLine": 19,
+        "endChar": 36
+      },
+      "revId": "caafd0176750e9fff4b78b20ea1b60a2e3d54830",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "2c9d04f0_1a7bda77",
+        "filename": "docs/overview.rst",
+        "patchSetId": 1
+      },
+      "lineNbr": 10,
+      "author": {
+        "id": 1000067
+      },
+      "writtenOn": "2019-11-27T03:31:26Z",
+      "side": 1,
+      "message": "The underline symbol \u0027\u003d\u0027 should be the same length as the text.",
+      "range": {
+        "startLine": 9,
+        "startChar": 0,
+        "endLine": 10,
+        "endChar": 22
+      },
+      "revId": "caafd0176750e9fff4b78b20ea1b60a2e3d54830",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53",
+      "unresolved": true
+    }
+  ]
+}
