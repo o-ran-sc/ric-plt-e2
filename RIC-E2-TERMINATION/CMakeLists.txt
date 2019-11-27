@@ -23,12 +23,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEV_PKG=1")
 
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -LRIC-E2-TERMINATION/tracelibcpp/build -ggdb3 -Wall -W -Wpedantic")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -LRIC-E2-TERMINATION/base64/lib -O3 -Wall -Wpedantic")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -O3 -L/usr/lib -Wall -Wpedantic")
 #only c code with -O3
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -LRIC-E2-TERMINATION/base64/lib -O3 -Wall -W -Wpedantic")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -O3 -L/usr/lib -Wall -W -Wpedantic")
 
-include_directories(RIC-E2-TERMINATION)
-include_directories(RIC-E2-TERMINATION/asn1cFiles)
+include_directories(RIC-E2-TERMINATION
+        RIC-E2-TERMINATION/asn1cFiles
+        RIC-E2-TERMINATION/3rdparty)
 
 file(GLOB ASN_MODULE_SRCS "RIC-E2-TERMINATION/asn1cFiles/*.c")
 file(GLOB ASN_MODULE_HDRS "RIC-E2-TERMINATION/asn1cFiles/*.h")
@@ -58,9 +59,29 @@ add_library(e2sm
         RIC-E2-TERMINATION/TEST/e2sm.c
         RIC-E2-TERMINATION/TEST/e2sm.h
         ${ASN_MODULE_HDRS})
+
 add_definitions(-DBOOST_LOG_DYN_LINK)
 
-link_libraries(nsl sctp c m dl mdclog rmr_nng nng e2sm asn1codec boost_system boost_log_setup boost_log boost_date_time boost_thread rt boost_filesystem  pthread)
+link_libraries(nsl
+        sctp
+        c
+        m
+        dl
+        mdclog
+        rmr_nng
+        nng
+        e2sm
+        asn1codec
+        boost_system
+        boost_log_setup
+        boost_log
+        boost_date_time
+        boost_thread
+        boost_system
+        rt
+        boost_filesystem
+        cgreen
+        pthread)
 
 add_executable(e2 RIC-E2-TERMINATION/sctpThread.cpp
         RIC-E2-TERMINATION/sctpThread.h
@@ -68,7 +89,12 @@ add_executable(e2 RIC-E2-TERMINATION/sctpThread.cpp
         RIC-E2-TERMINATION/mapWrapper.h
         RIC-E2-TERMINATION/base64.h
         RIC-E2-TERMINATION/base64.cpp
+        RIC-E2-TERMINATION/ReadConfigFile.h
         )
 
 add_executable(e2smtest
         RIC-E2-TERMINATION/TEST/e2smTest/e2smtest.cpp)
+
+add_executable(testConfigFile
+        RIC-E2-TERMINATION/ReadConfigFile.h
+        RIC-E2-TERMINATION/TEST/ConfigurationFileTest/testConfigFile.cpp)

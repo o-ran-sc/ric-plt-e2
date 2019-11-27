@@ -20,6 +20,8 @@
 
 
 using namespace std::placeholders;
+using namespace boost::filesystem;
+
 #ifdef __TRACING__
 using namespace opentracing;
 #endif
@@ -31,6 +33,8 @@ using namespace opentracing;
 BOOST_LOG_INLINE_GLOBAL_LOGGER_DEFAULT(my_logger, src::logger_mt)
 
 boost::shared_ptr<sinks::synchronous_sink<sinks::text_file_backend>> boostLogger;
+double cpuClock = 0.0;
+bool jsonTrace = true;
 
 void init_log() {
     mdclog_attr_t *attr;
@@ -39,15 +43,32 @@ void init_log() {
     mdclog_init(attr);
     mdclog_attr_destroy(attr);
 }
+auto start_time = std::chrono::high_resolution_clock::now();
+typedef std::chrono::duration<double, std::ratio<1,1>> seconds_t;
 
+double age() {
+    return seconds_t(std::chrono::high_resolution_clock::now() - start_time).count();
+}
+
+double approx_CPU_MHz(unsigned sleeptime) {
+    using namespace std::chrono_literals;
+    uint32_t aux = 0;
+    uint64_t cycles_start = rdtscp(aux);
+    double time_start = age();
+    std::this_thread::sleep_for(sleeptime * 1ms);
+    uint64_t elapsed_cycles = rdtscp(aux) - cycles_start;
+    double elapsed_time = age() - time_start;
+    return elapsed_cycles / elapsed_time;
+}
 
 //std::atomic<int64_t> rmrCounter{0};
 std::atomic<int64_t> num_of_messages{0};
+std::atomic<int64_t> num_of_XAPP_messages{0};
 static long transactionCounter = 0;
 
 
 int main(const int argc, char **argv) {
-    sctp_params_t pSctpParams;
+    sctp_params_t sctpParams;
 #ifdef __TRACING__
     opentracing::Tracer::InitGlobal(tracelibcpp::createTracer("E2 Terminator"));
     auto span = opentracing::Tracer::Global()->StartSpan(__FUNCTION__);
@@ -55,64 +76,123 @@ int main(const int argc, char **argv) {
     otSpan span = 0;
 #endif
 
-    unsigned num_cpus = std::thread::hardware_concurrency();
-#ifdef ERROR_LEVEL
-    mdclog_severity_t loglevel = MDCLOG_ERR;
-#else
-    mdclog_severity_t loglevel = MDCLOG_INFO;
-#endif
-    init_log();
-    mdclog_level_set(loglevel);
-
-    if (argc < 7) {
-        mdclog_mdc_add("app", argv[0]);
-        mdclog_write(MDCLOG_ERR, "Usage nano <rmr port> logLevel <debug/warning/info/error> volume <PATH to log file location>");
-        return -1;
-    }
-
     {
         std::random_device device{};
         std::mt19937 generator(device());
         std::uniform_int_distribution<long> distribution(1, (long) 1e12);
-
         transactionCounter = distribution(generator);
+    }
+
+    uint64_t st = 0,en = 0;
+    uint32_t aux1 = 0;
+    uint32_t aux2 = 0;
+    st = rdtscp(aux1);
+
+    unsigned num_cpus = std::thread::hardware_concurrency();
+    init_log();
+    mdclog_level_set(MDCLOG_INFO);
+
+    cpuClock = approx_CPU_MHz(100);
+
+    mdclog_write(MDCLOG_ERR, "CPU speed %11.11f", cpuClock);
+    auto result = parse(argc, argv, sctpParams);
+
+    path p = (sctpParams.configFilePath + "/" + sctpParams.configFileName).c_str();
+    if (exists(p)) {
+        const int size = 2048;
+        auto fileSize = file_size(p);
+        if (fileSize > size) {
+            mdclog_write(MDCLOG_ERR, "File %s larger than %d", p.string().c_str(), size);
+            exit(-1);
+        }
+    } else {
+        mdclog_write(MDCLOG_ERR, "Configuration File %s not exists", p.string().c_str());
+        exit(-1);
+    }
+
+
+    ReadConfigFile conf;
+    if (conf.openConfigFile(p.string()) == -1) {
+        mdclog_write(MDCLOG_ERR, "Filed to open config file %s, %s",
+                     p.string().c_str(), strerror(errno));
+        exit(-1);
+    }
+    int rmrPort = conf.getIntValue("nano");
+    if (rmrPort == -1) {
+        mdclog_write(MDCLOG_ERR, "illigal RMR port ");
+        exit(-1);
+    }
+    sctpParams.rmrPort = (uint16_t)rmrPort;
+    snprintf(sctpParams.rmrAddress, sizeof(sctpParams.rmrAddress), "%d", (int) (sctpParams.rmrPort));
+
+    auto tmpStr = conf.getStringValue("loglevel");
+    if (tmpStr.length() == 0) {
+        mdclog_write(MDCLOG_ERR, "illigal loglevel. Set loglevel to MDCLOG_INFO");
+        tmpStr = "info";
+    }
+    transform(tmpStr.begin(), tmpStr.end(), tmpStr.begin(), ::tolower);
+
+    if ((tmpStr.compare("debug")) == 0) {
+        sctpParams.logLevel = MDCLOG_DEBUG;
+    } else if ((tmpStr.compare("info")) == 0) {
+        sctpParams.logLevel = MDCLOG_INFO;
+    } else if ((tmpStr.compare("warning")) == 0) {
+        sctpParams.logLevel = MDCLOG_WARN;
+    } else if ((tmpStr.compare("error")) == 0) {
+        sctpParams.logLevel = MDCLOG_ERR;
+    } else {
+        mdclog_write(MDCLOG_ERR, "illigal loglevel = %s. Set loglevel to MDCLOG_INFO", tmpStr.c_str());
+        sctpParams.logLevel = MDCLOG_INFO;
+    }
+    mdclog_level_set(sctpParams.logLevel);
+
+    tmpStr = conf.getStringValue("volume");
+    if (tmpStr.length() == 0) {
+        mdclog_write(MDCLOG_ERR, "illigal volume.");
+        exit(-1);
     }
 
     char tmpLogFilespec[VOLUME_URL_SIZE];
     tmpLogFilespec[0] = 0;
-    pSctpParams.volume[0] = 0;
-    //read paramters from CLI
-    for (auto i = 1; i < argc; i += 2) {
-        char *dummy;
-        if (strcasecmp("nano", argv[i]) == 0) {
-            pSctpParams.rmrPort = (uint16_t) (uint16_t) strtol(argv[i + 1], &dummy, 10);
-        } else if (strcasecmp("loglevel", argv[i]) == 0) {
-            if (strcasecmp("debug", argv[i + 1]) == 0) {
-                loglevel = MDCLOG_DEBUG;
-            } else if (strcasecmp("info", argv[i + 1]) == 0) {
-                loglevel = MDCLOG_INFO;
-            } else if (strcasecmp("warning", argv[i + 1]) == 0) {
-                loglevel = MDCLOG_WARN;
-            } else if (strcasecmp("error", argv[i + 1]) == 0) {
-                loglevel = MDCLOG_ERR;
-            }
-        } else if (strcasecmp("volume", argv[i]) == 0) {
-            snprintf(pSctpParams.volume, VOLUME_URL_SIZE, "%s", argv[i + 1]);
-            snprintf(tmpLogFilespec, VOLUME_URL_SIZE, "%s", argv[i + 1]);
-        }
+    sctpParams.volume[0] = 0;
+    snprintf(sctpParams.volume, VOLUME_URL_SIZE, "%s", tmpStr.c_str());
+    // copy the name to temp file as well
+    snprintf(tmpLogFilespec, VOLUME_URL_SIZE, "%s", tmpStr.c_str());
+
+
+    // define the file name in the tmp directory under the volume
+    strcat(tmpLogFilespec,"/tmp/E2Term_%Y-%m-%d_%H-%M-%S.%N.tmpStr");
+
+    sctpParams.myIP = conf.getStringValue("local-ip");
+    if (sctpParams.myIP.length() == 0) {
+        mdclog_write(MDCLOG_ERR, "illigal local-ip.");
+        exit(-1);
     }
 
+    tmpStr = conf.getStringValue("trace");
+    transform(tmpStr.begin(), tmpStr.end(), tmpStr.begin(), ::tolower);
+    if ((tmpStr.compare("start")) == 0) {
+        mdclog_write(MDCLOG_INFO, "Trace set to: start");
+        sctpParams.trace = true;
+    } else if ((tmpStr.compare("stop")) == 0) {
+        mdclog_write(MDCLOG_INFO, "Trace set to: stop");
+        sctpParams.trace = false;
+    }
+    jsonTrace = sctpParams.trace;
 
-    pSctpParams.logLevel = loglevel;
-    snprintf(pSctpParams.rmrAddress, sizeof(pSctpParams.rmrAddress) - 1, "%d", (int) (pSctpParams.rmrPort));
+    en = rdtscp(aux2);
 
-    strcat(tmpLogFilespec,"/tmp/E2Term_%Y-%m-%d_%H-%M-%S.%N.log");
+    mdclog_write(MDCLOG_INFO, "start = %lx end = %lx diff = %lx\n", st, en, en - st);
+    mdclog_write(MDCLOG_INFO, "start high = %lx start lo = %lx end high = %lx end lo = %lx\n",
+            st >> 32, st & 0xFFFFFFFF, (int64_t)en >> 32, en & 0xFFFFFFFF);
+    mdclog_write(MDCLOG_INFO, "ellapsed time = %5.9f\n", (double)(en - st)/cpuClock);
 
     if (mdclog_level_get() >= MDCLOG_INFO) {
-        mdclog_mdc_add("RMR Port", to_string(pSctpParams.rmrPort).c_str());
-        mdclog_mdc_add("LogLevel", to_string(pSctpParams.logLevel).c_str());
-        mdclog_mdc_add("volume", pSctpParams.volume);
+        mdclog_mdc_add("RMR Port", to_string(sctpParams.rmrPort).c_str());
+        mdclog_mdc_add("LogLevel", to_string(sctpParams.logLevel).c_str());
+        mdclog_mdc_add("volume", sctpParams.volume);
         mdclog_mdc_add("tmpLogFilespec", tmpLogFilespec);
+        mdclog_mdc_add("my ip", sctpParams.myIP.c_str());
 
         mdclog_write(MDCLOG_INFO, "running parameters");
     }
@@ -120,65 +200,54 @@ int main(const int argc, char **argv) {
 
     // Files written to the current working directory
     boostLogger = logging::add_file_log(
-            keywords::file_name = tmpLogFilespec,
+            keywords::file_name = tmpLogFilespec, // to temp directory
             keywords::rotation_size = 10 * 1024 * 1024,
             keywords::time_based_rotation = sinks::file::rotation_at_time_interval(posix_time::hours(1)),
             keywords::format = "%Message%"
-            //keywords::format = "[%TimeStamp%]: %Message%" // use each log with time stamp
+            //keywords::format = "[%TimeStamp%]: %Message%" // use each tmpStr with time stamp
     );
 
     // Setup a destination folder for collecting rotated (closed) files --since the same volumn can use rename()
     boostLogger->locked_backend()->set_file_collector(sinks::file::make_collector(
-	 keywords::target = pSctpParams.volume 
-	 //keywords::max_size = 16 * 1024 * 1024, 
-	 //keywords::min_free_space = 100 * 1024 * 1024  
+            keywords::target = sctpParams.volume
     ));
 
     // Upon restart, scan the directory for files matching the file_name pattern
     boostLogger->locked_backend()->scan_for_files();
 
-    // Enable auto-flushing after each log record written
+    // Enable auto-flushing after each tmpStr record written
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
     	boostLogger->locked_backend()->auto_flush(true);
     }
 
     // start epoll
-    pSctpParams.epoll_fd = epoll_create1(0);
-    if (pSctpParams.epoll_fd == -1) {
+    sctpParams.epoll_fd = epoll_create1(0);
+    if (sctpParams.epoll_fd == -1) {
         mdclog_write(MDCLOG_ERR, "failed to open epoll descriptor");
         exit(-1);
     }
 
-    pSctpParams.rmrCtx = getRmrContext(pSctpParams.rmrAddress, &span);
-    if (pSctpParams.rmrCtx == nullptr) {
-        mdclog_write(MDCLOG_ERR, "Failed to initialize RMR");
-        close(pSctpParams.epoll_fd);
-        exit(-1);
-    }
-    rmr_init_trace(pSctpParams.rmrCtx, 200);
-    // get the RMR fd for the epoll
-    pSctpParams.rmrListenFd = rmr_get_rcvfd(pSctpParams.rmrCtx);
-    struct epoll_event event{};
-    // add RMR fd to epoll
-    event.events = (EPOLLIN);
-    event.data.fd = pSctpParams.rmrListenFd;
-    // add listening RMR FD to epoll
-    if (epoll_ctl(pSctpParams.epoll_fd, EPOLL_CTL_ADD, pSctpParams.rmrListenFd, &event)) {
-        mdclog_write(MDCLOG_ERR, "Failed to add RMR descriptor to epoll");
-        close(pSctpParams.rmrListenFd);
-        rmr_close(pSctpParams.rmrCtx);
-        close(pSctpParams.epoll_fd);
+    getRmrContext(sctpParams, &span);
+    if (sctpParams.rmrCtx == nullptr) {
+        close(sctpParams.epoll_fd);
         exit(-1);
     }
 
-    pSctpParams.sctpMap = new mapWrapper();
+    if (buildInotify(sctpParams) == -1) {
+        close(sctpParams.rmrListenFd);
+        rmr_close(sctpParams.rmrCtx);
+        close(sctpParams.epoll_fd);
+        exit(-1);
+     }
+
+    sctpParams.sctpMap = new mapWrapper();
 
     std::vector<std::thread> threads(num_cpus);
 //    std::vector<std::thread> threads;
 
     num_cpus = 1;
     for (unsigned int i = 0; i < num_cpus; i++) {
-        threads[i] = std::thread(listener, &pSctpParams);
+        threads[i] = std::thread(listener, &sctpParams);
 
         cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
@@ -187,17 +256,49 @@ int main(const int argc, char **argv) {
         if (rc != 0) {
             mdclog_write(MDCLOG_ERR, "Error calling pthread_setaffinity_np: %d", rc);
         }
-
-//        threads.emplace_back(std::thread(listener, &pSctpParams));
     }
 
+    //loop over term_init until first message from xApp
+    handleTermInit(sctpParams);
+
+    for (auto &t : threads) {
+        t.join();
+    }
+
+#ifdef __TRACING__
+    opentracing::Tracer::Global()->Close();
+#endif
+    return 0;
+}
+
+void handleTermInit(sctp_params_t &sctpParams) {
+    sendTermInit(sctpParams);
     //send to e2 manager init of e2 term
     //E2_TERM_INIT
+
+    int count = 0;
+    auto exitCond = true;
+    while (exitCond) {
+        auto xappMessages = num_of_XAPP_messages.load(std::memory_order_acquire);
+        if (xappMessages > 0) {
+            exitCond = false;
+            continue;
+        }
+        usleep(10000);
+        count++;
+        if (count % 100 == 0) {
+            mdclog_write(MDCLOG_ERR, "No messages from any xApp : %ld", xappMessages);
+            sendTermInit(sctpParams);
+        }
+    }
+}
+
+void sendTermInit(sctp_params_t &sctpParams) {
     auto term_init = false;
 
-    char buff[128]{};
-    auto len = snprintf(buff, 128, "E2 terminator started");
-    rmr_mbuf_t *msg = rmr_alloc_msg(pSctpParams.rmrCtx, 200);
+    char *buff = (char *)calloc(1, sctpParams.myIP.length());
+    auto len = snprintf(buff, sctpParams.myIP.length(), "%s:%d", (const char *)sctpParams.myIP.c_str(),sctpParams.rmrPort);
+    rmr_mbuf_t *msg = rmr_alloc_msg(sctpParams.rmrCtx, sctpParams.myIP.length());
     auto count = 0;
     while (!term_init) {
         msg->mtype = E2_TERM_INIT;
@@ -206,9 +307,9 @@ int main(const int argc, char **argv) {
         static unsigned char tx[32];
         auto txLen = snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
         rmr_bytes2xact(msg, tx, txLen);
-        msg = rmr_send_msg(pSctpParams.rmrCtx, msg);
+        msg = rmr_send_msg(sctpParams.rmrCtx, msg);
         if (msg == nullptr) {
-            msg = rmr_alloc_msg(pSctpParams.rmrCtx, 200);
+            msg = rmr_alloc_msg(sctpParams.rmrCtx, sctpParams.myIP.length());
         } else if (msg->state == 0) {
             term_init = true;
             rmr_free_msg(msg);
@@ -222,13 +323,68 @@ int main(const int argc, char **argv) {
         count++;
     }
 
-    for (auto &t : threads) {
-        t.join();
+    free(buff);
+}
+
+/**
+ *
+ * @param argc
+ * @param argv
+ * @param sctpParams
+ * @return
+ */
+cxxopts::ParseResult parse(int argc, char *argv[], sctp_params_t &sctpParams) {
+    cxxopts::Options options(argv[0], "e2 term help");
+    options.positional_help("[optional args]").show_positional_help();
+    options.allow_unrecognised_options().add_options()
+            ("p,path", "config file path", cxxopts::value<std::string>(sctpParams.configFilePath)->default_value("config"))
+            ("f,file", "config file name", cxxopts::value<std::string>(sctpParams.configFileName)->default_value("config.conf"))
+            ("h,help", "Print help");
+
+    auto result = options.parse(argc, argv);
+
+    if (result.count("help")) {
+        std::cout << options.help({""}) << std::endl;
+        exit(0);
+    }
+    return result;
+}
+
+/**
+ *
+ * @param sctpParams
+ * @return -1 failed 0 success
+ */
+int buildInotify(sctp_params_t &sctpParams) {
+    sctpParams.inotifyFD = inotify_init1(IN_NONBLOCK);
+    if (sctpParams.inotifyFD == -1) {
+        mdclog_write(MDCLOG_ERR, "Failed to init inotify (inotify_init1) %s", strerror(errno));
+        close(sctpParams.rmrListenFd);
+        rmr_close(sctpParams.rmrCtx);
+        close(sctpParams.epoll_fd);
+        return -1;
     }
 
-#ifdef __TRACING__
-    opentracing::Tracer::Global()->Close();
-#endif
+    sctpParams.inotifyWD = inotify_add_watch(sctpParams.inotifyFD,
+                                              (const char *)sctpParams.configFilePath.c_str(),
+                                              IN_OPEN | IN_CLOSE);
+    if (sctpParams.inotifyWD == -1) {
+        mdclog_write(MDCLOG_ERR, "Failed to add directory : %s to  inotify (inotify_add_watch) %s",
+                sctpParams.configFilePath.c_str(),
+                strerror(errno));
+        close(sctpParams.inotifyFD);
+        return -1;
+    }
+
+    struct epoll_event event{};
+    event.events = (EPOLLIN);
+    event.data.fd = sctpParams.inotifyFD;
+    // add listening RMR FD to epoll
+    if (epoll_ctl(sctpParams.epoll_fd, EPOLL_CTL_ADD, sctpParams.inotifyFD, &event)) {
+        mdclog_write(MDCLOG_ERR, "Failed to add inotify FD to epoll");
+        close(sctpParams.inotifyFD);
+        return -1;
+    }
     return 0;
 }
 
@@ -244,7 +400,6 @@ void listener(sctp_params_t *params) {
     otSpan span = 0;
 #endif
     int num_of_SCTP_messages = 0;
-    int num_of_XAPP_messages = 0;
     auto totalTime = 0.0;
     mdclog_mdc_clean();
     mdclog_level_set(params->logLevel);
@@ -308,94 +463,15 @@ void listener(sctp_params_t *params) {
             clock_gettime(CLOCK_MONOTONIC, &message.message.time);
             start.tv_sec = message.message.time.tv_sec;
             start.tv_nsec = message.message.time.tv_nsec;
+
+
             if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP)) {
-                if (events[i].data.fd != params->rmrListenFd) {
-                    auto *peerInfo = (ConnectedCU_t *)events[i].data.ptr;
-                    mdclog_write(MDCLOG_ERR, "epoll error, events %0x on fd %d, RAN NAME : %s",
-                                 events[i].events, peerInfo->fileDescriptor, peerInfo->enodbName);
-
-                    rmrMessageBuffer.sendMessage->len = snprintf((char *)rmrMessageBuffer.sendMessage->payload, 256,
-                                                         "%s|Failed SCTP Connection",
-                                                         peerInfo->enodbName);
-                    message.message.asndata = rmrMessageBuffer.sendMessage->payload;
-                    message.message.asnLength = rmrMessageBuffer.sendMessage->len;
-
-                    memcpy(message.message.enodbName, peerInfo->enodbName, sizeof(peerInfo->enodbName));
-                    message.message.direction = 'N';
-                    if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer, &span) != 0) {
-                        mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
-                    }
-
-                    close(peerInfo->fileDescriptor);
-                    cleanHashEntry((ConnectedCU_t *) events[i].data.ptr, params->sctpMap, &span);
-                } else {
-                    mdclog_write(MDCLOG_ERR, "epoll error, events %0x on RMR FD", events[i].events);
-                }
+                handlepoll_error(events[i], message, rmrMessageBuffer, params, &span);
             } else if (events[i].events & EPOLLOUT) {
-                // this need to send waiting message from connection EINPROGRESS
-                auto *peerInfo = (ConnectedCU_t *) events[i].data.ptr;
-
-                memcpy(message.message.enodbName, peerInfo->enodbName, sizeof(peerInfo->enodbName));
-
-                mdclog_write(MDCLOG_INFO, "file descriptor %d got EPOLLOUT", peerInfo->fileDescriptor);
-                auto retVal = 0;
-                socklen_t retValLen = 0;
-                auto rc = getsockopt(peerInfo->fileDescriptor, SOL_SOCKET, SO_ERROR, &retVal, &retValLen);
-                if (rc != 0 || retVal != 0) {
-                    if (rc != 0) {
-                        rmrMessageBuffer.sendMessage->len = snprintf((char *)rmrMessageBuffer.sendMessage->payload, 256,
-                                                                       "%s|Failed SCTP Connection, after EINPROGRESS the getsockopt%s",
-                                                                       peerInfo->enodbName, strerror(errno));
-                    } else if (retVal != 0) {
-                        rmrMessageBuffer.sendMessage->len = snprintf((char *)rmrMessageBuffer.sendMessage->payload, 256,
-                                                                       "%s|Failed SCTP Connection after EINPROGRESS, SO_ERROR",
-                                                                       peerInfo->enodbName);
-                    }
-
-                    message.message.asndata = rmrMessageBuffer.sendMessage->payload;
-                    message.message.asnLength = rmrMessageBuffer.sendMessage->len;
-                    mdclog_write(MDCLOG_ERR, "%s", rmrMessageBuffer.sendMessage->payload);
-                    message.message.direction = 'N';
-                    if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer, &span) != 0) {
-                        mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
-                    }
-                    memset(peerInfo->asnData, 0, peerInfo->asnLength);
-                    peerInfo->asnLength = 0;
-                    peerInfo->mtype = 0;
-                    continue;
-                }
-
-    		peerInfo->isConnected = true;
-
-                if (modifyToEpoll(params->epoll_fd, peerInfo, (EPOLLIN | EPOLLET), params->sctpMap, peerInfo->enodbName,
-                                  peerInfo->mtype, &span) != 0) {
-                    mdclog_write(MDCLOG_ERR, "epoll_ctl EPOLL_CTL_MOD");
-                    continue;
-                }
-
-                message.message.asndata = (unsigned char *)peerInfo->asnData;
-                message.message.asnLength = peerInfo->asnLength;
-                message.message.messageType = peerInfo->mtype;
-                memcpy(message.message.enodbName, peerInfo->enodbName, sizeof(peerInfo->enodbName));
-                num_of_messages.fetch_add(1, std::memory_order_release);
-                if (mdclog_level_get() >= MDCLOG_DEBUG) {
-                    mdclog_write(MDCLOG_DEBUG, "send the delayed SETUP/ENDC SETUP to sctp for %s",
-                                 message.message.enodbName);
-                }
-                if (sendSctpMsg(peerInfo, message, params->sctpMap, &span) != 0) {
-                    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-                        mdclog_write(MDCLOG_DEBUG, "Error write to SCTP  %s %d", __func__, __LINE__);
-                    }
-                    continue;
-                }
-
-                memset(peerInfo->asnData, 0, peerInfo->asnLength);
-                peerInfo->asnLength = 0;
-                peerInfo->mtype = 0;
-
+                handleEinprogressMessages(events[i], message, rmrMessageBuffer, params, &span);
             } else if (params->rmrListenFd == events[i].data.fd) {
                 // got message from XAPP
-                num_of_XAPP_messages++;
+                num_of_XAPP_messages.fetch_add(1, std::memory_order_release);
                 num_of_messages.fetch_add(1, std::memory_order_release);
                 if (mdclog_level_get() >= MDCLOG_DEBUG) {
                     mdclog_write(MDCLOG_DEBUG, "new message from RMR");
@@ -407,6 +483,9 @@ void listener(sctp_params_t *params) {
                                         &span) != 0) {
                     mdclog_write(MDCLOG_ERR, "Error handling Xapp message");
                 }
+            } else if (params->inotifyFD == events[i].data.fd) {
+                mdclog_write(MDCLOG_INFO, "Got event from inotify (configuration update)");
+                handleConfigChange(params);
             } else {
                 /* We RMR_ERR_RETRY have data on the fd waiting to be read. Read and display it.
                  * We must read whatever data is available completely, as we are running
@@ -442,6 +521,247 @@ void listener(sctp_params_t *params) {
 #endif
 }
 
+/**
+ *
+ * @param sctpParams
+ */
+void handleConfigChange(sctp_params_t *sctpParams) {
+    char buf[4096] __attribute__ ((aligned(__alignof__(struct inotify_event))));
+    const struct inotify_event *event;
+    char *ptr;
+
+    path p = (sctpParams->configFilePath + "/" + sctpParams->configFileName).c_str();
+    auto endlessLoop = true;
+    while (endlessLoop) {
+        auto len = read(sctpParams->inotifyFD, buf, sizeof buf);
+        if (len == -1) {
+            if (errno != EAGAIN) {
+                mdclog_write(MDCLOG_ERR, "read %s ", strerror(errno));
+                endlessLoop = false;
+                continue;
+            }
+            else {
+                endlessLoop = false;
+                continue;
+            }
+        }
+
+        for (ptr = buf; ptr < buf + len; ptr += sizeof(struct inotify_event) + event->len) {
+            event = (const struct inotify_event *)ptr;
+            if (event->mask & (uint32_t)IN_ISDIR) {
+                continue;
+            }
+
+            // the directory name
+            if (sctpParams->inotifyWD == event->wd) {
+                // not the directory
+            }
+            if (event->len) {
+                if (!(sctpParams->configFileName.compare(event->name))) {
+                    continue;
+                }
+            }
+            // only the file we want
+            if (event->mask & (uint32_t)IN_CLOSE_WRITE) {
+                if (exists(p)) {
+                    const int size = 2048;
+                    auto fileSize = file_size(p);
+                    if (fileSize > size) {
+                        mdclog_write(MDCLOG_ERR, "File %s larger than %d", p.string().c_str(), size);
+                        return;
+                    }
+                } else {
+                    mdclog_write(MDCLOG_ERR, "Configuration File %s not exists", p.string().c_str());
+                    return;
+                }
+
+                ReadConfigFile conf;
+                if (conf.openConfigFile(p.string()) == -1) {
+                    mdclog_write(MDCLOG_ERR, "Filed to open config file %s, %s",
+                                 p.string().c_str(), strerror(errno));
+                    return;
+                }
+
+                auto tmpStr = conf.getStringValue("loglevel");
+                if (tmpStr.length() == 0) {
+                    mdclog_write(MDCLOG_ERR, "illigal loglevel. Set loglevel to MDCLOG_INFO");
+                    tmpStr = "info";
+                }
+                transform(tmpStr.begin(), tmpStr.end(), tmpStr.begin(), ::tolower);
+
+                if ((tmpStr.compare("debug")) == 0) {
+                    mdclog_write(MDCLOG_INFO, "Log level set to MDCLOG_DEBUG");
+                    sctpParams->logLevel = MDCLOG_DEBUG;
+                } else if ((tmpStr.compare("info")) == 0) {
+                    mdclog_write(MDCLOG_INFO, "Log level set to MDCLOG_INFO");
+                    sctpParams->logLevel = MDCLOG_INFO;
+                } else if ((tmpStr.compare("warning")) == 0) {
+                    mdclog_write(MDCLOG_INFO, "Log level set to MDCLOG_WARN");
+                    sctpParams->logLevel = MDCLOG_WARN;
+                } else if ((tmpStr.compare("error")) == 0) {
+                    mdclog_write(MDCLOG_INFO, "Log level set to MDCLOG_ERR");
+                    sctpParams->logLevel = MDCLOG_ERR;
+                } else {
+                    mdclog_write(MDCLOG_ERR, "illigal loglevel = %s. Set loglevel to MDCLOG_INFO", tmpStr.c_str());
+                    sctpParams->logLevel = MDCLOG_INFO;
+                }
+                mdclog_level_set(sctpParams->logLevel);
+
+
+                tmpStr = conf.getStringValue("trace");
+                if (tmpStr.length() == 0) {
+                    mdclog_write(MDCLOG_ERR, "illigal trace. Set trace to stop");
+                    tmpStr = "stop";
+                }
+
+                transform(tmpStr.begin(), tmpStr.end(), tmpStr.begin(), ::tolower);
+                if ((tmpStr.compare("start")) == 0) {
+                    mdclog_write(MDCLOG_INFO, "Trace set to: start");
+                    sctpParams->trace = true;
+                } else if ((tmpStr.compare("stop")) == 0) {
+                    mdclog_write(MDCLOG_INFO, "Trace set to: stop");
+                    sctpParams->trace = false;
+                } else {
+                    mdclog_write(MDCLOG_ERR, "Trace was set to wrong value %s, set to stop", tmpStr.c_str());
+                    sctpParams->trace = false;
+                }
+                jsonTrace = sctpParams->trace;
+                endlessLoop = false;
+            }
+        }
+    }
+}
+
+/**
+ *
+ * @param event
+ * @param message
+ * @param rmrMessageBuffer
+ * @param params
+ * @param pSpan
+ */
+void handleEinprogressMessages(struct epoll_event &event,
+                               ReportingMessages_t &message,
+                               RmrMessagesBuffer_t &rmrMessageBuffer,
+                               sctp_params_t *params,
+                               otSpan *pSpan) {
+#ifdef __TRACING__
+    auto lspan = opentracing::Tracer::Global()->StartSpan(
+            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
+#else
+    otSpan lspan = 0;
+#endif
+    auto *peerInfo = (ConnectedCU_t *)event.data.ptr;
+    memcpy(message.message.enodbName, peerInfo->enodbName, sizeof(peerInfo->enodbName));
+
+    mdclog_write(MDCLOG_INFO, "file descriptor %d got EPOLLOUT", peerInfo->fileDescriptor);
+    auto retVal = 0;
+    socklen_t retValLen = 0;
+    auto rc = getsockopt(peerInfo->fileDescriptor, SOL_SOCKET, SO_ERROR, &retVal, &retValLen);
+    if (rc != 0 || retVal != 0) {
+        if (rc != 0) {
+            rmrMessageBuffer.sendMessage->len = snprintf((char *)rmrMessageBuffer.sendMessage->payload, 256,
+                                                         "%s|Failed SCTP Connection, after EINPROGRESS the getsockopt%s",
+                                                         peerInfo->enodbName, strerror(errno));
+        } else if (retVal != 0) {
+            rmrMessageBuffer.sendMessage->len = snprintf((char *)rmrMessageBuffer.sendMessage->payload, 256,
+                                                         "%s|Failed SCTP Connection after EINPROGRESS, SO_ERROR",
+                                                         peerInfo->enodbName);
+        }
+
+        message.message.asndata = rmrMessageBuffer.sendMessage->payload;
+        message.message.asnLength = rmrMessageBuffer.sendMessage->len;
+        mdclog_write(MDCLOG_ERR, "%s", rmrMessageBuffer.sendMessage->payload);
+        message.message.direction = 'N';
+        if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer, &lspan) != 0) {
+            mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
+        }
+        memset(peerInfo->asnData, 0, peerInfo->asnLength);
+        peerInfo->asnLength = 0;
+        peerInfo->mtype = 0;
+#ifdef __TRACING__
+        lspan->Finish();
+#endif
+        return;
+    }
+
+    peerInfo->isConnected = true;
+
+    if (modifyToEpoll(params->epoll_fd, peerInfo, (EPOLLIN | EPOLLET), params->sctpMap, peerInfo->enodbName,
+                      peerInfo->mtype, &lspan) != 0) {
+        mdclog_write(MDCLOG_ERR, "epoll_ctl EPOLL_CTL_MOD");
+#ifdef __TRACING__
+        lspan->Finish();
+#endif
+        return;
+    }
+
+    message.message.asndata = (unsigned char *)peerInfo->asnData;
+    message.message.asnLength = peerInfo->asnLength;
+    message.message.messageType = peerInfo->mtype;
+    memcpy(message.message.enodbName, peerInfo->enodbName, sizeof(peerInfo->enodbName));
+    num_of_messages.fetch_add(1, std::memory_order_release);
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_DEBUG, "send the delayed SETUP/ENDC SETUP to sctp for %s",
+                     message.message.enodbName);
+    }
+    if (sendSctpMsg(peerInfo, message, params->sctpMap, &lspan) != 0) {
+        if (mdclog_level_get() >= MDCLOG_DEBUG) {
+            mdclog_write(MDCLOG_DEBUG, "Error write to SCTP  %s %d", __func__, __LINE__);
+        }
+#ifdef __TRACING__
+        lspan->Finish();
+#endif
+        return;
+    }
+
+    memset(peerInfo->asnData, 0, peerInfo->asnLength);
+    peerInfo->asnLength = 0;
+    peerInfo->mtype = 0;
+#ifdef __TRACING__
+    lspan->Finish();
+#endif
+}
+
+
+void handlepoll_error(struct epoll_event &event,
+                      ReportingMessages_t &message,
+                      RmrMessagesBuffer_t &rmrMessageBuffer,
+                      sctp_params_t *params,
+                      otSpan *pSpan) {
+#ifdef __TRACING__
+    auto lspan = opentracing::Tracer::Global()->StartSpan(
+            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
+#else
+    otSpan lspan = 0;
+#endif
+    if (event.data.fd != params->rmrListenFd) {
+        auto *peerInfo = (ConnectedCU_t *)event.data.ptr;
+        mdclog_write(MDCLOG_ERR, "epoll error, events %0x on fd %d, RAN NAME : %s",
+                     event.events, peerInfo->fileDescriptor, peerInfo->enodbName);
+
+        rmrMessageBuffer.sendMessage->len = snprintf((char *)rmrMessageBuffer.sendMessage->payload, 256,
+                                                     "%s|Failed SCTP Connection",
+                                                     peerInfo->enodbName);
+        message.message.asndata = rmrMessageBuffer.sendMessage->payload;
+        message.message.asnLength = rmrMessageBuffer.sendMessage->len;
+
+        memcpy(message.message.enodbName, peerInfo->enodbName, sizeof(peerInfo->enodbName));
+        message.message.direction = 'N';
+        if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer, &lspan) != 0) {
+            mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
+        }
+
+        close(peerInfo->fileDescriptor);
+        cleanHashEntry((ConnectedCU_t *) event.data.ptr, params->sctpMap, &lspan);
+    } else {
+        mdclog_write(MDCLOG_ERR, "epoll error, events %0x on RMR FD", event.events);
+    }
+#ifdef __TRACING__
+    lspan->Finish();
+#endif
+
+}
 /**
  *
  * @param socket
@@ -1178,7 +1498,9 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t 
                         static unsigned char tx[32];
                         snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
                         rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, strlen((const char *) tx));
-    			rmr_bytes2meid(rmrMessageBuffer.sendMessage, (unsigned char *)message.message.enodbName, strlen(message.message.enodbName));
+                        rmr_bytes2meid(rmrMessageBuffer.sendMessage,
+                                (unsigned char *)message.message.enodbName,
+                                strlen(message.message.enodbName));
 
                         sendRmrMessage(rmrMessageBuffer, message, &lspan);
                         messageSent = true;
@@ -1393,26 +1715,24 @@ int sendRequestToXapp(ReportingMessages_t &message,
 }
 
 
-void *getRmrContext(char *rmrAddress, otSpan *pSpan) {
+void getRmrContext(sctp_params_t &pSctpParams, otSpan *pSpan) {
 #ifdef __TRACING__
     auto lspan = opentracing::Tracer::Global()->StartSpan(
             __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
 #else
 //    otSpan lspan = 0;
 #endif
-    void *rmrCtx = rmr_init(rmrAddress, RMR_MAX_RCV_BYTES, RMRFL_NONE);
-
-
-    if (rmrCtx == nullptr) {
-        mdclog_write(MDCLOG_ERR, "RMR failed to initialise : %s", strerror(errno));
+    pSctpParams.rmrCtx = nullptr;
+    pSctpParams.rmrCtx = rmr_init(pSctpParams.rmrAddress, RMR_MAX_RCV_BYTES, RMRFL_NONE);
+    if (pSctpParams.rmrCtx == nullptr) {
+        mdclog_write(MDCLOG_ERR, "Failed to initialize RMR");
 #ifdef __TRACING__
         lspan->Finish();
 #endif
-
-        return (nullptr);
+        return;
     }
 
-    rmr_set_stimeout(rmrCtx, 0);    // disable retries for any send operation
+    rmr_set_stimeout(pSctpParams.rmrCtx, 0);    // disable retries for any send operation
     // we need to find that routing table exist and we can run
     if (mdclog_level_get() >= MDCLOG_INFO) {
         mdclog_write(MDCLOG_INFO, "We are after RMR INIT wait for RMR_Ready");
@@ -1420,7 +1740,7 @@ void *getRmrContext(char *rmrAddress, otSpan *pSpan) {
     int rmrReady = 0;
     int count = 0;
     while (!rmrReady) {
-        if ((rmrReady = rmr_ready(rmrCtx)) == 0) {
+        if ((rmrReady = rmr_ready(pSctpParams.rmrCtx)) == 0) {
             sleep(1);
         }
         count++;
@@ -1434,8 +1754,20 @@ void *getRmrContext(char *rmrAddress, otSpan *pSpan) {
 #ifdef __TRACING__
     lspan->Finish();
 #endif
-
-    return rmrCtx;
+    rmr_init_trace(pSctpParams.rmrCtx, 200);
+    // get the RMR fd for the epoll
+    pSctpParams.rmrListenFd = rmr_get_rcvfd(pSctpParams.rmrCtx);
+    struct epoll_event event{};
+    // add RMR fd to epoll
+    event.events = (EPOLLIN);
+    event.data.fd = pSctpParams.rmrListenFd;
+    // add listening RMR FD to epoll
+    if (epoll_ctl(pSctpParams.epoll_fd, EPOLL_CTL_ADD, pSctpParams.rmrListenFd, &event)) {
+        mdclog_write(MDCLOG_ERR, "Failed to add RMR descriptor to epoll");
+        close(pSctpParams.rmrListenFd);
+        rmr_close(pSctpParams.rmrCtx);
+        pSctpParams.rmrCtx = nullptr;
+    }
 }
 
 /**
@@ -2417,16 +2749,17 @@ int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &m
 }
 
 void buildJsonMessage(ReportingMessages_t &message) {
-	message.outLen = sizeof(message.base64Data);
-    base64::encode((const unsigned char *)message.message.asndata,
-                   (const int)message.message.asnLength,
-                  message.base64Data,
-                  message.outLen);
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "asn data length = %d, base64 message length = %d ",
-                     (int)message.message.asnLength,
-                     (int)message.outLen);
-    }
+    if (jsonTrace) {
+        message.outLen = sizeof(message.base64Data);
+        base64::encode((const unsigned char *) message.message.asndata,
+                       (const int) message.message.asnLength,
+                       message.base64Data,
+                       message.outLen);
+        if (mdclog_level_get() >= MDCLOG_DEBUG) {
+            mdclog_write(MDCLOG_DEBUG, "asn data length = %d, base64 message length = %d ",
+                         (int) message.message.asnLength,
+                         (int) message.outLen);
+        }
 
 //    char buff[256];
 //    // build day time to seconds from epoc
@@ -2434,24 +2767,24 @@ void buildJsonMessage(ReportingMessages_t &message) {
 //    // add nanosecond
 //    snprintf(buff, sizeof buff, "%s.%09ld UTC\n", buff, message.message.time.tv_nsec);
 
-    message.bufferLen = snprintf(message.buffer, sizeof(message.buffer),
-            "{\"header\": {\"ts\": \"%ld.%09ld\","
-            "\"ranName\": \"%s\","
-            "\"messageType\": %d,"
-            "\"direction\": \"%c\"},"
-            "\"base64Length\": %d,"
-            "\"asnBase64\": \"%s\"}",
-            message.message.time.tv_sec,
-            message.message.time.tv_nsec,
-            message.message.enodbName,
-            message.message.messageType,
-            message.message.direction,
-            (int)message.outLen,
-            message.base64Data);
-    static src::logger_mt& lg = my_logger::get();
+        message.bufferLen = snprintf(message.buffer, sizeof(message.buffer),
+                                     "{\"header\": {\"ts\": \"%ld.%09ld\","
+                                     "\"ranName\": \"%s\","
+                                     "\"messageType\": %d,"
+                                     "\"direction\": \"%c\"},"
+                                     "\"base64Length\": %d,"
+                                     "\"asnBase64\": \"%s\"}",
+                                     message.message.time.tv_sec,
+                                     message.message.time.tv_nsec,
+                                     message.message.enodbName,
+                                     message.message.messageType,
+                                     message.message.direction,
+                                     (int) message.outLen,
+                                     message.base64Data);
+        static src::logger_mt &lg = my_logger::get();
 
-    BOOST_LOG(lg) << message.buffer;
-
+        BOOST_LOG(lg) << message.buffer;
+    }
 }
 
 

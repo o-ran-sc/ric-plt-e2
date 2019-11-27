@@ -50,7 +50,7 @@ static size_t encodebuff(int codingType,
     clock_gettime(CLOCK_MONOTONIC, &end);
     if (er.encoded == -1) {
         mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2SM_gNB_X2_eventTriggerDefinition.name, strerror(errno));
-    } else if (er.encoded > buffer_size) {
+    } else if (er.encoded > (ssize_t)buffer_size) {
         mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s", (int) buffer_size,
                      typeDescriptor->name);
     } else if (mdclog_level_get() >= MDCLOG_DEBUG) {
@@ -76,7 +76,7 @@ static size_t encodebuff(int codingType,
 }
 
 PLMN_Identity_t *createPLMN_ID(const unsigned char *data) {
-    printEntry("PLMN_Identity_t", __func__);
+    printEntry("PLMN_Identity_t", __func__)
     PLMN_Identity_t *plmnId = calloc(1, sizeof(PLMN_Identity_t));
     ASN_STRUCT_RESET(asn_DEF_PLMN_Identity, plmnId);
     plmnId->size = 3;
@@ -91,7 +91,7 @@ PLMN_Identity_t *createPLMN_ID(const unsigned char *data) {
 }
 
 ENB_ID_t *createENB_ID(ENB_ID_PR enbType, unsigned char *data) {
-    printEntry("ENB_ID_t", __func__);
+    printEntry("ENB_ID_t", __func__)
     ENB_ID_t *enb = calloc(1, sizeof(ENB_ID_t));
     ASN_STRUCT_RESET(asn_DEF_ENB_ID, enb);
     switch (enbType) {
@@ -154,7 +154,7 @@ ENB_ID_t *createENB_ID(ENB_ID_PR enbType, unsigned char *data) {
 }
 
 GNB_ID_t *createGnb_id(const unsigned char *data, int numOfBits) {
-    printEntry("GNB_ID_t", __func__);
+    printEntry("GNB_ID_t", __func__)
     if (numOfBits < 22 || numOfBits > 32) {
         mdclog_write(MDCLOG_ERR, "GNB_ID_t number of bits = %d, needs to be 22 .. 32", numOfBits);
         return NULL;
@@ -164,7 +164,7 @@ GNB_ID_t *createGnb_id(const unsigned char *data, int numOfBits) {
 
     gnb->present = GNB_ID_PR_gNB_ID;
     gnb->choice.gNB_ID.size = numOfBits % 8 == 0 ? (unsigned int)(numOfBits / 8) : (unsigned int)(numOfBits / 8 + 1);
-    gnb->choice.gNB_ID.bits_unused = gnb->choice.gNB_ID.size * 8 - numOfBits;
+    gnb->choice.gNB_ID.bits_unused = (int)gnb->choice.gNB_ID.size * 8 - numOfBits;
     gnb->choice.gNB_ID.buf = calloc(1, gnb->choice.gNB_ID.size);
     memcpy(gnb->choice.gNB_ID.buf, data, gnb->choice.gNB_ID.size);
     gnb->choice.gNB_ID.buf[gnb->choice.gNB_ID.size - 1] =
@@ -180,7 +180,7 @@ GNB_ID_t *createGnb_id(const unsigned char *data, int numOfBits) {
 }
 
 GlobalENB_ID_t *createGlobalENB_ID(PLMN_Identity_t *plmnIdentity, ENB_ID_t *enbId) {
-    printEntry("GlobalENB_ID_t", __func__);
+    printEntry("GlobalENB_ID_t", __func__)
     GlobalENB_ID_t *genbId = calloc(1, sizeof(GlobalENB_ID_t));
     ASN_STRUCT_RESET(asn_DEF_GlobalENB_ID, genbId);
     memcpy(&genbId->pLMN_Identity, plmnIdentity, sizeof(PLMN_Identity_t));
@@ -193,7 +193,7 @@ GlobalENB_ID_t *createGlobalENB_ID(PLMN_Identity_t *plmnIdentity, ENB_ID_t *enbI
 }
 
 GlobalGNB_ID_t *createGlobalGNB_ID(PLMN_Identity_t *plmnIdentity, GNB_ID_t *gnb) {
-    printEntry("GlobalGNB_ID_t", __func__);
+    printEntry("GlobalGNB_ID_t", __func__)
     GlobalGNB_ID_t *ggnbId = calloc(1, sizeof(GlobalGNB_ID_t));
     ASN_STRUCT_RESET(asn_DEF_GlobalGNB_ID, ggnbId);
 
@@ -209,7 +209,7 @@ GlobalGNB_ID_t *createGlobalGNB_ID(PLMN_Identity_t *plmnIdentity, GNB_ID_t *gnb)
 
 
 Interface_ID_t *createInterfaceIDForGnb(GlobalGNB_ID_t *gnb) {
-    printEntry("Interface_ID_t", __func__);
+    printEntry("Interface_ID_t", __func__)
     Interface_ID_t *interfaceId = calloc(1, sizeof(Interface_ID_t));
     ASN_STRUCT_RESET(asn_DEF_Interface_ID, interfaceId);
 
@@ -225,7 +225,7 @@ Interface_ID_t *createInterfaceIDForGnb(GlobalGNB_ID_t *gnb) {
 }
 
 Interface_ID_t *createInterfaceIDForEnb(GlobalENB_ID_t *enb) {
-    printEntry("Interface_ID_t", __func__);
+    printEntry("Interface_ID_t", __func__)
     Interface_ID_t *interfaceId = calloc(1, sizeof(Interface_ID_t));
     ASN_STRUCT_RESET(asn_DEF_Interface_ID, interfaceId);
 
@@ -243,7 +243,7 @@ Interface_ID_t *createInterfaceIDForEnb(GlobalENB_ID_t *enb) {
 
 
 InterfaceMessageType_t *createInterfaceMessageInitiating(long procedureCode) {
-    printEntry("InterfaceMessageType_t", __func__);
+    printEntry("InterfaceMessageType_t", __func__)
     InterfaceMessageType_t *intMsgT = calloc(1, sizeof(InterfaceMessageType_t));
     ASN_STRUCT_RESET(asn_DEF_InterfaceMessageType, intMsgT);
 
@@ -258,7 +258,7 @@ InterfaceMessageType_t *createInterfaceMessageInitiating(long procedureCode) {
 }
 
 InterfaceMessageType_t *createInterfaceMessageSuccsesful(long procedureCode) {
-    printEntry("InterfaceMessageType_t", __func__);
+    printEntry("InterfaceMessageType_t", __func__)
     InterfaceMessageType_t *intMsgT = calloc(1, sizeof(InterfaceMessageType_t));
     ASN_STRUCT_RESET(asn_DEF_InterfaceMessageType, intMsgT);
 
@@ -273,7 +273,7 @@ InterfaceMessageType_t *createInterfaceMessageSuccsesful(long procedureCode) {
 }
 
 InterfaceMessageType_t *createInterfaceMessageUnsuccessful(long procedureCode) {
-    printEntry("InterfaceMessageType_t", __func__);
+    printEntry("InterfaceMessageType_t", __func__)
     InterfaceMessageType_t *intMsgT = calloc(1, sizeof(InterfaceMessageType_t));
     ASN_STRUCT_RESET(asn_DEF_InterfaceMessageType, intMsgT);
 
@@ -288,7 +288,7 @@ InterfaceMessageType_t *createInterfaceMessageUnsuccessful(long procedureCode) {
 }
 
 InterfaceProtocolIE_Value_t *createInterfaceProtocolValueInt(long number) {
-    printEntry("InterfaceProtocolIE_Value_t", __func__);
+    printEntry("InterfaceProtocolIE_Value_t", __func__)
     InterfaceProtocolIE_Value_t *value = calloc(1, sizeof(InterfaceProtocolIE_Value_t));
     ASN_STRUCT_RESET(asn_DEF_InterfaceProtocolIE_Value, value);
 
@@ -303,7 +303,7 @@ InterfaceProtocolIE_Value_t *createInterfaceProtocolValueInt(long number) {
 }
 
 InterfaceProtocolIE_Value_t *createInterfaceProtocolValueEnum(long number) {
-    printEntry("InterfaceProtocolIE_Value_t", __func__);
+    printEntry("InterfaceProtocolIE_Value_t", __func__)
     InterfaceProtocolIE_Value_t *value = calloc(1, sizeof(InterfaceProtocolIE_Value_t));
     ASN_STRUCT_RESET(asn_DEF_InterfaceProtocolIE_Value, value);
 
@@ -318,7 +318,7 @@ InterfaceProtocolIE_Value_t *createInterfaceProtocolValueEnum(long number) {
 }
 
 InterfaceProtocolIE_Value_t *createInterfaceProtocolValueBool(int val) {
-    printEntry("InterfaceProtocolIE_Value_t", __func__);
+    printEntry("InterfaceProtocolIE_Value_t", __func__)
     InterfaceProtocolIE_Value_t *value = calloc(1, sizeof(InterfaceProtocolIE_Value_t));
     ASN_STRUCT_RESET(asn_DEF_InterfaceProtocolIE_Value, value);
 
@@ -334,7 +334,7 @@ InterfaceProtocolIE_Value_t *createInterfaceProtocolValueBool(int val) {
 
 
 InterfaceProtocolIE_Value_t *createInterfaceProtocolValueBitString(unsigned char *buf, int numOfBits) {
-    printEntry("InterfaceProtocolIE_Value_t", __func__);
+    printEntry("InterfaceProtocolIE_Value_t", __func__)
     size_t size = numOfBits % 8 == 0 ? (unsigned int)(numOfBits / 8) : (unsigned int)(numOfBits / 8 + 1);
     if (strlen((const char *)buf) < size) {
         mdclog_write(MDCLOG_ERR, "size of buffer is small : %d needs to be %d in %s", (int)strlen((const char *)buf), (int)size, __func__);
@@ -345,7 +345,7 @@ InterfaceProtocolIE_Value_t *createInterfaceProtocolValueBitString(unsigned char
     value->present = InterfaceProtocolIE_Value_PR_valueBitS;
     value->choice.valueBitS.size = numOfBits % 8 == 0 ? (unsigned int)(numOfBits / 8) : (unsigned int)(numOfBits / 8 + 1);
     value->choice.valueBitS.buf = calloc(1, value->choice.valueBitS.size);
-    int bits_unused = value->choice.valueBitS.size * 8 - numOfBits;
+    int bits_unused = (int)value->choice.valueBitS.size * 8 - numOfBits;
     value->choice.valueBitS.bits_unused = bits_unused;
 
     memcpy(value->choice.valueBitS.buf, buf, value->choice.valueBitS.size);
@@ -360,7 +360,7 @@ InterfaceProtocolIE_Value_t *createInterfaceProtocolValueBitString(unsigned char
 
 
 InterfaceProtocolIE_Value_t *createInterfaceProtocolValueOCTETS(uint8_t *buf) {
-    printEntry("InterfaceProtocolIE_Value_t", __func__);
+    printEntry("InterfaceProtocolIE_Value_t", __func__)
     size_t size = strlen((const char *)buf);
     InterfaceProtocolIE_Value_t *value = calloc(1, sizeof(InterfaceProtocolIE_Value_t));
     ASN_STRUCT_RESET(asn_DEF_InterfaceProtocolIE_Value, value);
@@ -379,7 +379,7 @@ InterfaceProtocolIE_Value_t *createInterfaceProtocolValueOCTETS(uint8_t *buf) {
 
 
 InterfaceProtocolIE_Item_t *createInterfaceProtocolIE_Item(long id, long test, InterfaceProtocolIE_Value_t *value) {
-    printEntry("InterfaceProtocolIE_Item_t", __func__);
+    printEntry("InterfaceProtocolIE_Item_t", __func__)
     if (test < InterfaceProtocolIE_Test_equal || test > InterfaceProtocolIE_Test_present) {
         mdclog_write(MDCLOG_ERR, "InterfaceProtocolIE_Item_t test value is %ld,  out of scope %d .. %d ",
                 test, InterfaceProtocolIE_Test_equal, InterfaceProtocolIE_Test_present);
@@ -406,7 +406,7 @@ InterfaceProtocolIE_Item_t *createInterfaceProtocolIE_Item(long id, long test, I
 
 
 ActionParameter_Value_t *createActionParameterValue_Int(long number) {
-    printEntry("ActionParameter_Value_t", __func__);
+    printEntry("ActionParameter_Value_t", __func__)
     ActionParameter_Value_t *value = calloc(1, sizeof(ActionParameter_Value_t));
     ASN_STRUCT_RESET(asn_DEF_ActionParameter_Value, value);
 
@@ -421,7 +421,7 @@ ActionParameter_Value_t *createActionParameterValue_Int(long number) {
 }
 
 ActionParameter_Value_t *createActionParameterValue_Enum(long number) {
-    printEntry("ActionParameter_Value_t", __func__);
+    printEntry("ActionParameter_Value_t", __func__)
     ActionParameter_Value_t *value = calloc(1, sizeof(ActionParameter_Value_t));
     ASN_STRUCT_RESET(asn_DEF_ActionParameter_Value, value);
 
@@ -436,7 +436,7 @@ ActionParameter_Value_t *createActionParameterValue_Enum(long number) {
 }
 
 ActionParameter_Value_t *createActionParameterValue_Bool(int val) {
-    printEntry("ActionParameter_Value_t", __func__);
+    printEntry("ActionParameter_Value_t", __func__)
     ActionParameter_Value_t *value = calloc(1, sizeof(ActionParameter_Value_t));
     ASN_STRUCT_RESET(asn_DEF_ActionParameter_Value, value);
 
@@ -452,12 +452,12 @@ ActionParameter_Value_t *createActionParameterValue_Bool(int val) {
 
 
 ActionParameter_Value_t *createActionParameterValue_Bit_String(unsigned char *buf, int numOfBits) {
-    printEntry("ActionParameter_Value_t", __func__);
+    printEntry("ActionParameter_Value_t", __func__)
     size_t size = numOfBits % 8 == 0 ? (unsigned int)(numOfBits / 8) : (unsigned int)(numOfBits / 8 + 1);
     if (strlen((const char *)buf) < size) {
         mdclog_write(MDCLOG_ERR, "size of buffer is small : %d needs to be %d in %s", (int)strlen((const char *)buf), (int)size, __func__);
     }
-    int bits_unused = size * 8 - numOfBits;
+    int bits_unused = (int)size * 8 - numOfBits;
 
     ActionParameter_Value_t *value = calloc(1, sizeof(ActionParameter_Value_t));
     ASN_STRUCT_RESET(asn_DEF_ActionParameter_Value, value);
@@ -479,7 +479,7 @@ ActionParameter_Value_t *createActionParameterValue_Bit_String(unsigned char *bu
 
 
 ActionParameter_Value_t *createActionParameterValue_OCTETS(uint8_t *buf) {
-    printEntry("ActionParameter_Value_t", __func__);
+    printEntry("ActionParameter_Value_t", __func__)
     size_t size = strlen((const char *)buf);
     ActionParameter_Value_t *value = calloc(1, sizeof(ActionParameter_Value_t));
     ASN_STRUCT_RESET(asn_DEF_ActionParameter_Value, value);
@@ -502,7 +502,7 @@ ActionParameter_Value_t *createActionParameterValue_OCTETS(uint8_t *buf) {
  * @return ActionParameter_Value_t *
  */
 ActionParameter_Value_t *createActionParameterValue_PRINTS(char *buf) {
-    printEntry("ActionParameter_Value_t", __func__);
+    printEntry("ActionParameter_Value_t", __func__)
     size_t size = strlen((const char *)buf);
     ActionParameter_Value_t *value = calloc(1, sizeof(ActionParameter_Value_t));
     ASN_STRUCT_RESET(asn_DEF_ActionParameter_Value, value);
@@ -520,7 +520,7 @@ ActionParameter_Value_t *createActionParameterValue_PRINTS(char *buf) {
 }
 
 ActionParameter_Item_t *creatActionParameter_Item(long id, ActionParameter_Value_t *val) {
-    printEntry("ActionParameter_Item_t", __func__);
+    printEntry("ActionParameter_Item_t", __func__)
     if (id < 0 || id > 255) {
         mdclog_write(MDCLOG_ERR, "ActionParameter_Item_t id = %ld, values are 0 .. 255", id);
         return NULL;
@@ -555,7 +555,7 @@ size_t createEventTrigger(Interface_ID_t *interfaceId, long direction,
                           int listSize,
                           uint8_t *buffer,
                           size_t buffer_size) {
-    printEntry("E2SM_gNB_X2_eventTriggerDefinition_t", __func__);
+    printEntry("E2SM_gNB_X2_eventTriggerDefinition_t", __func__)
     if (direction < InterfaceDirection_incoming || direction > InterfaceDirection_outgoing) {
         mdclog_write(MDCLOG_ERR, "E2SM_gNB_X2_eventTriggerDefinition_t direction = %ld, values are %d .. %d",
                      direction, InterfaceDirection_incoming, InterfaceDirection_outgoing);
@@ -586,7 +586,7 @@ size_t createEventTrigger(Interface_ID_t *interfaceId, long direction,
 
     if (mdclog_level_get() >= MDCLOG_INFO) {
         uint8_t buf1[4096];
-        asn_enc_rval_t er1;
+        //asn_enc_rval_t er1;
         encodebuff(ATS_BASIC_XER, &asn_DEF_E2SM_gNB_X2_eventTriggerDefinition,
                                  eventTrigger,
                                  buf1,
@@ -601,7 +601,7 @@ size_t createEventTrigger(Interface_ID_t *interfaceId, long direction,
 size_t createActionDefinition(long styleId, ActionParameter_Item_t actionParamList[], int listSize,
                                                        uint8_t *buffer,
                                                        size_t buffer_size) {
-    printEntry("E2SM_gNB_X2_actionDefinition_t", __func__);
+    printEntry("E2SM_gNB_X2_actionDefinition_t", __func__)
     E2SM_gNB_X2_actionDefinition_t *actDef = calloc(1, sizeof(E2SM_gNB_X2_actionDefinition_t));
     ASN_STRUCT_RESET(asn_DEF_E2SM_gNB_X2_actionDefinition, actDef);
 
@@ -622,7 +622,7 @@ size_t createActionDefinition(long styleId, ActionParameter_Item_t actionParamLi
 
     if (mdclog_level_get() >= MDCLOG_INFO) {
         uint8_t buf1[4096];
-        asn_enc_rval_t er1;
+        //asn_enc_rval_t er1;
         encodebuff(ATS_BASIC_XER, &asn_DEF_E2SM_gNB_X2_actionDefinition,
                    actDef,
                    buf1,
@@ -639,7 +639,7 @@ size_t createE2SM_gNB_X2_indicationHeader(long direction,
                                           int size,
                                           uint8_t *buffer,
                                           size_t buffer_size) {
-    printEntry("E2SM_gNB_X2_indicationHeader_t", __func__);
+    printEntry("E2SM_gNB_X2_indicationHeader_t", __func__)
     if (direction < InterfaceDirection_incoming || direction > InterfaceDirection_outgoing) {
         mdclog_write(MDCLOG_ERR, "E2SM_gNB_X2_indicationHeader_t direction = %ld, values are %d .. %d",
                      direction, InterfaceDirection_incoming, InterfaceDirection_outgoing);
@@ -668,7 +668,7 @@ size_t createE2SM_gNB_X2_indicationHeader(long direction,
 
     if (mdclog_level_get() >= MDCLOG_INFO) {
         uint8_t buf1[4096];
-        asn_enc_rval_t er1;
+        //asn_enc_rval_t er1;
         encodebuff(ATS_BASIC_XER, &asn_DEF_E2SM_gNB_X2_indicationHeader,
                    indiHead,
                    buf1,
@@ -682,7 +682,7 @@ size_t createE2SM_gNB_X2_indicationHeader(long direction,
 size_t createE2SM_gNB_X2_indicationMessage(uint8_t *message, uint msgSize,
                                                                      uint8_t *buffer,
                                                                      size_t buffer_size) {
-    printEntry("E2SM_gNB_X2_indicationMessage_t", __func__);
+    printEntry("E2SM_gNB_X2_indicationMessage_t", __func__)
     if (msgSize <= 0) {
         mdclog_write(MDCLOG_ERR, "E2SM_gNB_X2_indicationMessage_t failed messsage size =  %d", msgSize);
         return -1;
@@ -707,7 +707,7 @@ size_t createE2SM_gNB_X2_indicationMessage(uint8_t *message, uint msgSize,
 
     if (mdclog_level_get() >= MDCLOG_INFO) {
         uint8_t buf1[4096];
-        asn_enc_rval_t er1;
+        //asn_enc_rval_t er1;
         encodebuff(ATS_BASIC_XER, &asn_DEF_E2SM_gNB_X2_indicationMessage,
                    indicationMessage,
                    buf1,
@@ -722,7 +722,7 @@ size_t createE2SM_gNB_X2_indicationMessage(uint8_t *message, uint msgSize,
 size_t createE2SM_gNB_X2_callProcessID(long callProcess_Id,
                                                              uint8_t *buffer,
                                                              size_t buffer_size) {
-    printEntry("E2SM_gNB_X2_callProcessID_t", __func__);
+    printEntry("E2SM_gNB_X2_callProcessID_t", __func__)
     E2SM_gNB_X2_callProcessID_t *callProcessId = calloc(1, sizeof(E2SM_gNB_X2_callProcessID_t));
     ASN_STRUCT_RESET(asn_DEF_E2SM_gNB_X2_callProcessID, callProcessId);
 
@@ -740,7 +740,7 @@ size_t createE2SM_gNB_X2_callProcessID(long callProcess_Id,
 
     if (mdclog_level_get() >= MDCLOG_INFO) {
         uint8_t buf1[4096];
-        asn_enc_rval_t er1;
+        //asn_enc_rval_t er1;
         encodebuff(ATS_BASIC_XER, &asn_DEF_E2SM_gNB_X2_callProcessID,
                    callProcessId,
                    buf1,
@@ -754,7 +754,7 @@ size_t createE2SM_gNB_X2_callProcessID(long callProcess_Id,
 size_t createE2SM_gNB_X2_controlHeader(Interface_ID_t *interfaceId, long direction,
                                                              uint8_t *buffer,
                                                              size_t buffer_size) {
-    printEntry("E2SM_gNB_X2_controlHeader_t", __func__);
+    printEntry("E2SM_gNB_X2_controlHeader_t", __func__)
     if (direction < InterfaceDirection_incoming || direction > InterfaceDirection_outgoing) {
         mdclog_write(MDCLOG_ERR, "E2SM_gNB_X2_controlHeader_t direction = %ld, values are %d .. %d",
                      direction, InterfaceDirection_incoming, InterfaceDirection_outgoing);
@@ -778,7 +778,7 @@ size_t createE2SM_gNB_X2_controlHeader(Interface_ID_t *interfaceId, long directi
 
     if (mdclog_level_get() >= MDCLOG_INFO) {
         uint8_t buf1[4096];
-        asn_enc_rval_t er1;
+        //asn_enc_rval_t er1;
         encodebuff(ATS_BASIC_XER, &asn_DEF_E2SM_gNB_X2_controlHeader,
                    controlHeader,
                    buf1,
@@ -793,7 +793,7 @@ size_t createE2SM_gNB_X2_controlHeader(Interface_ID_t *interfaceId, long directi
 size_t createE2SM_gNB_X2_controlMessage(uint8_t *message, uint msgSize,
                                                                uint8_t *buffer,
                                                                size_t buffer_size) {
-    printEntry("E2SM_gNB_X2_controlMessage_t", __func__);
+    printEntry("E2SM_gNB_X2_controlMessage_t", __func__)
     E2SM_gNB_X2_controlMessage_t *controlMsg = calloc(1, sizeof(E2SM_gNB_X2_controlMessage_t));
     ASN_STRUCT_RESET(asn_DEF_E2SM_gNB_X2_controlMessage, controlMsg);
 
@@ -813,7 +813,7 @@ size_t createE2SM_gNB_X2_controlMessage(uint8_t *message, uint msgSize,
 
     if (mdclog_level_get() >= MDCLOG_INFO) {
         uint8_t buf1[4096];
-        asn_enc_rval_t er1;
+        //asn_enc_rval_t er1;
         encodebuff(ATS_BASIC_XER, &asn_DEF_E2SM_gNB_X2_controlMessage,
                    controlMsg,
                    buf1,

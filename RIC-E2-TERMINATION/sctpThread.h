@@ -43,6 +43,7 @@
 #include <shared_mutex>
 #include <iterator>
 #include <map>
+#include <sys/inotify.h>
 
 #include <rmr/rmr.h>
 #include <rmr/RIC_message_types.h>
@@ -58,17 +59,20 @@
 #include <boost/log/sources/global_logger_storage.hpp>
 #include <boost/log/utility/setup/file.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
-
+#include <boost/filesystem.hpp>
 
 #include <mdclog/mdclog.h>
 
 #include "asn1cFiles/E2AP-PDU.h"
-#include <asn1cFiles/ProtocolIE-Container.h>
+#include "asn1cFiles/ProtocolIE-Container.h"
 #include "asn1cFiles/InitiatingMessage.h"
 #include "asn1cFiles/SuccessfulOutcome.h"
 #include "asn1cFiles/UnsuccessfulOutcome.h"
 #include "asn1cFiles/ProtocolIE-Container.h"
 #include "asn1cFiles/ProtocolIE-Field.h"
+
+#include "cxxopts.hpp"
+//#include "config-cpp/include/config-cpp/config-cpp.h"
 
 #ifdef __TRACING__
 #include "openTracing.h"
@@ -77,6 +81,8 @@
 #include "mapWrapper.h"
 
 #include "base64.h"
+
+#include "ReadConfigFile.h"
 
 using namespace std;
 namespace logging = boost::log;
@@ -109,11 +115,17 @@ typedef struct sctp_params {
     uint16_t rmrPort = 0;
     int      epoll_fd = 0;
     int      rmrListenFd = 0;
+    int      inotifyFD = 0;
+    int      inotifyWD = 0;
     void     *rmrCtx = nullptr;
     Sctp_Map_t *sctpMap = nullptr;
     char       rmrAddress[256] {}; // "tcp:portnumber" "tcp:5566" listen to all address on port 5566
     mdclog_severity_t logLevel = MDCLOG_INFO;
     char volume[VOLUME_URL_SIZE];
+    string myIP {};
+    string configFilePath {};
+    string configFileName {};
+    bool trace = true;
     //shared_timed_mutex fence; // moved to mapWrapper
 } sctp_params_t;
 
@@ -154,10 +166,32 @@ typedef struct ReportingMessages {
     size_t bufferLen;
 } ReportingMessages_t;
 
+cxxopts::ParseResult parse(int argc, char *argv[], sctp_params_t &pSctpParams);
+
+int buildInotify(sctp_params_t &sctpParams);
+
+void handleTermInit(sctp_params_t &sctpParams);
+
+void handleConfigChange(sctp_params_t *sctpParams);
 
 void listener(sctp_params_t *params);
 
+void sendTermInit(sctp_params_t &sctpParams);
+
 int setSocketNoBlocking(int socket);
+
+void handleEinprogressMessages(struct epoll_event &event,
+                               ReportingMessages_t &message,
+                               RmrMessagesBuffer_t &rmrMessageBuffer,
+                               sctp_params_t *params,
+                               otSpan *pSpan);
+
+void handlepoll_error(struct epoll_event &event,
+                      ReportingMessages_t &message,
+                      RmrMessagesBuffer_t &rmrMessageBuffer,
+                      sctp_params_t *params,
+                      otSpan *pSpan);
+
 
 void cleanHashEntry(ConnectedCU_t *peerInfo, Sctp_Map_t *m, otSpan *pSpan);
 
@@ -248,7 +282,7 @@ int receiveDataFromSctp(struct epoll_event *events,
  * @param pSpan
  * @return
  */
-void *getRmrContext(char *rmrAddress, otSpan *pSpan);
+void getRmrContext(sctp_params_t &pSctpParams, otSpan *pSpan);
 
 /**
  *
@@ -379,6 +413,12 @@ void buildJsonMessage(ReportingMessages_t &message);
  */
 string translateRmrErrorMessages(int state);
 
+
+static inline uint64_t rdtscp(uint32_t &aux) {
+    uint64_t rax,rdx;
+    asm volatile ("rdtscp\n" : "=a" (rax), "=d" (rdx), "=c" (aux) : :);
+    return (rdx << 32) + rax;
+}
 #ifndef RIC_SCTP_CONNECTION_FAILURE
 #define RIC_SCTP_CONNECTION_FAILURE  10080
 #endif

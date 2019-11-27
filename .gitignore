@@ -36,3 +36,7 @@ RIC-E2-TERMINATION/tracelibcpp/CMakeLists.txt
 RIC-E2-TERMINATION/nlohmann/
 RIC-E2-TERMINATION/concurrentqueue/
 /RIC-E2-TERMINATION/base64/
+/RIC-E2-TERMINATION/3rdparty/cxxopts/
+/RIC-E2-TERMINATION/3rdparty/cgreen_1.2.0_amd64.deb
+/testConfigFile
+/config/config.conf

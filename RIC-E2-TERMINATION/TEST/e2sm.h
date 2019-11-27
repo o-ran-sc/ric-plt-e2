@@ -43,26 +43,26 @@ extern "C"
 #include <math.h>
 
 
-#include "../asn1cFiles/ENB-ID.h"
+#include "asn1cFiles/ENB-ID.h"
 
-#include "../asn1cFiles/E2SM-gNB-X2-actionDefinition.h"
+#include "asn1cFiles/E2SM-gNB-X2-actionDefinition.h"
 
-#include "../asn1cFiles/E2SM-gNB-X2-callProcessID.h"
-#include "../asn1cFiles/E2SM-gNB-X2-controlHeader.h"
-#include "../asn1cFiles/E2SM-gNB-X2-controlMessage.h"
-#include "../asn1cFiles/E2SM-gNB-X2-indicationHeader.h"
-#include "../asn1cFiles/E2SM-gNB-X2-indicationMessage.h"
-#include "../asn1cFiles/E2SM-gNB-X2-eventTriggerDefinition.h"
+#include "asn1cFiles/E2SM-gNB-X2-callProcessID.h"
+#include "asn1cFiles/E2SM-gNB-X2-controlHeader.h"
+#include "asn1cFiles/E2SM-gNB-X2-controlMessage.h"
+#include "asn1cFiles/E2SM-gNB-X2-indicationHeader.h"
+#include "asn1cFiles/E2SM-gNB-X2-indicationMessage.h"
+#include "asn1cFiles/E2SM-gNB-X2-eventTriggerDefinition.h"
 
 
-#include "../asn1cFiles/ActionParameter-Item.h"
-#include "../asn1cFiles/ActionParameter-Value.h"
-#include "../asn1cFiles/PLMN-Identity.h"
-#include "../asn1cFiles/GlobalENB-ID.h"
-#include "../asn1cFiles/GlobalGNB-ID.h"
-#include "../asn1cFiles/Interface-ID.h"
-#include "../asn1cFiles/InterfaceMessageType.h"
-#include "../asn1cFiles/InterfaceProtocolIE-Item.h"
+#include "asn1cFiles/ActionParameter-Item.h"
+#include "asn1cFiles/ActionParameter-Value.h"
+#include "asn1cFiles/PLMN-Identity.h"
+#include "asn1cFiles/GlobalENB-ID.h"
+#include "asn1cFiles/GlobalGNB-ID.h"
+#include "asn1cFiles/Interface-ID.h"
+#include "asn1cFiles/InterfaceMessageType.h"
+#include "asn1cFiles/InterfaceProtocolIE-Item.h"
 
 /**
  *

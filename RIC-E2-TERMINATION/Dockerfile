@@ -16,7 +16,7 @@
 #
 ##############################################################################
 
-FROM nexus3.o-ran-sc.org:10004/bldr-ubuntu16-c-go:2-u16.04-nng as ubuntu
+FROM nexus3.o-ran-sc.org:10004/bldr-ubuntu16-c-go:1-u16.04-nng1.1.1 as ubuntu
 
 WORKDIR /opt/e2/
 
@@ -26,15 +26,20 @@ RUN mkdir -p /opt/e2/RIC-E2-TERMINATION/ \
 COPY . /opt/e2/RIC-E2-TERMINATION/
 RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/
 
-RUN wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr_1.10.0_amd64.deb/download.deb
-RUN dpkg -i rmr_1.10.0_amd64.deb
-RUN wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr-dev_1.10.0_amd64.deb/download.deb
-RUN dpkg -i rmr-dev_1.10.0_amd64.deb
+RUN wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr_1.12.0_amd64.deb/download.deb
+RUN dpkg -i rmr_1.12.0_amd64.deb
+RUN wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr-dev_1.12.0_amd64.deb/download.deb
+RUN dpkg -i rmr-dev_1.12.0_amd64.deb
 
 RUN apt-get install -y autoconf gawk libtool automake pkg-config autoconf-archive \
     && git clone http://gerrit.o-ran-sc.org/r/com/log \
     && cd log \
     && ./autogen.sh && ./configure && make && make install && ldconfig \
+    && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/jarro2783/cxxopts.git \
+    && cd cxxopts && mkdir build && cd build && cmake .. && make install && ldconfig \
+    && cd /opt/e2/RIC-E2-TERMINATION/3rdparty \
+    && wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
+    && dpkg -i cgreen_1.2.0_amd64.deb
     && cd /opt/e2/ && /usr/local/bin/cmake . && make
 
 #    && git clone http://gerrit.o-ran-sc.org/r/ric-plt/tracelibcpp \
@@ -48,10 +53,11 @@ RUN apt-get install -y autoconf gawk libtool automake pkg-config autoconf-archiv
 #    && find / -type f -name "libopentracing.a" -exec cp {} libopentracing.a \; && cd /opt/e2/RIC-E2-TERMINATION && ls nlohmann  \
 
 FROM ubuntu:16.04
-RUN apt-get update && apt-get install -y net-tools iputils-ping curl tcpdump
+RUN apt-get update && apt-get install -y net-tools iputils-ping curl tcpdump && mkdir /opt/e2/config
 
 COPY --from=ubuntu /opt/e2/e2 /opt/e2/e2
 COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/dockerRouter.txt /opt/e2/dockerRouter.txt
+COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/config/config.conf /opt/e2/config/config.conf
 #COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/tracelibcpp/build/libtracelibcpp.so /usr/local/lib/libtracelibcpp.so
 #COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/tracelibcpp/build/libtracelibcpp.so.0 /usr/local/lib/libtracelibcpp.so.0
 #COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/tracelibcpp/build/libtracelibcpp.so.0.0.2 /usr/local/lib/libtracelibcpp.so.0.0.2
@@ -61,6 +67,10 @@ COPY --from=ubuntu /usr/local/lib/librmr_nng.so /usr/local/lib/librmr_nng.so
 COPY --from=ubuntu /usr/local/lib/librmr_nng.so.1.10.0 /usr/local/lib/librmr_nng.so.1.10.0
 COPY --from=ubuntu /usr/local/lib/libnng.so.1 /usr/local/lib/libnng.so.1
 COPY --from=ubuntu /usr/local/lib/libmdclog.so.0 /usr/local/lib/libmdclog.so.0
+
+COPY --from=ubuntu /usr/local/lib/libcgreen.so.1.2.0 /usr/local/lib/libcgreen.so.1.2.0
+COPY --from=ubuntu /usr/local/lib/libcgreen.so.1 /usr/local/lib/libcgreen.so.1
+COPY --from=ubuntu /usr/local/lib/libcgreen.so /usr/local/lib/libcgreen.so
 
 COPY --from=ubuntu /usr/lib/libboost_log_setup.so /usr/lib/libboost_log_setup.so
 COPY --from=ubuntu /usr/lib/libboost_log_setup.so.1.69.0 /usr/lib/libboost_log_setup.so.1.69.0
@@ -93,8 +103,5 @@ COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicudata.so.55.1 /usr/lib/x86_64-
 WORKDIR /opt/e2/
 ENV LD_LIBRARY_PATH=/usr/local/lib
 ENV RMR_SEED_RT=dockerRouter.txt
-ENV nano=38000
-ENV loglevel=info
-ENV volume="."
 EXPOSE 38000
-CMD ["sh", "-c", "./e2 nano $nano loglevel $loglevel volume $volume"]
+CMD ["sh", "-c", "./e2 -p config -f config.conf"]
