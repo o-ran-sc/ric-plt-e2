@@ -15,14 +15,16 @@
 #   limitations under the License.
 #
 ##############################################################################
-
-FROM nexus3.o-ran-sc.org:10004/bldr-ubuntu16-c-go:1-u16.04-nng1.1.1 as ubuntu
+FROM nexus3.o-ran-sc.org:10004/bldr-ubuntu16-c-go:2-u16.04-nng as ubuntu
+##FROM nexus3.o-ran-sc.org:10004/bldr-ubuntu16-c-go:1-u16.04-nng1.1.1 as ubuntu
 
 WORKDIR /opt/e2/
 
 RUN mkdir -p /opt/e2/RIC-E2-TERMINATION/ \
     && mkdir -p /opt/e2/RIC-E2-TERMINATION/TEST/T1 \
-    && mkdir -p /opt/e2/RIC-E2-TERMINATION/TEST/T2
+    && mkdir -p /opt/e2/RIC-E2-TERMINATION/TEST/T2 \
+    && mkdir -p /opt/e2/RIC-E2-TERMINATION/3rdparty
+
 COPY . /opt/e2/RIC-E2-TERMINATION/
 RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/
 
@@ -39,7 +41,7 @@ RUN apt-get install -y autoconf gawk libtool automake pkg-config autoconf-archiv
     && cd cxxopts && mkdir build && cd build && cmake .. && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty \
     && wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
-    && dpkg -i cgreen_1.2.0_amd64.deb
+    && dpkg -i cgreen_1.2.0_amd64.deb \
     && cd /opt/e2/ && /usr/local/bin/cmake . && make
 
 #    && git clone http://gerrit.o-ran-sc.org/r/ric-plt/tracelibcpp \
