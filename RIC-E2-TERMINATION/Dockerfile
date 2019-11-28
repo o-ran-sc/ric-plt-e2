@@ -15,8 +15,7 @@
 #   limitations under the License.
 #
 ##############################################################################
-FROM nexus3.o-ran-sc.org:10004/bldr-ubuntu16-c-go:2-u16.04-nng as ubuntu
-##FROM nexus3.o-ran-sc.org:10004/bldr-ubuntu16-c-go:1-u16.04-nng1.1.1 as ubuntu
+FROM nexus3.o-ran-sc.org:10004/bldr-ubuntu16-c-go:3-u16.04-nng as ubuntu
 
 WORKDIR /opt/e2/
 
@@ -66,7 +65,7 @@ COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/config/config.conf /opt/e2/config/
 #COPY --from=ubuntu /usr/local/lib/librmr_nng.a /usr/local/lib/librmr_nng.a
 COPY --from=ubuntu /usr/local/lib/librmr_nng.so.1 /usr/local/lib/librmr_nng.so.1
 COPY --from=ubuntu /usr/local/lib/librmr_nng.so /usr/local/lib/librmr_nng.so
-COPY --from=ubuntu /usr/local/lib/librmr_nng.so.1.10.0 /usr/local/lib/librmr_nng.so.1.10.0
+COPY --from=ubuntu /usr/local/lib/librmr_nng.so.1.12.0 /usr/local/lib/librmr_nng.so.1.12.0
 COPY --from=ubuntu /usr/local/lib/libnng.so.1 /usr/local/lib/libnng.so.1
 COPY --from=ubuntu /usr/local/lib/libmdclog.so.0 /usr/local/lib/libmdclog.so.0
 
