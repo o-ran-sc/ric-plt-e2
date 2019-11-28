@@ -1,0 +1,73 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "1e6c6b3c_efe9e7a4",
+        "filename": "docs/conf.py",
+        "patchSetId": 7
+      },
+      "lineNbr": 8,
+      "author": {
+        "id": 1000067
+      },
+      "writtenOn": "2019-11-28T10:03:03Z",
+      "side": 1,
+      "message": "please delete these lines, your repo do not need interspinx_mapping config.",
+      "range": {
+        "startLine": 7,
+        "startChar": 0,
+        "endLine": 8,
+        "endChar": 24
+      },
+      "revId": "cef5441c61a7898fe888e63d0445af1d6e33f056",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "8e717e3b_e448ebd4",
+        "filename": "docs/release-notes.rst",
+        "patchSetId": 7
+      },
+      "lineNbr": 20,
+      "author": {
+        "id": 1000067
+      },
+      "writtenOn": "2019-11-28T10:03:03Z",
+      "side": 1,
+      "message": "the \u0027\u003d\u0027 symbol (same rules for other symbol) should be the same length as the text, it will casue waring in the build proess and may casue error after merged.\n\nExample as follow:\n\nCorrect Example\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\n\nWrong example\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d",
+      "range": {
+        "startLine": 19,
+        "startChar": 0,
+        "endLine": 20,
+        "endChar": 92
+      },
+      "revId": "cef5441c61a7898fe888e63d0445af1d6e33f056",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "27a35981_b00b9560",
+        "filename": "docs/release-notes.rst",
+        "patchSetId": 7
+      },
+      "lineNbr": 24,
+      "author": {
+        "id": 1000067
+      },
+      "writtenOn": "2019-11-28T10:03:03Z",
+      "side": 1,
+      "message": "line too long, same issue. should be the same length as the text.",
+      "range": {
+        "startLine": 24,
+        "startChar": 0,
+        "endLine": 24,
+        "endChar": 93
+      },
+      "revId": "cef5441c61a7898fe888e63d0445af1d6e33f056",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53",
+      "unresolved": true
+    }
+  ]
+}
