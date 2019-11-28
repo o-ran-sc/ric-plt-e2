@@ -169,6 +169,12 @@ int main(const int argc, char **argv) {
         exit(-1);
     }
 
+    sctpParams.myIP = conf.getStringValue("external-fqdn");
+    if (sctpParams.myIP.length() == 0) {
+        mdclog_write(MDCLOG_ERR, "illigal external-fqdn.");
+        exit(-1);
+    }
+
     tmpStr = conf.getStringValue("trace");
     transform(tmpStr.begin(), tmpStr.end(), tmpStr.begin(), ::tolower);
     if ((tmpStr.compare("start")) == 0) {
@@ -295,10 +301,13 @@ void handleTermInit(sctp_params_t &sctpParams) {
 
 void sendTermInit(sctp_params_t &sctpParams) {
     auto term_init = false;
-
-    char *buff = (char *)calloc(1, sctpParams.myIP.length());
-    auto len = snprintf(buff, sctpParams.myIP.length(), "%s:%d", (const char *)sctpParams.myIP.c_str(),sctpParams.rmrPort);
-    rmr_mbuf_t *msg = rmr_alloc_msg(sctpParams.rmrCtx, sctpParams.myIP.length());
+    char buff[4096];
+    auto len = snprintf(buff, 4096, "{\"address\": \"%s:%d\","
+                                     "\"fqdn\": \"%s\"}",
+                                     (const char *)sctpParams.myIP.c_str(),
+                                     sctpParams.rmrPort,
+                                     sctpParams.fqdn.c_str());
+    rmr_mbuf_t *msg = rmr_alloc_msg(sctpParams.rmrCtx, len);
     auto count = 0;
     while (!term_init) {
         msg->mtype = E2_TERM_INIT;
@@ -323,7 +332,6 @@ void sendTermInit(sctp_params_t &sctpParams) {
         count++;
     }
 
-    free(buff);
 }
 
 /**
