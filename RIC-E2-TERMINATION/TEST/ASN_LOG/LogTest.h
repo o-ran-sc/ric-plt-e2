@@ -46,15 +46,35 @@
 #include <shared_mutex>
 #include <iterator>
 #include <map>
+#include <fstream>
+
+#include "rapidjson/document.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
 
 using namespace std;
+using namespace rapidjson;
 
 class LogTest {
 public:
     LogTest() = default;
 
-    openFile(string const& configFile);
+    int openFile(string const& configFile) {
+        file.open(configFile.c_str());
+        if (!file) {
+            return -1;
+        }
+        return 0;
+    }
 
+    string getLine();
+    void getJsonDoc(string json);
+
+    string getBase64(Document &document);
+
+private:
+    std::ifstream file;
+    Document document;
 };
 
 

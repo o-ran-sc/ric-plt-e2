@@ -23,13 +23,35 @@
 #define E2_BASE64_H
 
 #include <mdclog/mdclog.h>
+#include <cstring>
+#include <zconf.h>
 
 static const unsigned char base64_table[65] =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
+#define INVERSE_TABLE_SIZE 256
+
 class base64 {
 public:
-    static void encode(const unsigned char *src, const int srcLen, char unsigned *dst, int &dstLen);
+    /**
+     *
+     * @param src
+     * @param srcLen
+     * @param dst
+     * @param dstLen
+     * @return 0 = OK -1 fault
+     */
+    static int encode(const unsigned char *src, int srcLen, char unsigned *dst, long &dstLen);
+    /**
+     *
+     * @param src
+     * @param srcLen
+     * @param dst
+     * @param dstLen
+     * @return 0 = OK -1 fault
+     */
+    static int decode(const unsigned char *src, int srcLen, char unsigned *dst, long &dstLen);
+
 };
 
 

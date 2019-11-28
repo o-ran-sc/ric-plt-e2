@@ -50,7 +50,7 @@ Ensure(Cgreen, fileExists) {
 Ensure(Cgreen, goodparams) {
     ReadConfigFile  conf {};
     assert_that(conf.openConfigFile("config") == 0);
-    assert_that(conf.getIntValue("nano") == 38002);
+    assert_that(conf.getIntValue("nano") == 38000);
     assert_that(conf.getStringValue("loglevel") == "info");
     assert_that(conf.getStringValue("volume") == ".");
 
@@ -59,7 +59,7 @@ Ensure(Cgreen, goodparams) {
 Ensure(Cgreen, badParams) {
     ReadConfigFile  conf {};
     assert_that(conf.openConfigFile("config") == 0);
-    assert_that(conf.getIntValue("nano") != 38000);
+    assert_that(conf.getIntValue("nano") != 38002);
     assert_that(conf.getStringValue("loglevel") != "");
     assert_that(conf.getStringValue("volume") != "bob");
     assert_that(conf.getStringValue("volum") != "bob");

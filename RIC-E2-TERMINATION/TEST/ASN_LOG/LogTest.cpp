@@ -21,3 +21,24 @@
 
 #include "LogTest.h"
 
+string LogTest::getLine() {
+    std::string line;
+
+    if (std::getline(file, line)) {
+        return line;
+    }
+    return "";
+}
+
+void LogTest::getJsonDoc(string json) {
+    if (json.length() != 0) {
+        document.Parse(json.c_str());
+    }
+}
+
+string LogTest::getBase64(Document &document) {
+    if (document.HasMember("asnBase64")) {
+        return document["asnBase64"].GetString();
+    }
+    return "";
+}

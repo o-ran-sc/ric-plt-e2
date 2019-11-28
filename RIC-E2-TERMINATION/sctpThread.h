@@ -160,7 +160,7 @@ typedef struct formatedMessage {
 
 typedef struct ReportingMessages {
     FormatedMessage_t message;
-    int outLen;
+    long outLen;
     unsigned char base64Data[RECEIVE_SCTP_BUFFER_SIZE * 2];
     char buffer[RECEIVE_SCTP_BUFFER_SIZE * 8];
     size_t bufferLen;

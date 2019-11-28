@@ -98,3 +98,14 @@ add_executable(e2smtest
 add_executable(testConfigFile
         RIC-E2-TERMINATION/ReadConfigFile.h
         RIC-E2-TERMINATION/TEST/ConfigurationFileTest/testConfigFile.cpp)
+
+add_executable(b64Test
+        RIC-E2-TERMINATION/base64.cpp
+        RIC-E2-TERMINATION/base64.h
+        RIC-E2-TERMINATION/TEST/base64/testBase64.cpp)
+
+#find_package(RapidJSON)
+
+#add_executable(logTest
+#        RIC-E2-TERMINATION/TEST/ASN_LOG/LogTest.h
+#        RIC-E2-TERMINATION/TEST/ASN_LOG/LogTest.cpp)

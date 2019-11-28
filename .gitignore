@@ -40,3 +40,5 @@ RIC-E2-TERMINATION/concurrentqueue/
 /RIC-E2-TERMINATION/3rdparty/cgreen_1.2.0_amd64.deb
 /testConfigFile
 /config/config.conf
+/logTest
+/b64Test
