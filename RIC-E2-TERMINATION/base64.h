@@ -15,6 +15,12 @@
  * limitations under the License.
  */
 
+/*
+ * This source code is part of the near-RT RIC (RAN Intelligent Controller)
+ * platform project (RICP).
+ */
+
+
 //
 // Created by adi ENZEL on 9/26/19.
 //
