@@ -123,6 +123,7 @@ typedef struct sctp_params {
     mdclog_severity_t logLevel = MDCLOG_INFO;
     char volume[VOLUME_URL_SIZE];
     string myIP {};
+    string fqdn {};
     string configFilePath {};
     string configFileName {};
     bool trace = true;
