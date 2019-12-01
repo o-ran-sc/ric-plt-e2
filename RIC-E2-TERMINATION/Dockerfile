@@ -41,7 +41,7 @@ RUN apt-get install -y autoconf gawk libtool automake pkg-config autoconf-archiv
     && cd cxxopts && mkdir build && cd build && cmake .. && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty \
     && git clone https://github.com/Tencent/rapidjson.git && cd rapidjson \
-    && cd build && cmake .. && make install && ldconfig \
+    && mkdir build && cd build && cmake .. && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty \
     && wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
     && dpkg -i cgreen_1.2.0_amd64.deb \

@@ -30,6 +30,7 @@
 #include <cstdlib>
 
 #include <boost/algorithm/string.hpp>
+#include <mdclog/mdclog.h>
 
 using namespace std;
 
@@ -41,8 +42,7 @@ public:
     int openConfigFile(std::string const& configFile) {
         std::ifstream file(configFile.c_str());
         if (!file) {  // file not found
-            //perror(configFile.c_str());
-            //mdclog_write(MDCLOG_ERR, "File: %s, failed to open", configFile.c_str());
+            mdclog_write(MDCLOG_ERR, "File: %s, failed to open", configFile.c_str());
             return -1;
         }
         std::string line;
@@ -57,9 +57,18 @@ public:
             }
 
             auto leftHand = line.find('=');
+            if (leftHand == std::string::npos) {
+                mdclog_write(MDCLOG_ERR, "problematic entry: %s  ", line.c_str());
+                continue;
+            }
             auto name = line.substr(0,leftHand);
             trim(name);
             auto value = line.substr(leftHand+1);
+            if (value.length() == 0) {
+                mdclog_write(MDCLOG_ERR, "problematic entry: %s no value ", line.c_str());
+                continue;
+
+            }
             trim(value);
             //cout << "entry = " << name << " value = " << value  << endl;
             entries[name] = value;
