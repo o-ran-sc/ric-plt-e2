@@ -44,21 +44,21 @@ Ensure(Cgreen, fileNotExist) {
 
 Ensure(Cgreen, fileExists) {
     ReadConfigFile  conf {};
-    assert_that(conf.openConfigFile("config") == 0);
+    assert_that(conf.openConfigFile("config/config.conf") == 0);
 }
 
 Ensure(Cgreen, goodparams) {
     ReadConfigFile  conf {};
-    assert_that(conf.openConfigFile("config") == 0);
+    assert_that(conf.openConfigFile("config/config.conf") == 0);
     assert_that(conf.getIntValue("nano") == 38000);
     assert_that(conf.getStringValue("loglevel") == "info");
-    assert_that(conf.getStringValue("volume") == ".");
+    assert_that(conf.getStringValue("volume") == "log");
 
 }
 
 Ensure(Cgreen, badParams) {
     ReadConfigFile  conf {};
-    assert_that(conf.openConfigFile("config") == 0);
+    assert_that(conf.openConfigFile("config/config.conf") == 0);
     assert_that(conf.getIntValue("nano") != 38002);
     assert_that(conf.getStringValue("loglevel") != "");
     assert_that(conf.getStringValue("volume") != "bob");
@@ -67,10 +67,15 @@ Ensure(Cgreen, badParams) {
 
 Ensure(Cgreen, wrongType) {
     ReadConfigFile  conf {};
-    assert_that(conf.openConfigFile("config") == 0);
+    assert_that(conf.openConfigFile("config/config.conf") == 0);
     assert_that(conf.getStringValue("nano") != "debug");
     assert_that(conf.getIntValue("loglevel") != 3);
     assert_that(conf.getDoubleValue("loglevel") != 3.0);
+}
+
+Ensure(Cgreen, badValues) {
+    ReadConfigFile  conf {};
+    assert_that(conf.openConfigFile("config/config.bad") == 0);
 }
 
 
@@ -87,6 +92,7 @@ int main(const int argc, char **argv) {
     add_test_with_context(suite, Cgreen, goodparams);
     add_test_with_context(suite, Cgreen, badParams);
     add_test_with_context(suite, Cgreen, wrongType);
+    add_test_with_context(suite, Cgreen, badValues);
 
     return cgreen::run_test_suite(suite, create_text_reporter());
 
