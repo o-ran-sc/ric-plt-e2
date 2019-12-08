@@ -94,7 +94,7 @@ int main(const int argc, char **argv) {
 
     cpuClock = approx_CPU_MHz(100);
 
-    mdclog_write(MDCLOG_ERR, "CPU speed %11.11f", cpuClock);
+    mdclog_write(MDCLOG_DEBUG, "CPU speed %11.11f", cpuClock);
     auto result = parse(argc, argv, sctpParams);
 
     path p = (sctpParams.configFilePath + "/" + sctpParams.configFileName).c_str();
@@ -441,6 +441,11 @@ void listener(sctp_params_t *params) {
 
     rmrMessageBuffer.rcvMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
     rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
+    auto len = snprintf(rmrMessageBuffer.ka_message, 4096, "{\"address\": \"%s:%d\",\"fqdn\": \"%s\"}",
+                        (const char *) params->myIP.c_str(),
+                        params->rmrPort,
+                        params->fqdn.c_str());
+    rmrMessageBuffer.ka_message[len] = 0;
 
     ReportingMessages_t message {};
 
@@ -2074,6 +2079,25 @@ int receiveXappMessages(int epoll_fd,
 
             sleep(1);
             sctpMap->clear();
+            break;
+        }
+        case E2_TERM_KEEP_ALIVE_REQ: {
+            // send message back
+            rmr_bytes2payload(rmrMessageBuffer.sendMessage,
+                    (unsigned char *)rmrMessageBuffer.ka_message,
+                    rmrMessageBuffer.len);
+            rmrMessageBuffer.sendMessage->mtype = E2_TERM_KEEP_ALIVE_RESP;
+            rmrMessageBuffer.sendMessage->state = 0;
+            static unsigned char tx[32];
+            auto txLen = snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
+            rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, txLen);
+            rmrMessageBuffer.sendMessage = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMessageBuffer.sendMessage);
+            if (rmrMessageBuffer.sendMessage == nullptr) {
+                rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
+                mdclog_write(MDCLOG_ERR, "Failed to send E2_TERM_KEEP_ALIVE_RESP");
+            } else if (rmrMessageBuffer.sendMessage->state != 0)  {
+                mdclog_write(MDCLOG_ERR, "Failed to send E2_TERM_KEEP_ALIVE_RESP");
+            }
             break;
         }
         default:

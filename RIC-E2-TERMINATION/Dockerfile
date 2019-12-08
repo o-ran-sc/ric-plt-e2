@@ -27,10 +27,10 @@ RUN mkdir -p /opt/e2/RIC-E2-TERMINATION/ \
 COPY . /opt/e2/RIC-E2-TERMINATION/
 RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/
 
-RUN wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr_1.12.0_amd64.deb/download.deb
-RUN dpkg -i rmr_1.12.0_amd64.deb
-RUN wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr-dev_1.12.0_amd64.deb/download.deb
-RUN dpkg -i rmr-dev_1.12.0_amd64.deb
+RUN wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr_1.13.0_amd64.deb/download.deb
+RUN dpkg -i rmr_1.13.0_amd64.deb
+RUN wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr-dev_1.13.0_amd64.deb/download.deb
+RUN dpkg -i rmr-dev_1.13.0_amd64.deb
 
 RUN apt-get install -y autoconf gawk libtool automake pkg-config autoconf-archive \
     && git clone http://gerrit.o-ran-sc.org/r/com/log \

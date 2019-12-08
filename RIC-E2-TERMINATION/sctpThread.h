@@ -143,6 +143,8 @@ typedef struct ConnectedCU {
 
 #define MAX_RMR_BUFF_ARRY 32
 typedef struct RmrMessagesBuffer {
+    char ka_message[4096] {};
+    int  len = 0;
     void *rmrCtx;
     rmr_mbuf_t *sendMessage;
     rmr_mbuf_t *sendBufferedMessages[MAX_RMR_BUFF_ARRY];
