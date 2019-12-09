@@ -68,7 +68,7 @@ COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/config/config.conf /opt/e2/config/
 #COPY --from=ubuntu /usr/local/lib/librmr_nng.a /usr/local/lib/librmr_nng.a
 COPY --from=ubuntu /usr/local/lib/librmr_nng.so.1 /usr/local/lib/librmr_nng.so.1
 COPY --from=ubuntu /usr/local/lib/librmr_nng.so /usr/local/lib/librmr_nng.so
-COPY --from=ubuntu /usr/local/lib/librmr_nng.so.1.12.0 /usr/local/lib/librmr_nng.so.1.12.0
+COPY --from=ubuntu /usr/local/lib/librmr_nng.so.1.13.0 /usr/local/lib/librmr_nng.so.1.13.0
 COPY --from=ubuntu /usr/local/lib/libnng.so.1 /usr/local/lib/libnng.so.1
 COPY --from=ubuntu /usr/local/lib/libmdclog.so.0 /usr/local/lib/libmdclog.so.0
 
