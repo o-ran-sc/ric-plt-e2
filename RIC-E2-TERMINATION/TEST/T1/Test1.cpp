@@ -21,25 +21,17 @@
 
 #include <mdclog/mdclog.h>
 
-#include "asn/type_defs.h"
-#include "asn/per/codec.hpp"
-#include "asn/printer.hpp"
+#include "asn1cFiles/E2AP-PDU.h"
+#include "asn1cFiles/InitiatingMessage.h"
 
-#include "X2AP-CommonDataTypes.hpp"
-#include "X2AP-Containers.hpp"
-#include "X2AP-Constants.hpp"
-#include "X2AP-IEs.hpp"
-#include "X2AP-PDU-Contents.hpp"
 
-#include "E2AP-Constants.hpp"
-#include "E2AP-IEs.hpp"
-#include "E2AP-PDU-Contents.hpp"
-#include "E2AP-PDU-Descriptions.hpp"
+
 
 #include <iostream>
 #include <cstdio>
 #include <cctype>
 #include <cstring>
+#include <unistd.h>
 
 #include <pthread.h>
 #include <rmr/rmr.h>
@@ -150,7 +142,7 @@ int main(const int argc, char **argv) {
         mdclog_write(MDCLOG_INFO, "RMR running");
     }
 
-    E2AP_PDU pdu {};
+    E2AP_PDU_t pdu {};
     auto &initiatingMsg = pdu.select_initiatingMessage();
     initiatingMsg.ref_procedureCode().select_id_x2Setup();
     initiatingMsg.ref_criticality().select_id_x2Setup();

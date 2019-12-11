@@ -278,6 +278,11 @@ int main(const int argc, char **argv) {
 }
 
 void handleTermInit(sctp_params_t &sctpParams) {
+    sctpParams.ka_message_length = snprintf(sctpParams.ka_message, 4096, "{\"address\": \"%s:%d\","
+                                                                         "\"fqdn\": \"%s\"}",
+                                            (const char *)sctpParams.myIP.c_str(),
+                                            sctpParams.rmrPort,
+                                            sctpParams.fqdn.c_str());
     sendTermInit(sctpParams);
     //send to e2 manager init of e2 term
     //E2_TERM_INIT
@@ -301,18 +306,12 @@ void handleTermInit(sctp_params_t &sctpParams) {
 
 void sendTermInit(sctp_params_t &sctpParams) {
     auto term_init = false;
-    char buff[4096];
-    auto len = snprintf(buff, 4096, "{\"address\": \"%s:%d\","
-                                     "\"fqdn\": \"%s\"}",
-                                     (const char *)sctpParams.myIP.c_str(),
-                                     sctpParams.rmrPort,
-                                     sctpParams.fqdn.c_str());
-    rmr_mbuf_t *msg = rmr_alloc_msg(sctpParams.rmrCtx, len);
+    rmr_mbuf_t *msg = rmr_alloc_msg(sctpParams.rmrCtx, sctpParams.ka_message_length);
     auto count = 0;
     while (!term_init) {
         msg->mtype = E2_TERM_INIT;
         msg->state = 0;
-        rmr_bytes2payload(msg, (unsigned char *) buff, len);
+        rmr_bytes2payload(msg, (unsigned char *)sctpParams.ka_message, len);
         static unsigned char tx[32];
         auto txLen = snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
         rmr_bytes2xact(msg, tx, txLen);
@@ -441,11 +440,9 @@ void listener(sctp_params_t *params) {
 
     rmrMessageBuffer.rcvMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
     rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
-    auto len = snprintf(rmrMessageBuffer.ka_message, 4096, "{\"address\": \"%s:%d\",\"fqdn\": \"%s\"}",
-                        (const char *) params->myIP.c_str(),
-                        params->rmrPort,
-                        params->fqdn.c_str());
-    rmrMessageBuffer.ka_message[len] = 0;
+    memcpy(rmrMessageBuffer.ka_message, params->ka_message, params->ka_message_length);
+    rmrMessageBuffer.ka_message_len = params->ka_message_length;
+    rmrMessageBuffer.ka_message[rmrMessageBuffer.ka_message_len] = 0;
 
     ReportingMessages_t message {};
 
@@ -2083,9 +2080,12 @@ int receiveXappMessages(int epoll_fd,
         }
         case E2_TERM_KEEP_ALIVE_REQ: {
             // send message back
+            if (mdclog_level_get() >= MDCLOG_INFO) {
+                mdclog_write(MDCLOG_INFO, "Got Keep Alive Request send : %s", rmrMessageBuffer.ka_message);
+            }
             rmr_bytes2payload(rmrMessageBuffer.sendMessage,
                     (unsigned char *)rmrMessageBuffer.ka_message,
-                    rmrMessageBuffer.len);
+                    rmrMessageBuffer.ka_message_len);
             rmrMessageBuffer.sendMessage->mtype = E2_TERM_KEEP_ALIVE_RESP;
             rmrMessageBuffer.sendMessage->state = 0;
             static unsigned char tx[32];

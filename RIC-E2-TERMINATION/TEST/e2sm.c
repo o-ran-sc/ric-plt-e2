@@ -94,6 +94,9 @@ ENB_ID_t *createENB_ID(ENB_ID_PR enbType, unsigned char *data) {
     printEntry("ENB_ID_t", __func__)
     ENB_ID_t *enb = calloc(1, sizeof(ENB_ID_t));
     ASN_STRUCT_RESET(asn_DEF_ENB_ID, enb);
+
+    enb->present = enbType;
+
     switch (enbType) {
         case ENB_ID_PR_macro_eNB_ID: { // 20 bit 3 bytes
             enb->choice.macro_eNB_ID.size = 3;

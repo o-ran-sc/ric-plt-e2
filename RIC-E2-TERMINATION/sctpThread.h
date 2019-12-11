@@ -119,6 +119,8 @@ typedef struct sctp_params {
     int      inotifyWD = 0;
     void     *rmrCtx = nullptr;
     Sctp_Map_t *sctpMap = nullptr;
+    char      ka_message[4096] {};
+    int       ka_message_length = 0;
     char       rmrAddress[256] {}; // "tcp:portnumber" "tcp:5566" listen to all address on port 5566
     mdclog_severity_t logLevel = MDCLOG_INFO;
     char volume[VOLUME_URL_SIZE];
@@ -144,7 +146,7 @@ typedef struct ConnectedCU {
 #define MAX_RMR_BUFF_ARRY 32
 typedef struct RmrMessagesBuffer {
     char ka_message[4096] {};
-    int  len = 0;
+    int  ka_message_len = 0;
     void *rmrCtx;
     rmr_mbuf_t *sendMessage;
     rmr_mbuf_t *sendBufferedMessages[MAX_RMR_BUFF_ARRY];
