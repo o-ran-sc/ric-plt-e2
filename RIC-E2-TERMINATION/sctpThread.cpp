@@ -311,7 +311,7 @@ void sendTermInit(sctp_params_t &sctpParams) {
     while (!term_init) {
         msg->mtype = E2_TERM_INIT;
         msg->state = 0;
-        rmr_bytes2payload(msg, (unsigned char *)sctpParams.ka_message, len);
+        rmr_bytes2payload(msg, (unsigned char *)sctpParams.ka_message, sctpParams.ka_message_length);
         static unsigned char tx[32];
         auto txLen = snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
         rmr_bytes2xact(msg, tx, txLen);

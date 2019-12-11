@@ -24,11 +24,11 @@
 #include "asn1cFiles/ProtocolIE-Field.h"
 
 template<typename T>
-void buildX2SetupIE(X2SetupRequest_IEs_t *x2SetupIE,
-        ProtocolIE_ID_t id,
+X2SetupRequest_IEs_t *buildX2SetupIE(ProtocolIE_ID_t id,
         Criticality_t criticality,
         X2SetupRequest_IEs__value_PR present,
         T *value) {
+    auto *x2SetupIE = (X2SetupRequest_IEs_t *)calloc(1, sizeof(X2SetupRequest_IEs_t));
     x2SetupIE->id = id;
     x2SetupIE->criticality = criticality;
     x2SetupIE->value.present = present;
@@ -52,10 +52,55 @@ void buildX2SetupIE(X2SetupRequest_IEs_t *x2SetupIE,
         }
         case X2SetupRequest_IEs__value_PR_NOTHING:
         default:
+            free(x2SetupIE);
+            x2SetupIE = nullptr;
             break;
     }
+    return x2SetupIE;
 }
 
 void buildE2SetupRequest(X2SetupRequest_t *x2Setup) {
+
+}
+
+void init_log()
+{
+    mdclog_attr_t *attr;
+    mdclog_attr_init(&attr);
+    mdclog_attr_set_ident(attr, "e2smTests");
+    mdclog_init(attr);
+    mdclog_attr_destroy(attr);
+}
+
+int main(const int argc, char **argv) {
+    init_log();
+    //mdclog_level_set(MDCLOG_WARN);
+    //mdclog_level_set(MDCLOG_INFO);
+    mdclog_level_set(MDCLOG_DEBUG);
+
+//    x2Setup	X2AP-ELEMENTARY-PROCEDURE ::= {
+//            INITIATING MESSAGE		X2SetupRequest
+//            SUCCESSFUL OUTCOME		X2SetupResponse
+//            UNSUCCESSFUL OUTCOME	X2SetupFailure
+//            PROCEDURE CODE			id-x2Setup
+//            CRITICALITY				reject
+//    }
+//
+//
+
+//    X2SetupRequest ::= SEQUENCE {
+//            protocolIEs		ProtocolIE-Container	{{X2SetupRequest-IEs}},
+//            ...
+//    }
+//
+//    X2SetupRequest-IEs X2AP-PROTOCOL-IES ::= {
+//            { ID id-GlobalENB-ID			CRITICALITY reject	TYPE GlobalENB-ID			PRESENCE mandatory}|
+//            { ID id-ServedCells				CRITICALITY reject	TYPE ServedCells			PRESENCE mandatory}|
+//            { ID id-GUGroupIDList			CRITICALITY reject	TYPE GUGroupIDList			PRESENCE optional}|
+//            { ID id-LHN-ID					CRITICALITY ignore	TYPE LHN-ID					PRESENCE optional},
+//            ...
+//    }
+
+
 
 }
