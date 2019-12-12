@@ -203,6 +203,12 @@ int main(const int argc, char **argv) {
         mdclog_write(MDCLOG_INFO, "running parameters");
     }
     mdclog_mdc_clean();
+    sctpParams.ka_message_length = snprintf(sctpParams.ka_message, 4096, "{\"address\": \"%s:%d\","
+                                                                         "\"fqdn\": \"%s\"}",
+                                            (const char *)sctpParams.myIP.c_str(),
+                                            sctpParams.rmrPort,
+                                            sctpParams.fqdn.c_str());
+
 
     // Files written to the current working directory
     boostLogger = logging::add_file_log(
@@ -278,11 +284,6 @@ int main(const int argc, char **argv) {
 }
 
 void handleTermInit(sctp_params_t &sctpParams) {
-    sctpParams.ka_message_length = snprintf(sctpParams.ka_message, 4096, "{\"address\": \"%s:%d\","
-                                                                         "\"fqdn\": \"%s\"}",
-                                            (const char *)sctpParams.myIP.c_str(),
-                                            sctpParams.rmrPort,
-                                            sctpParams.fqdn.c_str());
     sendTermInit(sctpParams);
     //send to e2 manager init of e2 term
     //E2_TERM_INIT
@@ -440,9 +441,14 @@ void listener(sctp_params_t *params) {
 
     rmrMessageBuffer.rcvMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
     rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
+
     memcpy(rmrMessageBuffer.ka_message, params->ka_message, params->ka_message_length);
     rmrMessageBuffer.ka_message_len = params->ka_message_length;
     rmrMessageBuffer.ka_message[rmrMessageBuffer.ka_message_len] = 0;
+
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_DEBUG, "keep alive message is : %s", rmrMessageBuffer.ka_message);
+    }
 
     ReportingMessages_t message {};
 

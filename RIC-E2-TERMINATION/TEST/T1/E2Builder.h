@@ -29,6 +29,7 @@
 #include <sys/types.h>
 #include <error.h>
 #include <mdclog/mdclog.h>
+#include <algorithm>
 
 
 #include <mdclog/mdclog.h>
@@ -41,7 +42,11 @@
 
 #include "asn1cFiles/ProtocolIE-Field.h"
 
+#include "asn1cFiles/FDD-Info.h"
+#include "asn1cFiles/TDD-Info.h"
+
 #include "asn1cFiles/constr_TYPE.h"
+#include "asn1cFiles/asn_constant.h"
 
 using namespace std;
 
@@ -61,6 +66,40 @@ static void checkAndPrint(asn_TYPE_descriptor_t *typeDescriptor, void *data, cha
     }
 }
 
+BIT_STRING_t *createBIT_STRING(int size, int unusedBits, uint8_t *data) {
+    printEntry("BIT_STRING_t", __func__)
+    auto *bitString = (BIT_STRING_t *)calloc(1, sizeof(BIT_STRING_t));
+    ASN_STRUCT_RESET(asn_DEF_BIT_STRING, bitString);
+    bitString->size = size;
+    bitString->bits_unused = unusedBits;
+    bitString->buf = (uint8_t *)calloc(1, size);
+    // set bits to zero
+    data[bitString->size - 1] = ((unsigned)(data[bitString->size - 1] >>
+            (unsigned)bitString->bits_unused) << (unsigned)bitString->bits_unused);
+    memcpy(bitString->buf, data, size);
+
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        checkAndPrint(&asn_DEF_BIT_STRING, bitString, (char *)"BIT_STRING_t", __func__);
+    }
+
+    return bitString;
+}
+
+
+OCTET_STRING_t *createOCTET_STRING(const unsigned char *data, int size) {
+    printEntry("OCTET_STRING_t", __func__)
+    auto *octs = (PLMN_Identity_t *)calloc(1, sizeof(PLMN_Identity_t));
+    ASN_STRUCT_RESET(asn_DEF_OCTET_STRING, octs);
+    octs->size = size;
+    octs->buf = (uint8_t *)calloc(1, size);
+    memcpy(octs->buf, data, size);
+
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        checkAndPrint(&asn_DEF_OCTET_STRING, octs, (char *)"OCTET_STRING_t", __func__);
+    }
+    return octs;
+}
+
 
 PLMN_Identity_t *createPLMN_ID(const unsigned char *data) {
     printEntry("PLMN_Identity_t", __func__)
@@ -73,7 +112,6 @@ PLMN_Identity_t *createPLMN_ID(const unsigned char *data) {
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
         checkAndPrint(&asn_DEF_PLMN_Identity, plmnId, (char *)"PLMN_Identity_t", __func__);
     }
-
     return plmnId;
 }
 
@@ -155,6 +193,159 @@ GlobalENB_ID_t *createGlobalENB_ID(PLMN_Identity_t *plmnIdentity, ENB_ID_t *enbI
     return genbId;
 }
 
+
+ECGI_t *CreateECGI(PLMN_Identity_t *plmnIdentity, BIT_STRING_t * eUtran) {
+    printEntry("ECGI_t", __func__)
+    auto *ecgi = (ECGI_t *)calloc(1, sizeof(ECGI_t));
+    ASN_STRUCT_RESET(asn_DEF_ECGI, ecgi);
+
+    memcpy(&ecgi->pLMN_Identity, plmnIdentity, sizeof(PLMN_Identity_t));
+    memcpy(&ecgi->eUTRANcellIdentifier, eUtran, sizeof(BIT_STRING_t));
+
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        checkAndPrint(&asn_DEF_ECGI, ecgi, (char *)"ECGI_t", __func__);
+    }
+    return ecgi;
+}
+
+//
+//FDD-Info ::= SEQUENCE {
+//        uL-EARFCN						EARFCN,
+//        dL-EARFCN						EARFCN,
+//        uL-Transmission-Bandwidth		Transmission-Bandwidth,
+//        dL-Transmission-Bandwidth		Transmission-Bandwidth,
+//        iE-Extensions				ProtocolExtensionContainer { {FDD-Info-ExtIEs} } OPTIONAL,
+//        ...
+//}
+//
+//FDD-Info-ExtIEs X2AP-PROTOCOL-EXTENSION ::= {
+//        { ID id-UL-EARFCNExtension						CRITICALITY reject	EXTENSION EARFCNExtension									PRESENCE optional}|
+//        { ID id-DL-EARFCNExtension						CRITICALITY reject	EXTENSION EARFCNExtension									PRESENCE optional}|
+//        { ID id-OffsetOfNbiotChannelNumberToDL-EARFCN	CRITICALITY reject	EXTENSION OffsetOfNbiotChannelNumberToEARFCN		PRESENCE optional}|
+//        { ID id-OffsetOfNbiotChannelNumberToUL-EARFCN	CRITICALITY reject	EXTENSION OffsetOfNbiotChannelNumberToEARFCN		PRESENCE optional}|
+//        { ID id-NRS-NSSS-PowerOffset					CRITICALITY ignore	EXTENSION NRS-NSSS-PowerOffset							PRESENCE optional}|
+//        { ID id-NSSS-NumOccasionDifferentPrecoder		CRITICALITY ignore	EXTENSION NSSS-NumOccasionDifferentPrecoder			PRESENCE optional},
+//        ...
+//}
+
+static FDD_Info_t *create_fdd(long dL_EARFCN,
+        long uL_EARFCN,
+        e_Transmission_Bandwidth ultb,
+        e_Transmission_Bandwidth dltb) {
+    printEntry("FDD_Info_t", __func__)
+    auto *fdd = (FDD_Info_t *)calloc(1, sizeof(FDD_Info_t));
+    ASN_STRUCT_RESET(asn_DEF_FDD_Info, fdd);
+
+    //EARFCN ::= INTEGER (0..maxEARFCN)
+
+    if (dL_EARFCN >= 0 && dL_EARFCN <= maxEARFCN) {
+        fdd->dL_EARFCN = dL_EARFCN;
+    } else {
+        fdd->dL_EARFCN = maxEARFCN;
+    }
+    if (uL_EARFCN >= 0 && uL_EARFCN <= maxEARFCN) {
+        fdd->uL_EARFCN = uL_EARFCN;
+    } else {
+        fdd->uL_EARFCN = maxEARFCN;
+    }
+
+    fdd->uL_Transmission_Bandwidth = ultb;
+    fdd->dL_Transmission_Bandwidth = dltb;
+
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        checkAndPrint(&asn_DEF_FDD_Info, fdd, (char *)"FDD_Info_t", __func__);
+    }
+
+    return fdd;
+}
+
+SpecialSubframe_Info_t *createSpecialSubframe_Info(e_CyclicPrefixDL eCyclicPrefixDl,
+        e_CyclicPrefixUL eCyclicPrefixUl,
+        e_SpecialSubframePatterns eSpecialSubframePatterns) {
+    printEntry("SpecialSubframe_Info_t", __func__)
+    auto *ssf = (SpecialSubframe_Info_t *)calloc(1, sizeof(SpecialSubframe_Info_t));
+    ASN_STRUCT_RESET(asn_DEF_SpecialSubframe_Info, ssf);
+
+    ssf->cyclicPrefixDL = eCyclicPrefixDl;
+    ssf->cyclicPrefixUL = eCyclicPrefixUl;
+    ssf->specialSubframePatterns = eSpecialSubframePatterns;
+
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        checkAndPrint(&asn_DEF_SpecialSubframe_Info, ssf, (char *)"SpecialSubframe_Info_t", __func__);
+    }
+    return ssf;
+}
+
+//TDD-Info ::= SEQUENCE {
+//        eARFCN							EARFCN,
+//        transmission-Bandwidth			Transmission-Bandwidth,
+//        subframeAssignment				SubframeAssignment,
+//        specialSubframe-Info			SpecialSubframe-Info,
+//        iE-Extensions					ProtocolExtensionContainer { {TDD-Info-ExtIEs} } OPTIONAL,
+//        ...
+//}
+//
+//TDD-Info-ExtIEs X2AP-PROTOCOL-EXTENSION ::= {
+//        { ID id-AdditionalSpecialSubframe-Info			CRITICALITY ignore	EXTENSION AdditionalSpecialSubframe-Info				PRESENCE optional}|
+//        { ID id-eARFCNExtension							CRITICALITY reject	EXTENSION EARFCNExtension									PRESENCE optional}|
+//        { ID id-AdditionalSpecialSubframeExtension-Info	CRITICALITY ignore	EXTENSION AdditionalSpecialSubframeExtension-Info	PRESENCE optional}|
+//        { ID id-OffsetOfNbiotChannelNumberToDL-EARFCN	CRITICALITY reject	EXTENSION OffsetOfNbiotChannelNumberToEARFCN		PRESENCE optional}|
+//        { ID id-NBIoT-UL-DL-AlignmentOffset				CRITICALITY reject	EXTENSION NBIoT-UL-DL-AlignmentOffset					PRESENCE optional},
+//        ...
+//}
+
+static TDD_Info_t *create_Tdd(long eARFCN,
+        e_Transmission_Bandwidth tb,
+        e_SubframeAssignment sfA,
+        SpecialSubframe_Info_t *ssfi) {
+    printEntry("TDD_Info_t", __func__)
+    auto *tdd = (TDD_Info_t *)calloc(1, sizeof(FDD_Info_t));
+    ASN_STRUCT_RESET(asn_DEF_TDD_Info, tdd);
+
+    if (eARFCN >= 0 && eARFCN <= maxEARFCN) {
+        tdd->eARFCN = eARFCN;
+    } else {
+        tdd->eARFCN = maxEARFCN;
+    }
+    tdd->transmission_Bandwidth = tb;
+    tdd->subframeAssignment = sfA;
+    memcpy(&tdd->specialSubframe_Info, ssfi, sizeof(SpecialSubframe_Info_t));
+
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        checkAndPrint(&asn_DEF_TDD_Info, tdd, (char *)"TDD_Info_t", __func__);
+    }
+    return tdd;
+}
+
+static EUTRA_Mode_Info_t *createEUTRA_Mode_Info_FDD(FDD_Info_t *fdd) {
+    printEntry("EUTRA_Mode_Info_t", __func__)
+    auto *eutraModeInfo = (EUTRA_Mode_Info_t *)calloc(1, sizeof(EUTRA_Mode_Info_t));
+    ASN_STRUCT_RESET(asn_DEF_EUTRA_Mode_Info, eutraModeInfo);
+
+    eutraModeInfo->present = EUTRA_Mode_Info_PR_fDD;
+    eutraModeInfo->choice.fDD = fdd;
+
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        checkAndPrint(&asn_DEF_EUTRA_Mode_Info, eutraModeInfo, (char *)"EUTRA_Mode_Info_t", __func__);
+    }
+    return eutraModeInfo;
+
+}
+
+static EUTRA_Mode_Info_t *createEUTRA_Mode_Info_TDD(TDD_Info_t *tdd) {
+    printEntry("EUTRA_Mode_Info_t", __func__)
+    auto *eutraModeInfo = (EUTRA_Mode_Info_t *)calloc(1, sizeof(EUTRA_Mode_Info_t));
+    ASN_STRUCT_RESET(asn_DEF_EUTRA_Mode_Info, eutraModeInfo);
+
+    eutraModeInfo->present = EUTRA_Mode_Info_PR_tDD;
+    eutraModeInfo->choice.tDD = tdd;
+
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        checkAndPrint(&asn_DEF_EUTRA_Mode_Info, eutraModeInfo, (char *)"EUTRA_Mode_Info_t", __func__);
+    }
+    return eutraModeInfo;
+
+}
 //ServedCell-Information ::= SEQUENCE {
 //        pCI					PCI,
 //        cellId				ECGI,
@@ -179,12 +370,24 @@ GlobalENB_ID_t *createGlobalENB_ID(PLMN_Identity_t *plmnIdentity, ENB_ID_t *enbI
 //        ...
 //}
 
-ServedCell_Information_t *createervedCellIno(long pci) {
+ServedCell_Information_t *createServedCellInfo(long pci,
+        ECGI_t *cellId,
+        TAC_t *tac,
+        vector<PLMN_Identity_t> &broadcastPLMNs,
+        EUTRA_Mode_Info_t *eutranModeInfo) {
     printEntry("ServedCell_Information_t", __func__)
     auto servedCellinfo = (ServedCell_Information_t *)calloc(1, sizeof(ServedCell_Information_t));
+    ASN_STRUCT_RESET(asn_DEF_ServedCell_Information, servedCellinfo);
 
     servedCellinfo->pCI = pci;
-//    servedCellinfo->cellId =
+    memcpy(&servedCellinfo->cellId, cellId, sizeof(ECGI_t));
+    memcpy(&servedCellinfo->tAC, tac, sizeof(TAC_t));
+
+    for (auto v : broadcastPLMNs) {
+        ASN_SEQUENCE_ADD(&servedCellinfo->broadcastPLMNs.list, &v);
+    }
+
+    memcpy(&servedCellinfo->eUTRA_Mode_Info, eutranModeInfo, sizeof(EUTRA_Mode_Info_t));
 
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
         checkAndPrint(&asn_DEF_ServedCell_Information, servedCellinfo, (char *)"ServedCell_Information_t", __func__);
