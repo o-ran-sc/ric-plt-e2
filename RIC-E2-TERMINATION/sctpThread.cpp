@@ -289,27 +289,27 @@ void handleTermInit(sctp_params_t &sctpParams) {
     //E2_TERM_INIT
 
     int count = 0;
-    auto exitCond = true;
-    while (exitCond) {
+    while (true) {
         auto xappMessages = num_of_XAPP_messages.load(std::memory_order_acquire);
         if (xappMessages > 0) {
-            exitCond = false;
-            continue;
+            if (mdclog_level_get() >=  MDCLOG_INFO) {
+                mdclog_write(MDCLOG_INFO, "Got a message from some appliction, stop sending E@_TERM_INIT");
+            }
+            return;
         }
-        usleep(10000);
+        usleep(100000);
         count++;
-        if (count % 100 == 0) {
-            mdclog_write(MDCLOG_ERR, "No messages from any xApp : %ld", xappMessages);
+        if (count % 1000 == 0) {
+            mdclog_write(MDCLOG_ERR, "GOT No messages from any xApp");
             sendTermInit(sctpParams);
         }
     }
 }
 
 void sendTermInit(sctp_params_t &sctpParams) {
-    auto term_init = false;
     rmr_mbuf_t *msg = rmr_alloc_msg(sctpParams.rmrCtx, sctpParams.ka_message_length);
     auto count = 0;
-    while (!term_init) {
+    while (true) {
         msg->mtype = E2_TERM_INIT;
         msg->state = 0;
         rmr_bytes2payload(msg, (unsigned char *)sctpParams.ka_message, sctpParams.ka_message_length);
@@ -320,9 +320,11 @@ void sendTermInit(sctp_params_t &sctpParams) {
         if (msg == nullptr) {
             msg = rmr_alloc_msg(sctpParams.rmrCtx, sctpParams.myIP.length());
         } else if (msg->state == 0) {
-            term_init = true;
             rmr_free_msg(msg);
-            //break;
+            if (mdclog_level_get() >=  MDCLOG_INFO) {
+                mdclog_write(MDCLOG_INFO, "E2_TERM_INIT succsesfuly sent ");
+            }
+            return;
         } else {
             if (count % 100 == 0) {
                 mdclog_write(MDCLOG_ERR, "Error sending E2_TERM_INIT cause : %d ", msg->state);
