@@ -78,6 +78,17 @@ Ensure(Cgreen, badValues) {
     assert_that(conf.openConfigFile("config/config.bad") == 0);
 }
 
+Ensure(Cgreen, sectionTest) {
+    ReadConfigFile  conf {};
+    assert_that(conf.openConfigFile("config/config.sec") == 0);
+    assert_that(conf.getIntValue("config.nano") == 38000);
+}
+
+Ensure(Cgreen, sectionBadTest) {
+    ReadConfigFile  conf {};
+    assert_that(conf.openConfigFile("config/config.secbad") == -1);
+    //assert_that(conf.getIntValue("config.nano") == 38000);
+}
 
 int main(const int argc, char **argv) {
     mdclog_severity_t loglevel = MDCLOG_INFO;
@@ -93,6 +104,8 @@ int main(const int argc, char **argv) {
     add_test_with_context(suite, Cgreen, badParams);
     add_test_with_context(suite, Cgreen, wrongType);
     add_test_with_context(suite, Cgreen, badValues);
+    add_test_with_context(suite, Cgreen, sectionTest);
+    add_test_with_context(suite, Cgreen, sectionBadTest);
 
     return cgreen::run_test_suite(suite, create_text_reporter());
 

@@ -44,6 +44,8 @@
 
 #include "asn1cFiles/FDD-Info.h"
 #include "asn1cFiles/TDD-Info.h"
+#include "asn1cFiles/Neighbour-Information.h"
+
 
 #include "asn1cFiles/constr_TYPE.h"
 #include "asn1cFiles/asn_constant.h"
@@ -346,6 +348,26 @@ static EUTRA_Mode_Info_t *createEUTRA_Mode_Info_TDD(TDD_Info_t *tdd) {
     return eutraModeInfo;
 
 }
+
+Neighbour_Information__Member *createNeighbour_Information__Member(ECGI_t *eCGI, long pci, long eARFCN) {
+    printEntry("Neighbour_Information__Member", __func__)
+    auto *nigborInformation = (Neighbour_Information__Member *)calloc(1, sizeof(Neighbour_Information__Member));
+    ASN_STRUCT_RESET(asn_DEF_Neighbour_Information, nigborInformation);
+
+    memcpy(&nigborInformation->eCGI, eCGI, sizeof(ECGI_t));
+    nigborInformation->pCI = pci;
+    nigborInformation->eARFCN = eARFCN;
+
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        checkAndPrint(&asn_DEF_Neighbour_Information, nigborInformation, (char *)"Neighbour_Information__Member", __func__);
+    }
+    return nigborInformation;
+}
+
+void buildNeighbour_InformationVector(Neighbour_Information_t *neighbourInformation, Neighbour_Information__Member *member) {
+    ASN_SEQUENCE_ADD(&neighbourInformation->list, member);
+}
+
 //ServedCell-Information ::= SEQUENCE {
 //        pCI					PCI,
 //        cellId				ECGI,
@@ -370,11 +392,21 @@ static EUTRA_Mode_Info_t *createEUTRA_Mode_Info_TDD(TDD_Info_t *tdd) {
 //        ...
 //}
 
+/**
+ *
+ * @param pci
+ * @param cellId
+ * @param tac
+ * @param broadcastPLMNs
+ * @param eutranModeInfo
+ * @return
+ */
 ServedCell_Information_t *createServedCellInfo(long pci,
         ECGI_t *cellId,
         TAC_t *tac,
         vector<PLMN_Identity_t> &broadcastPLMNs,
         EUTRA_Mode_Info_t *eutranModeInfo) {
+
     printEntry("ServedCell_Information_t", __func__)
     auto servedCellinfo = (ServedCell_Information_t *)calloc(1, sizeof(ServedCell_Information_t));
     ASN_STRUCT_RESET(asn_DEF_ServedCell_Information, servedCellinfo);
@@ -397,16 +429,22 @@ ServedCell_Information_t *createServedCellInfo(long pci,
 }
 
 
-ServedCells__Member *createServedCellsMember() {
+ServedCells__Member *createServedCellsMember(ServedCell_Information_t *servedCellInfo, Neighbour_Information_t *neighbourInformation) {
     printEntry("ServedCells__Member", __func__)
     auto servedCellMember = (ServedCells__Member *)calloc(1, sizeof(ServedCells__Member));
 
-    //servedCellMember->servedCellInfo
+    memcpy(&servedCellMember->servedCellInfo, servedCellInfo, sizeof(ServedCell_Information_t));
+    servedCellMember->neighbour_Info = neighbourInformation;
+
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
         checkAndPrint(&asn_DEF_ServedCells, servedCellMember, (char *)"ServedCells__Member", __func__);
     }
 
     return servedCellMember;
+}
+
+void buildServedCells(ServedCells_t *servedCells, ServedCells__Member *member) {
+    ASN_SEQUENCE_ADD(&servedCells->list, member);
 }
 
 

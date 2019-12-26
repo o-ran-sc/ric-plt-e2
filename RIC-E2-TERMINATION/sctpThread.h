@@ -168,7 +168,6 @@ typedef struct ReportingMessages {
     long outLen;
     unsigned char base64Data[RECEIVE_SCTP_BUFFER_SIZE * 2];
     char buffer[RECEIVE_SCTP_BUFFER_SIZE * 8];
-    size_t bufferLen;
 } ReportingMessages_t;
 
 cxxopts::ParseResult parse(int argc, char *argv[], sctp_params_t &pSctpParams);

@@ -39,15 +39,15 @@ X2SetupRequest_IEs_t *buildX2SetupIE(ProtocolIE_ID_t id,
             break;
         }
         case X2SetupRequest_IEs__value_PR_ServedCells: {
-            memcpy(&x2SetupIE->value.choice.ServedCells, value, sizeof(*value));
+            memcpy(&x2SetupIE->value.choice.ServedCells, value, sizeof(ServedCells_t));
             break;
         }
         case X2SetupRequest_IEs__value_PR_GUGroupIDList: {
-            memcpy(&x2SetupIE->value.choice.GUGroupIDList, value, sizeof(*value));
+            memcpy(&x2SetupIE->value.choice.GUGroupIDList, value, sizeof(GUGroupIDList_t));
             break;
         }
         case X2SetupRequest_IEs__value_PR_LHN_ID: {
-            memcpy(&x2SetupIE->value.choice.LHN_ID, value, sizeof(*value));
+            memcpy(&x2SetupIE->value.choice.LHN_ID, value, sizeof(LHN_ID_t));
             break;
         }
         case X2SetupRequest_IEs__value_PR_NOTHING:
@@ -59,15 +59,21 @@ X2SetupRequest_IEs_t *buildX2SetupIE(ProtocolIE_ID_t id,
     return x2SetupIE;
 }
 
-void buildE2SetupRequest(X2SetupRequest_t *x2Setup) {
-
+/**
+ *
+ * @param x2Setup
+ * @param member
+ */
+void buildE2SetupRequest(X2SetupRequest_t *x2Setup, vector<X2SetupRequest_IEs_t> &member) {
+    for (auto v : member) {
+        ASN_SEQUENCE_ADD(&x2Setup->protocolIEs.list, &v);
+    }
 }
 
-void init_log()
-{
+void init_log() {
     mdclog_attr_t *attr;
     mdclog_attr_init(&attr);
-    mdclog_attr_set_ident(attr, "e2smTests");
+    mdclog_attr_set_ident(attr, "setup Request");
     mdclog_init(attr);
     mdclog_attr_destroy(attr);
 }

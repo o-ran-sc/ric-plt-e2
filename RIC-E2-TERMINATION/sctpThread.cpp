@@ -1339,9 +1339,16 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                         message.message.messageType = rmrMessageBuffer.sendMessage->mtype = RIC_INDICATION;
                         snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
                         rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, strlen((const char *) tx));
-    			rmr_bytes2meid(rmrMessageBuffer.sendMessage, (unsigned char *)message.message.enodbName, strlen(message.message.enodbName));
+                        rmr_bytes2meid(rmrMessageBuffer.sendMessage,
+                                (unsigned char *)message.message.enodbName,
+                                strlen(message.message.enodbName));
                         rmrMessageBuffer.sendMessage->state = 0;
                         rmrMessageBuffer.sendMessage->sub_id = (int) ie->value.choice.RICrequestID.ricRequestorID;
+                        if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                            mdclog_write(MDCLOG_DEBUG, "RIC sub id = %d, message type = %d",
+                                    rmrMessageBuffer.sendMessage->sub_id,
+                                    rmrMessageBuffer.sendMessage->mtype);
+                        }
                         sendRmrMessage(rmrMessageBuffer, message, &lspan);
                         messageSent = true;
                     } else {
@@ -2801,13 +2808,7 @@ void buildJsonMessage(ReportingMessages_t &message) {
                          (int) message.outLen);
         }
 
-//    char buff[256];
-//    // build day time to seconds from epoc
-//    strftime(buff, sizeof message.message.time, "%D %T", gmtime(&message.message.time.tv_sec));
-//    // add nanosecond
-//    snprintf(buff, sizeof buff, "%s.%09ld UTC\n", buff, message.message.time.tv_nsec);
-
-        message.bufferLen = snprintf(message.buffer, sizeof(message.buffer),
+        snprintf(message.buffer, sizeof(message.buffer),
                                      "{\"header\": {\"ts\": \"%ld.%09ld\","
                                      "\"ranName\": \"%s\","
                                      "\"messageType\": %d,"

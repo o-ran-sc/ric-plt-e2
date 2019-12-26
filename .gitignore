@@ -44,3 +44,9 @@ RIC-E2-TERMINATION/concurrentqueue/
 /logTest
 /b64Test
 /T1
+/e2Cov
+/RIC-E2-TERMINATION/3rdparty/pistache/
+/CMakeLists.txt.old
+/cmake-modules/
+/e2_coverage.base
+/teste2

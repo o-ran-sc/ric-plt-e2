@@ -32,19 +32,22 @@ RUN dpkg -i rmr_1.13.0_amd64.deb
 RUN wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr-dev_1.13.0_amd64.deb/download.deb
 RUN dpkg -i rmr-dev_1.13.0_amd64.deb
 
+ARG BUILD_TYPE=Release
+
 RUN apt-get install -y autoconf gawk libtool automake pkg-config autoconf-archive \
     && git clone http://gerrit.o-ran-sc.org/r/com/log \
-    && cd log \
-    && ./autogen.sh && ./configure && make && make install && ldconfig \
+    && cd log && ./autogen.sh && ./configure && make && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/jarro2783/cxxopts.git \
     && cd cxxopts && mkdir build && cd build && cmake .. && make install && ldconfig \
-    && cd /opt/e2/RIC-E2-TERMINATION/3rdparty \
-    && git clone https://github.com/Tencent/rapidjson.git && cd rapidjson \
-    && mkdir build && cd build && cmake .. && make install && ldconfig \
+    && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/Tencent/rapidjson.git \
+    && cd rapidjson && mkdir build && cd build && cmake .. && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty \
     && wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
     && dpkg -i cgreen_1.2.0_amd64.deb \
-    && cd /opt/e2/ && /usr/local/bin/cmake . && make
+    && cd /opt/e2/ && git clone https://github.com/bilke/cmake-modules.git \
+    && cd /opt/e2/ && /usr/local/bin/cmake -D CMAKE_BUILD_TYPE=$BUILD_TYPE . && make
+
+RUN if [$BUILD_TYPE == "Debug"] ; then make e2_coverage ; fi
 
 #    && git clone http://gerrit.o-ran-sc.org/r/ric-plt/tracelibcpp \
 #    && cd tracelibcpp && mkdir build && cd build  \

@@ -93,7 +93,10 @@ GNB_ID_t *createGnb_id(const unsigned char *data, int numOfBits);
 GlobalENB_ID_t *createGlobalENB_ID(PLMN_Identity_t *plmnIdentity, ENB_ID_t *enbId);
 /**
  *
- * @param plmnIdentity
+ * @param plmnIdent#ifdef __cplusplus
+}
+#endif
+ity
  * @param gnb
  * @return
  */

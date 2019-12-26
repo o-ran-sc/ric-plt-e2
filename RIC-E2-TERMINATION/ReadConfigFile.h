@@ -46,13 +46,28 @@ public:
             return -1;
         }
         std::string line;
+        std::string section;
 
         while (std::getline(file,line)) {
-            if (!line.length()) {  //line empty
+            if (!line.length() || line[0] == '#' || line[0] == ';' || line[0] == '{') {
                 continue;
-            } else if (line[0] == '#') {
-                continue;
-            } else if (line[0] == ';') {
+            }
+//            else if (line[0] == '#') {
+//                continue;
+//            } else if (line[0] == ';') {
+//                continue;
+//            }
+
+
+            if (line[0] =='[') { //section
+                auto sectionEnd = line.find(']');
+                if (sectionEnd == std::string::npos) {
+                    mdclog_write(MDCLOG_ERR, "Error section definition: %s  ", line.c_str());
+                    section.clear();
+                    return -1;
+//                    continue;
+                }
+                section = line.substr(1, sectionEnd - 1) + ".";
                 continue;
             }
 
@@ -61,8 +76,10 @@ public:
                 mdclog_write(MDCLOG_ERR, "problematic entry: %s  ", line.c_str());
                 continue;
             }
-            auto name = line.substr(0,leftHand);
-            trim(name);
+//            auto name = line.substr(0,leftHand);
+//            trim(name);
+            auto name = section + trim(line.substr(0, leftHand));
+
             auto value = line.substr(leftHand+1);
             if (value.length() == 0) {
                 mdclog_write(MDCLOG_ERR, "problematic entry: %s no value ", line.c_str());
@@ -119,7 +136,6 @@ public:
 private:
     std::unordered_map<string, string> entries;
 
-
     inline static std::string& ltrim(std::string& str, const std::string& chars = "\t\n\v\f\r ") {
         str.erase(0, str.find_first_not_of(chars));
         return str;
@@ -130,7 +146,7 @@ private:
         return str;
     }
 
-    inline static std::string& trim(std::string& str, const std::string& chars = "\t\n\v\f\r ") {
+    inline static std::string& trim(basic_string<char> str, const std::string& chars = "\t\n\v\f\r ") {
         return ltrim(rtrim(str, chars), chars);
     }
 };
