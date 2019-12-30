@@ -30,6 +30,15 @@ using namespace opentracing;
 //{
 //#endif
 
+// need to expose without the include of gcov
+extern "C" void __gcov_flush(void);
+
+static void catch_function(int signal) {
+    __gcov_flush();
+    exit(signal);
+}
+
+
 BOOST_LOG_INLINE_GLOBAL_LOGGER_DEFAULT(my_logger, src::logger_mt)
 
 boost::shared_ptr<sinks::synchronous_sink<sinks::text_file_backend>> boostLogger;
@@ -69,6 +78,9 @@ static long transactionCounter = 0;
 
 int main(const int argc, char **argv) {
     sctp_params_t sctpParams;
+
+
+
 #ifdef __TRACING__
     opentracing::Tracer::InitGlobal(tracelibcpp::createTracer("E2 Terminator"));
     auto span = opentracing::Tracer::Global()->StartSpan(__FUNCTION__);
@@ -91,6 +103,20 @@ int main(const int argc, char **argv) {
     unsigned num_cpus = std::thread::hardware_concurrency();
     init_log();
     mdclog_level_set(MDCLOG_INFO);
+
+    if (std::signal(SIGINT, catch_function) == SIG_ERR) {
+        mdclog_write(MDCLOG_ERR, "Errir initializing SIGINT");
+        exit(1);
+    }
+    if (std::signal(SIGABRT, catch_function)== SIG_ERR) {
+        mdclog_write(MDCLOG_ERR, "Errir initializing SIGABRT");
+        exit(1);
+    }
+    if (std::signal(SIGTERM, catch_function)== SIG_ERR) {
+        mdclog_write(MDCLOG_ERR, "Errir initializing SIGTERM");
+        exit(1);
+    }
+
 
     cpuClock = approx_CPU_MHz(100);
 

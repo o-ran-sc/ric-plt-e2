@@ -44,6 +44,7 @@
 #include <iterator>
 #include <map>
 #include <sys/inotify.h>
+#include <csignal>
 
 #include <rmr/rmr.h>
 #include <rmr/RIC_message_types.h>
@@ -147,11 +148,11 @@ typedef struct ConnectedCU {
 typedef struct RmrMessagesBuffer {
     char ka_message[4096] {};
     int  ka_message_len = 0;
-    void *rmrCtx;
-    rmr_mbuf_t *sendMessage;
-    rmr_mbuf_t *sendBufferedMessages[MAX_RMR_BUFF_ARRY];
-    rmr_mbuf_t *rcvMessage;
-    rmr_mbuf_t *rcvBufferedMessages[MAX_RMR_BUFF_ARRY];
+    void *rmrCtx = nullptr;
+    rmr_mbuf_t *sendMessage= nullptr;
+    rmr_mbuf_t *sendBufferedMessages[MAX_RMR_BUFF_ARRY] {};
+    rmr_mbuf_t *rcvMessage= nullptr;
+    rmr_mbuf_t *rcvBufferedMessages[MAX_RMR_BUFF_ARRY] {};
 } RmrMessagesBuffer_t;
 
 typedef struct formatedMessage {
