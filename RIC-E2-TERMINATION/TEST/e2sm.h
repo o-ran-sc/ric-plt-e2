@@ -14,12 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-/*
+ 
+ /*
  * This source code is part of the near-RT RIC (RAN Intelligent Controller)
  * platform project (RICP).
  */
-
 
 //
 // Created by adi ENZEL on 6/19/19.
@@ -49,26 +48,26 @@ extern "C"
 #include <math.h>
 
 
-#include "../asn1cFiles/ENB-ID.h"
+#include "asn1cFiles/ENB-ID.h"
 
-#include "../asn1cFiles/E2SM-gNB-X2-actionDefinition.h"
+#include "asn1cFiles/E2SM-gNB-X2-actionDefinition.h"
 
-#include "../asn1cFiles/E2SM-gNB-X2-callProcessID.h"
-#include "../asn1cFiles/E2SM-gNB-X2-controlHeader.h"
-#include "../asn1cFiles/E2SM-gNB-X2-controlMessage.h"
-#include "../asn1cFiles/E2SM-gNB-X2-indicationHeader.h"
-#include "../asn1cFiles/E2SM-gNB-X2-indicationMessage.h"
-#include "../asn1cFiles/E2SM-gNB-X2-eventTriggerDefinition.h"
+#include "asn1cFiles/E2SM-gNB-X2-callProcessID.h"
+#include "asn1cFiles/E2SM-gNB-X2-controlHeader.h"
+#include "asn1cFiles/E2SM-gNB-X2-controlMessage.h"
+#include "asn1cFiles/E2SM-gNB-X2-indicationHeader.h"
+#include "asn1cFiles/E2SM-gNB-X2-indicationMessage.h"
+#include "asn1cFiles/E2SM-gNB-X2-eventTriggerDefinition.h"
 
 
-#include "../asn1cFiles/ActionParameter-Item.h"
-#include "../asn1cFiles/ActionParameter-Value.h"
-#include "../asn1cFiles/PLMN-Identity.h"
-#include "../asn1cFiles/GlobalENB-ID.h"
-#include "../asn1cFiles/GlobalGNB-ID.h"
-#include "../asn1cFiles/Interface-ID.h"
-#include "../asn1cFiles/InterfaceMessageType.h"
-#include "../asn1cFiles/InterfaceProtocolIE-Item.h"
+#include "asn1cFiles/ActionParameter-Item.h"
+#include "asn1cFiles/ActionParameter-Value.h"
+#include "asn1cFiles/PLMN-Identity.h"
+#include "asn1cFiles/GlobalENB-ID.h"
+#include "asn1cFiles/GlobalGNB-ID.h"
+#include "asn1cFiles/Interface-ID.h"
+#include "asn1cFiles/InterfaceMessageType.h"
+#include "asn1cFiles/InterfaceProtocolIE-Item.h"
 
 /**
  *
@@ -99,7 +98,10 @@ GNB_ID_t *createGnb_id(const unsigned char *data, int numOfBits);
 GlobalENB_ID_t *createGlobalENB_ID(PLMN_Identity_t *plmnIdentity, ENB_ID_t *enbId);
 /**
  *
- * @param plmnIdentity
+ * @param plmnIdent#ifdef __cplusplus
+}
+#endif
+ity
  * @param gnb
  * @return
  */

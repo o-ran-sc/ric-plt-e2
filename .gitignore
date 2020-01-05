@@ -17,6 +17,7 @@ cmake-build-release/
 cmake_install.cmake
 e2.cbp
 e2
+T1
 setUpTest
 subscriptionTest
 CMakeLists.txt
@@ -36,6 +37,16 @@ RIC-E2-TERMINATION/tracelibcpp/CMakeLists.txt
 RIC-E2-TERMINATION/nlohmann/
 RIC-E2-TERMINATION/concurrentqueue/
 /RIC-E2-TERMINATION/base64/
-# documentation
-.tox
-docs/_build/
+/RIC-E2-TERMINATION/3rdparty/cxxopts/
+/RIC-E2-TERMINATION/3rdparty/cgreen_1.2.0_amd64.deb
+/testConfigFile
+/config/config.conf
+/logTest
+/b64Test
+/T1
+/e2Cov
+/RIC-E2-TERMINATION/3rdparty/pistache/
+/CMakeLists.txt.old
+/cmake-modules/
+/e2_coverage.base
+/teste2
