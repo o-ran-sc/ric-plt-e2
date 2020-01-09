@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "510e3c8f_cae25458",
+        "filename": "RIC-E2-TERMINATION/startup.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 3,
+      "author": {
+        "id": 1000046
+      },
+      "writtenOn": "2020-01-09T18:08:36Z",
+      "side": 1,
+      "message": "Is it safe to assume that the interface will always be called eth0? In REC cluster using DANM networks, the interface name can be different.",
+      "range": {
+        "startLine": 3,
+        "startChar": 19,
+        "endLine": 3,
+        "endChar": 25
+      },
+      "revId": "5dc0f768604f65277521ee6d6ec781880fe4dce4",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53",
+      "unresolved": true
+    }
+  ]
+}
