@@ -129,6 +129,7 @@ typedef struct sctp_params {
     string fqdn {};
     string configFilePath {};
     string configFileName {};
+    string podName {};
     bool trace = true;
     //shared_timed_mutex fence; // moved to mapWrapper
 } sctp_params_t;

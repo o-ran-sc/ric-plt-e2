@@ -189,17 +189,37 @@ int main(const int argc, char **argv) {
     // define the file name in the tmp directory under the volume
     strcat(tmpLogFilespec,"/tmp/E2Term_%Y-%m-%d_%H-%M-%S.%N.tmpStr");
 
+//    std::string localIP = conf.getStringValue("local-ip");
+//    if (localIP.length() == 0) {
+//        mdclog_write(MDCLOG_ERR, "illigal local-ip. environment variable");
+//        exit(-1);
+//    }
+
+    //sctpParams.myIP.assign(getenv(localIP.c_str()));
     sctpParams.myIP = conf.getStringValue("local-ip");
     if (sctpParams.myIP.length() == 0) {
         mdclog_write(MDCLOG_ERR, "illigal local-ip.");
         exit(-1);
     }
 
-    sctpParams.myIP = conf.getStringValue("external-fqdn");
+    sctpParams.fqdn = conf.getStringValue("external-fqdn");
     if (sctpParams.myIP.length() == 0) {
         mdclog_write(MDCLOG_ERR, "illigal external-fqdn.");
         exit(-1);
     }
+
+    std::string pod = conf.getStringValue("pod_name");
+    if (pod.length() == 0) {
+        mdclog_write(MDCLOG_ERR, "illigal pod_name");
+        exit(-1);
+    }
+    sctpParams.podName.assign(getenv(sctpParams.podName.c_str()));
+    if (sctpParams.podName.length() == 0) {
+        mdclog_write(MDCLOG_ERR, "illigal pod_name");
+        exit(-1);
+
+    }
+
 
     tmpStr = conf.getStringValue("trace");
     transform(tmpStr.begin(), tmpStr.end(), tmpStr.begin(), ::tolower);
@@ -230,10 +250,13 @@ int main(const int argc, char **argv) {
     }
     mdclog_mdc_clean();
     sctpParams.ka_message_length = snprintf(sctpParams.ka_message, 4096, "{\"address\": \"%s:%d\","
-                                                                         "\"fqdn\": \"%s\"}",
+                                                                         "\"fqdn\": \"%s\","
+                                                                         "\"pod_name\": \"%s\"}",
                                             (const char *)sctpParams.myIP.c_str(),
                                             sctpParams.rmrPort,
-                                            sctpParams.fqdn.c_str());
+                                            sctpParams.fqdn.c_str(),
+                                            sctpParams.podName.c_str());
+
 
 
     // Files written to the current working directory
