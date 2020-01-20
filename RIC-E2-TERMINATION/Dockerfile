@@ -47,13 +47,15 @@ RUN apt-get install -y autoconf gawk libtool automake pkg-config autoconf-archiv
     && cd cxxopts && mkdir build && cd build && cmake .. && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/Tencent/rapidjson.git \
     && cd rapidjson && mkdir build && cd build && cmake .. && make install && ldconfig \
-    && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/oktal/pistache.git\
-    && cd pistache && git submodule update --init && mkdir build && cd build && cmake .. && make install && ldconfig\
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty \
     && wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
     && dpkg -i cgreen_1.2.0_amd64.deb \
     && cd /opt/e2/ && git clone https://github.com/bilke/cmake-modules.git \
     && cd /opt/e2/ && /usr/local/bin/cmake -D CMAKE_BUILD_TYPE=$BUILD_TYPE . && make
+
+#    && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/oktal/pistache.git\
+#    && cd pistache && git submodule update --init && mkdir build && cd build && cmake .. && make install && ldconfig\
+
 
 RUN if [$BUILD_TYPE == "Debug"] ; then make e2_coverage ; fi
 

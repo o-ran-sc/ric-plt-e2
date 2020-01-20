@@ -29,21 +29,21 @@
 
 #include <algorithm>
 
-#include <pistache/net.h>
-#include <pistache/http.h>
-#include <pistache/peer.h>
-#include <pistache/http_headers.h>
-#include <pistache/cookie.h>
-#include <pistache/endpoint.h>
-#include <pistache/common.h>
-#include <pistache/router.h>
-
-
-using namespace Pistache;
+//#include <pistache/net.h>
+//#include <pistache/http.h>
+//#include <pistache/peer.h>
+//#include <pistache/http_headers.h>
+//#include <pistache/cookie.h>
+//#include <pistache/endpoint.h>
+//#include <pistache/common.h>
+//#include <pistache/router.h>
+//
+//
+//using namespace Pistache;
 
 class e2test  {
 
-    Rest::Router router;
+//    Rest::Router router;
 
 };
 
