@@ -48,7 +48,7 @@ RUN apt-get install -y autoconf gawk libtool automake pkg-config autoconf-archiv
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/Tencent/rapidjson.git \
     && cd rapidjson && mkdir build && cd build && cmake .. && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty \
-    && wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
+    && wget --content-dispositihttps://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
     && dpkg -i cgreen_1.2.0_amd64.deb \
     && cd /opt/e2/ && git clone https://github.com/bilke/cmake-modules.git \
     && cd /opt/e2/ && /usr/local/bin/cmake -D CMAKE_BUILD_TYPE=$BUILD_TYPE . && make
@@ -88,9 +88,9 @@ COPY --from=ubuntu /usr/local/lib/libmdclog.so.0 /usr/local/lib/libmdclog.so.0
 COPY --from=ubuntu /usr/lib/libboost_log_setup.so /usr/lib/libboost_log_setup.so
 COPY --from=ubuntu /usr/lib/libboost_log_setup.so.1.69.0 /usr/lib/libboost_log_setup.so.1.69.0
 
-COPY --from=ubuntu /usr/local/lib/libpistache.so  /usr/local/lib/libpistache.so
-COPY --from=ubuntu /usr/local/lib/libpistache.so.0  /usr/local/lib/libpistache.so.0
-COPY --from=ubuntu /usr/local/lib/libpistache.so.0.0.001-git20191031  /usr/local/lib/libpistache.so.0.0.001-git20191031
+#COPY --from=ubuntu /usr/local/lib/libpistache.so  /usr/local/lib/libpistache.so
+#COPY --from=ubuntu /usr/local/lib/libpistache.so.0  /usr/local/lib/libpistache.so.0
+#COPY --from=ubuntu /usr/local/lib/libpistache.so.0.0.001-git20191031  /usr/local/lib/libpistache.so.0.0.001-git20191031
 
 
 COPY --from=ubuntu /usr/lib/libboost_log.so /usr/lib/libboost_log.so
