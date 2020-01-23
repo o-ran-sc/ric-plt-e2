@@ -132,7 +132,6 @@ typedef struct sctp_params {
     char volume[VOLUME_URL_SIZE];
     string myIP {};
     string fqdn {};
-    string podName {};
     string configFilePath {};
     string configFileName {};
     bool trace = true;

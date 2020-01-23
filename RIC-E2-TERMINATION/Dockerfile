@@ -75,6 +75,7 @@ RUN apt-get update && apt-get install -y net-tools iputils-ping curl tcpdump && 
 COPY --from=ubuntu /opt/e2/e2 /opt/e2/e2
 COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/dockerRouter.txt /opt/e2/dockerRouter.txt
 COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/config/config.conf /opt/e2/config/config.conf
+COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/startup.sh /opt/e2/startup.sh
 #COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/tracelibcpp/build/libtracelibcpp.so /usr/local/lib/libtracelibcpp.so
 #COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/tracelibcpp/build/libtracelibcpp.so.0 /usr/local/lib/libtracelibcpp.so.0
 #COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/tracelibcpp/build/libtracelibcpp.so.0.0.2 /usr/local/lib/libtracelibcpp.so.0.0.2
@@ -121,5 +122,6 @@ COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicudata.so.55.1 /usr/lib/x86_64-
 WORKDIR /opt/e2/
 ENV LD_LIBRARY_PATH=/usr/local/lib
 ENV RMR_SEED_RT=dockerRouter.txt
+RUN chmod +x /opt/e2/startup.sh
 EXPOSE 38000
-CMD ["sh", "-c", "./e2 -p config -f config.conf"]
+CMD ["sh", "-c", "./startup.sh"]
