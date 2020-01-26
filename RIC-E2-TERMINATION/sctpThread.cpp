@@ -192,6 +192,13 @@ int main(const int argc, char **argv) {
     // define the file name in the tmp directory under the volume
     strcat(tmpLogFilespec,"/tmp/E2Term_%Y-%m-%d_%H-%M-%S.%N.tmpStr");
 
+//    std::string localIP = conf.getStringValue("local-ip");
+//    if (localIP.length() == 0) {
+//        mdclog_write(MDCLOG_ERR, "illigal local-ip. environment variable");
+//        exit(-1);
+//    }
+
+    //sctpParams.myIP.assign(getenv(localIP.c_str()));
     sctpParams.myIP = conf.getStringValue("local-ip");
     if (sctpParams.myIP.length() == 0) {
         mdclog_write(MDCLOG_ERR, "illigal local-ip.");
@@ -202,6 +209,24 @@ int main(const int argc, char **argv) {
     if (sctpParams.myIP.length() == 0) {
         mdclog_write(MDCLOG_ERR, "illigal external-fqdn.");
         exit(-1);
+    }
+
+    std::string pod = conf.getStringValue("pod_name");
+    if (pod.length() == 0) {
+        mdclog_write(MDCLOG_ERR, "illigal pod_name in config file");
+        exit(-1);
+    }
+    auto *podName = getenv(pod.c_str());
+    if (podName == nullptr) {
+        mdclog_write(MDCLOG_ERR, "illigal pod_name or environment varible not exists : %s", pod.c_str());
+        exit(-1);
+
+    } else {
+        sctpParams.podName.assign(podName);
+        if (sctpParams.podName.length() == 0) {
+            mdclog_write(MDCLOG_ERR, "illigal pod_name");
+            exit(-1);
+        }
     }
 
     tmpStr = conf.getStringValue("trace");
@@ -222,22 +247,25 @@ int main(const int argc, char **argv) {
             st >> 32, st & 0xFFFFFFFF, (int64_t)en >> 32, en & 0xFFFFFFFF);
     mdclog_write(MDCLOG_INFO, "ellapsed time = %5.9f\n", (double)(en - st)/cpuClock);
 
+    sctpParams.ka_message_length = snprintf(sctpParams.ka_message, 4096, "{\"address\": \"%s:%d\","
+                                                                         "\"fqdn\": \"%s\","
+                                                                         "\"pod_name\": \"%s\"}",
+                                            (const char *)sctpParams.myIP.c_str(),
+                                            sctpParams.rmrPort,
+                                            sctpParams.fqdn.c_str(),
+                                            sctpParams.podName.c_str());
+
     if (mdclog_level_get() >= MDCLOG_INFO) {
         mdclog_mdc_add("RMR Port", to_string(sctpParams.rmrPort).c_str());
         mdclog_mdc_add("LogLevel", to_string(sctpParams.logLevel).c_str());
         mdclog_mdc_add("volume", sctpParams.volume);
         mdclog_mdc_add("tmpLogFilespec", tmpLogFilespec);
         mdclog_mdc_add("my ip", sctpParams.myIP.c_str());
+        mdclog_mdc_add("pod name", sctpParams.podName.c_str());
 
-        mdclog_write(MDCLOG_INFO, "running parameters");
+        mdclog_write(MDCLOG_INFO, "running parameters for instance : %s", sctpParams.ka_message);
     }
     mdclog_mdc_clean();
-    sctpParams.ka_message_length = snprintf(sctpParams.ka_message, 4096, "{\"address\": \"%s:%d\","
-                                                                         "\"fqdn\": \"%s\"}",
-                                            (const char *)sctpParams.myIP.c_str(),
-                                            sctpParams.rmrPort,
-                                            sctpParams.fqdn.c_str());
-
 
     // Files written to the current working directory
     boostLogger = logging::add_file_log(
@@ -461,6 +489,7 @@ void listener(sctp_params_t *params) {
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
         mdclog_write(MDCLOG_DEBUG, "started thread number %s", tid);
     }
+
 
     RmrMessagesBuffer_t rmrMessageBuffer{};
     //create and init RMR
@@ -2124,9 +2153,6 @@ int receiveXappMessages(int epoll_fd,
         }
         case E2_TERM_KEEP_ALIVE_REQ: {
             // send message back
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got Keep Alive Request send : %s", rmrMessageBuffer.ka_message);
-            }
             rmr_bytes2payload(rmrMessageBuffer.sendMessage,
                     (unsigned char *)rmrMessageBuffer.ka_message,
                     rmrMessageBuffer.ka_message_len);
@@ -2140,8 +2166,11 @@ int receiveXappMessages(int epoll_fd,
                 rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
                 mdclog_write(MDCLOG_ERR, "Failed to send E2_TERM_KEEP_ALIVE_RESP");
             } else if (rmrMessageBuffer.sendMessage->state != 0)  {
-                mdclog_write(MDCLOG_ERR, "Failed to send E2_TERM_KEEP_ALIVE_RESP");
+                mdclog_write(MDCLOG_ERR, "Failed to send E2_TERM_KEEP_ALIVE_RESP, on RMR state = %d", rmrMessageBuffer.sendMessage->state);
+            } else if (mdclog_level_get() >= MDCLOG_INFO) {
+                mdclog_write(MDCLOG_INFO, "Got Keep Alive Request send : %s", rmrMessageBuffer.ka_message);
             }
+
             break;
         }
         default:
