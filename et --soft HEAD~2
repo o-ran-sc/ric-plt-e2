@@ -1,0 +1,236 @@
+[33mcommit eee7d5b1baf42dffa73ff8c57b5a0921cf8fba3f[m[33m ([m[1;36mHEAD -> [m[1;32mmaster[m[33m)[m
+Author: ss412g <shuky.har-noy@intl.att.com>
+Date:   Wed Mar 11 14:09:27 2020 +0200
+
+    Fix release version to 3 digits
+    
+    Change-Id: Ia833b48147c94b64ed56963b2e7e840a4c6b4ff7
+    Signed-off-by: ss412g <shuky.har-noy@intl.att.com>
+
+[33mcommit 0afc45cde2a0b5607e3168e48386303a080fbfd2[m
+Author: ss412g <shuky.har-noy@intl.att.com>
+Date:   Wed Mar 11 12:27:18 2020 +0200
+
+    Fix release version
+    
+    Change-Id: Ic330785528c66e0ab145986e3d2f896c261b7337
+    Signed-off-by: ss412g <shuky.har-noy@intl.att.com>
+
+[33mcommit 6a12e391b322e853ee8dc50dc4995fa03b0461c5[m[33m ([m[1;31morigin/master[m[33m, [m[1;31morigin/PI4[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: ss412g <shuky.har-noy@intl.att.com>
+Date:   Mon Jan 27 15:19:39 2020 +0200
+
+    [multi E2T] - support rmr debug level changes
+    
+    Change-Id: I89b91b53558def2b4c3097187df9f7af69aba290
+    Signed-off-by: ss412g <shuky.har-noy@intl.att.com>
+
+[33mcommit 77fff437e22b0ac00466a486705b8bc24f06224d[m
+Author: aa7133@att.com <aa7133@att.com>
+Date:   Mon Jan 27 12:01:20 2020 +0200
+
+    add more details to E2_TERM_KEEP_ALIVE_RESPONSE
+    
+    Change-Id: Ie98d97204c734fe10e7d1f9bbd19546a991ba2e1
+    Signed-off-by: aa7133@att.com <aa7133@att.com>
+
+[33mcommit 9b23edc001dca6233d0c862e77ebd38fb568267a[m
+Author: aa7133@att.com <aa7133@att.com>
+Date:   Sun Jan 26 14:46:35 2020 +0200
+
+    fix typo
+    
+    Change-Id: I2f3d1ae8f2bd4663753c514252964742ca3e4b24
+    Signed-off-by: aa7133@att.com <aa7133@att.com>
+
+[33mcommit 342843e307ac2e1d915b37350424f20123c65d10[m
+Author: aa7133@att.com <aa7133@att.com>
+Date:   Sun Jan 26 12:53:34 2020 +0200
+
+    fix typo
+    
+    Change-Id: Ib56364d6d7fd9de41797afb7dff05617ea434944
+    Signed-off-by: aa7133@att.com <aa7133@att.com>
+
+[33mcommit 8db7591523595faff5d9a46be3999208a49e35d7[m
+Author: root <ronit.shechter@intl.att.com>
+Date:   Thu Jan 23 17:11:52 2020 +0000
+
+    support multi e2
+    
+    Change-Id: I9eb25330e2bb08319517408f97231404ac4b2f1d
+    Signed-off-by: root <ronit.shechter@intl.att.com>
+
+[33mcommit 2b851501e778fb3c48bda5e4fcb6bdd0e9f8e1b5[m
+Author: aa7133@att.com <aa7133@att.com>
+Date:   Tue Jan 21 10:48:02 2020 +0200
+
+    fix typo
+    
+    Change-Id: I0eea14b7beab654585f3b9b2947ce5d94a5ae79d
+    Signed-off-by: aa7133@att.com <aa7133@att.com>
+
+[33mcommit 79bd3741b4b3ce223485a9f5ef775a071b0078e0[m
+Author: aa7133@att.com <aa7133@att.com>
+Date:   Tue Jan 21 09:10:19 2020 +0200
+
+    remove pistache from build
+    
+    Change-Id: I78dd87833d4e5eb34bdabce8d2804c5e3d49769a
+    Signed-off-by: aa7133@att.com <aa7133@att.com>
+
+[33mcommit 4f961d4852fe2ffd550a1d8cbf3efc70f8ea2eb1[m
+Author: aa7133@att.com <aa7133@att.com>
+Date:   Mon Jan 20 18:55:15 2020 +0200
+
+    remove pistache from build
+    
+    Change-Id: I5ec1d5449c6a8d1fbc205b51f1fcb2e1c3798b13
+    Signed-off-by: aa7133@att.com <aa7133@att.com>
+
+[33mcommit 495875d22afcf8acced113887d8077ec58c0eaf5[m
+Author: aa7133@att.com <aa7133@att.com>
+Date:   Sun Jan 19 10:49:01 2020 +0200
+
+    3.0.4.2 add error in keep alive
+    add pod name in KA and INIT
+    
+    Change-Id: Ic62de597edb94592a61c910c8b6ce4dd26d42480
+    Signed-off-by: aa7133@att.com <aa7133@att.com>
+
+[33mcommit 3bac2da3306cb753f967ce41dad1e7719380c916[m
+Author: ss412g <shuky.har-noy@intl.att.com>
+Date:   Sun Jan 5 11:52:19 2020 +0200
+
+    Copy latest code to master
+    
+    Change-Id: Ia3dc1891e8489b0241a45d54ac13da427337a682
+    Signed-off-by: ss412g <shuky.har-noy@intl.att.com>
+
+[33mcommit 54f96848dbaac047c415588a68a74d7f7daef993[m[33m ([m[1;31morigin/Amber[m[33m)[m
+Author: ss412g <shuky.har-noy@intl.att.com>
+Date:   Mon Dec 2 18:00:26 2019 +0200
+
+    Fix release notes
+    
+    Change-Id: Ie45cd299449224c449bdbf2f73169ae9d307e4c5
+    Signed-off-by: ss412g <shuky.har-noy@intl.att.com>
+
+[33mcommit 5efc7facf9fd178ec56e6a89c091da729672397f[m
+Merge: e91cd8f b6104be
+Author: Shuky Har-Noy <shuky.har-noy@intl.att.com>
+Date:   Sun Dec 1 12:11:48 2019 +0000
+
+    Merge "Configure Repo for Documentation"
+
+[33mcommit e91cd8f678e02b8a7fd351392727c4c458c7e639[m
+Author: ss412g <shuky.har-noy@intl.att.com>
+Date:   Sun Dec 1 10:35:59 2019 +0200
+
+    change release version to 2.0.10
+    
+    Change-Id: Ia5173ca7dfb8a5e13bbc5b14b523307c4f8385f5
+    Signed-off-by: ss412g <shuky.har-noy@intl.att.com>
+
+[33mcommit b6104be5e8961b1f0e91b1e830e16bdf04899109[m
+Author: nm755n <nm755n@intl.att.com>
+Date:   Wed Nov 20 14:07:03 2019 +0000
+
+    Configure Repo for Documentation
+    
+    Change-Id: I561a6322574a2c998413227270b39954d4f00c80
+    Signed-off-by: nm755n <nm755n@intl.att.com>
+
+[33mcommit cf29578f3bb66437343537f08d8d01bd4f7f3102[m
+Author: wrider <lji@research.att.com>
+Date:   Thu Nov 28 23:31:33 2019 -0500
+
+    Add release yaml file for ric-plt-e2:3.0.1
+    
+    Change-Id: I75524f67c7727477fb62bc37b58ea17f57c12c13
+    Signed-off-by: wrider <lji@research.att.com>
+
+[33mcommit 19efc75deba434fd7b11d2af09522ea84296849d[m
+Author: ss412g <shuky.har-noy@intl.att.com>
+Date:   Thu Nov 28 19:14:56 2019 +0200
+
+    change tag version
+    
+    Change-Id: Id3aca5058b3c15a95f82f5970454cd158d4ecf93
+    Signed-off-by: ss412g <shuky.har-noy@intl.att.com>
+
+[33mcommit 2e26814afae07ee5b75b5403c1cb84f1de1e3ef4[m
+Author: nm755n <nm755n@intl.att.com>
+Date:   Thu Nov 28 16:40:23 2019 +0000
+
+    Adding new comments for Oran in all files with licenses
+    
+    Change-Id: I17ed28112e656b65beb09be051d3dc57ed9d3fb8
+    Signed-off-by: nm755n <nm755n@intl.att.com>
+
+[33mcommit 3aec07fc2d80d69667b40ff0a69817646211ea31[m
+Merge: dea68fd afaebad
+Author: Shuky Har-Noy <shuky.har-noy@intl.att.com>
+Date:   Thu Nov 14 12:09:06 2019 +0000
+
+    Merge "Automation adds INFO.yaml"
+
+[33mcommit dea68fd801248a14e3e7848494c8d082336cc27e[m
+Author: ss412g <shuky.har-noy@intl.att.com>
+Date:   Wed Nov 13 12:14:39 2019 +0200
+
+    update release notes
+    
+    Change-Id: Ia704f8d002c89285c0055d7e82d16738a683c7c5
+    Signed-off-by: ss412g <shuky.har-noy@intl.att.com>
+
+[33mcommit 84c6004e378fa3ae9bfb8a8e7c8c83389003e484[m
+Author: ss412g <shuky.har-noy@intl.att.com>
+Date:   Wed Nov 13 01:08:04 2019 +0200
+
+    Fix licensing issues
+    
+    Change-Id: Ief6382a985ad0df8573c40ef9f1c90865df23966
+    Signed-off-by: ss412g <shuky.har-noy@intl.att.com>
+
+[33mcommit afaebad157f06f9a6f81571c7382e804fec7cb83[m
+Author: Aric Gardner <agardner@linuxfoundation.org>
+Date:   Fri Nov 8 15:59:01 2019 +0000
+
+    Automation adds INFO.yaml
+    
+    Change-Id: Ib3edbb9b613dc492810f7acd4a41a1ce6cf957a2
+    Signed-off-by: Aric Gardner <agardner@linuxfoundation.org>
+
+[33mcommit 175ef39f1efc79b3a18dad0ecd6d8475e92df631[m[33m ([m[1;33mtag: 3.0.1[m[33m, [m[1;33mtag: 2.0.10[m[33m)[m
+Author: ss412g <shuky.har-noy@intl.att.com>
+Date:   Tue Nov 5 13:08:20 2019 +0200
+
+    Change version after creation of r2 branch
+    
+    Change-Id: Icf7811098eee2e608ca90fd6b9866805e69abf7b
+    Signed-off-by: ss412g <shuky.har-noy@intl.att.com>
+
+[33mcommit 4cae54a22ec632bdf45ebab54e50475af391777c[m[33m ([m[1;31morigin/r2[m[33m)[m
+Author: ss412g <shuky.har-noy@intl.att.com>
+Date:   Thu Oct 31 14:30:38 2019 +0200
+
+    Add docs folder
+    
+    Change-Id: I0a8c6e472d90066be8f3301dda43cc4acab995ca
+    Signed-off-by: ss412g <shuky.har-noy@intl.att.com>
+
+[33mcommit 1a79bdfd453f4ae8e07074a4cc6669672c7ca2f7[m
+Author: ss412g <shuky.har-noy@intl.att.com>
+Date:   Thu Oct 24 12:03:05 2019 +0300
+
+    Sync from Azure to LF
+    
+    Change-Id: Id93865cbff2fa27931d9adf454c7c810a3afc9e4
+    Signed-off-by: ss412g <shuky.har-noy@intl.att.com>
+
+[33mcommit 59f84608ec15c016958a6e0e0ddd813f376c0925[m
+Author: Andrew Grimberg <agrimberg@linuxfoundation.org>
+Date:   Tue May 14 17:56:23 2019 +0000
+
+    Initial empty repository
