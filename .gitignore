@@ -50,3 +50,7 @@ RIC-E2-TERMINATION/concurrentqueue/
 /cmake-modules/
 /e2_coverage.base
 /teste2
+/RIC-E2-TERMINATION/3rdparty/log/
+/RIC-E2-TERMINATION/3rdparty/rapidjson/
+RIC-E2-TERMINATION/3rdparty/log/
+RIC-E2-TERMINATION/3rdparty/rapidjson/

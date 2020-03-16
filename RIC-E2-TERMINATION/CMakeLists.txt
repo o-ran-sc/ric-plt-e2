@@ -30,47 +30,33 @@ set(PROJECT_TEST_NAME "e2")
 
 if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -LRIC-E2-TERMINATION/tracelibcpp/build -ggdb3 -Wall -W -Wpedantic")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -O3 -L/usr/lib -Wall -Wpedantic")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -g -ggdb3 -O3 -L/usr/lib -L/usr/local/lib -Wall -Wpedantic")
     #only c code with -O3
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -O3 -L/usr/lib -Wall -W -Wpedantic")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -O3 -L/usr/lib -L/usr/local/lib -Wall -W -Wpedantic")
 else ()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -ggdb3 --coverage -L/usr/lib -Wall -Wpedantic")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -ggdb3 --coverage -L/usr/lib  -L/usr/local/lib -Wall -Wpedantic")
     #only c code with -O3
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -ggdb3 -L/usr/lib -Wall -W -Wpedantic")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -ggdb3 -L/usr/lib  -L/usr/local/lib -Wall -W -Wpedantic")
 
 endif ()
 include_directories(RIC-E2-TERMINATION
-        RIC-E2-TERMINATION/3rdparty/asn1cFiles
+        RIC-E2-TERMINATION/3rdparty/oranE2
         RIC-E2-TERMINATION/3rdparty
         cmake-modules)
 
-file(GLOB ASN_MODULE_SRCS "RIC-E2-TERMINATION/3rdparty/asn1cFiles/*.c")
-file(GLOB ASN_MODULE_HDRS "RIC-E2-TERMINATION/3rdparty/asn1cFiles/*.h")
+file(GLOB ASN_MODULE_SRCS "RIC-E2-TERMINATION/3rdparty/oranE2/*.c")
+file(GLOB ASN_MODULE_HDRS "RIC-E2-TERMINATION/3rdparty/oranE2/*.h")
 
 add_library(asn1codec ${ASN_MODULE_SRCS} ${ASN_MODULE_HDRS})
 
 install(TARGETS asn1codec DESTINATION /usr/lib)
 install(FILES ${ASN_MODULE_HDRS} DESTINATION /usr/include/asn1c)
 
-
-#include_directories(RIC-E2-TERMINATION/TEST/asn1c)
-#
-#file(GLOB ASNE2SMC "RIC-E2-TERMINATION/TEST/asn1c/*.c")
-#file(GLOB ASNE2SMH "RIC-E2-TERMINATION/TEST/asn1c/*.h")
-#RIC-E2-TERMINATION/
-#add_library(asne2smcodec ${ASNE2SMC})
-
-
 include_directories(RIC-E2-TERMINATION/TEST)
 include_directories(RIC-E2-TERMINATION/TEST/e2smTest)
 include_directories(RIC-E2-TERMINATION/TEST/T1)
 include_directories(RIC-E2-TERMINATION/TEST/T2)
 
-
-add_library(e2sm
-        RIC-E2-TERMINATION/TEST/e2sm.c
-        RIC-E2-TERMINATION/TEST/e2sm.h
-        ${ASN_MODULE_HDRS})
 
 add_definitions(-DBOOST_LOG_DYN_LINK)
 
@@ -83,7 +69,6 @@ link_libraries(nsl
         mdclog
         rmr_nng
         nng
-        e2sm
         asn1codec
         boost_system
         boost_log_setup
@@ -103,10 +88,14 @@ add_executable(e2 RIC-E2-TERMINATION/sctpThread.cpp
         RIC-E2-TERMINATION/base64.h
         RIC-E2-TERMINATION/base64.cpp
         RIC-E2-TERMINATION/ReadConfigFile.h
-        )
+        RIC-E2-TERMINATION/BuildRunName.h)
+target_link_libraries(e2 librmr_nng.a)
+target_link_libraries(e2 librmr_si.a)
+target_link_libraries(e2 libicui18n.a)
+target_link_libraries(e2 libicuuc.a)
+target_link_libraries(e2 libicudata.a)
 
-add_executable(e2smtest
-        RIC-E2-TERMINATION/TEST/e2smTest/e2smtest.cpp)
+#target_link_libraries(e2 libnng.a)
 
 add_executable(testConfigFile
         RIC-E2-TERMINATION/ReadConfigFile.h
@@ -117,19 +106,31 @@ add_executable(b64Test
         RIC-E2-TERMINATION/base64.h
         RIC-E2-TERMINATION/TEST/base64/testBase64.cpp)
 
-add_executable(T1
+
+add_executable(sctpClient
+        RIC-E2-TERMINATION/TEST/sctpClient/sctpClient.cpp
+        RIC-E2-TERMINATION/TEST/sctpClient/sctpClient.h
+        RIC-E2-TERMINATION/TEST/rmrClient/rmrClient.h
+        RIC-E2-TERMINATION/TEST/httpServer/HttpServer.cpp
+        RIC-E2-TERMINATION/TEST/httpServer/HttpServer.h
+        RIC-E2-TERMINATION/base64.h
+        RIC-E2-TERMINATION/base64.cpp
         RIC-E2-TERMINATION/TEST/T1/E2Builder.h
-        RIC-E2-TERMINATION/TEST/T1/E2Setup.cpp
+
         #RIC-E2-TERMINATION/TEST/T1/Test1.cpp
         #RIC-E2-TERMINATION/TEST/T1/
         )
+target_link_libraries(sctpClient libpistache.a)
+target_link_libraries(sctpClient librmr_nng.a)
+target_link_libraries(sctpClient librmr_si.a)
+#target_link_libraries(sctpClient libnng.a)
 
+add_executable(setUpMessages
+        RIC-E2-TERMINATION/TEST/setUpMessages/SetUpMessages.cpp
+        RIC-E2-TERMINATION/BuildRunName.h
+        )
 
-find_package(RapidJSON)
-
-add_executable(logTest
-        RIC-E2-TERMINATION/TEST/ASN_LOG/LogTest.h
-        RIC-E2-TERMINATION/TEST/ASN_LOG/LogTest.cpp)
+#find_package(RapidJSON)
 
 add_executable(teste2
         RIC-E2-TERMINATION/TEST/e2test.h
@@ -149,7 +150,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
             ${PROJECT_SOURCE_DIR}/log'
             '${PROJECT_SOURCE_DIR}/docs'
             '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/3rdparty'
-            '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/asn1cFiles'
+            '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/oranE2'
             '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/TEST'
             '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/config')
 
@@ -157,7 +158,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
             ${PROJECT_SOURCE_DIR}/log'
             '${PROJECT_SOURCE_DIR}/docs'
             '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/3rdparty'
-            '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/asn1cFiles'
+            '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/oranE2'
             '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/TEST'
             '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/config')
     append_coverage_compiler_flags()
