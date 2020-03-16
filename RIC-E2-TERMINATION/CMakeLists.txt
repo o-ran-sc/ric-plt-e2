@@ -89,6 +89,7 @@ add_executable(e2 RIC-E2-TERMINATION/sctpThread.cpp
         RIC-E2-TERMINATION/base64.cpp
         RIC-E2-TERMINATION/ReadConfigFile.h
         RIC-E2-TERMINATION/BuildRunName.h)
+
 target_link_libraries(e2 librmr_nng.a)
 target_link_libraries(e2 librmr_si.a)
 target_link_libraries(e2 libicui18n.a)
@@ -108,11 +109,11 @@ add_executable(b64Test
 
 
 add_executable(sctpClient
-        RIC-E2-TERMINATION/TEST/sctpClient/sctpClient.cpp
-        RIC-E2-TERMINATION/TEST/sctpClient/sctpClient.h
-        RIC-E2-TERMINATION/TEST/rmrClient/rmrClient.h
-        RIC-E2-TERMINATION/TEST/httpServer/HttpServer.cpp
-        RIC-E2-TERMINATION/TEST/httpServer/HttpServer.h
+        RIC-E2-TERMINATION/TEST/testAsn/sctpClient/sctpClient.cpp
+        RIC-E2-TERMINATION/TEST/testAsn/sctpClient/sctpClient.h
+        RIC-E2-TERMINATION/TEST/testAsn/rmrClient/rmrClient.h
+        RIC-E2-TERMINATION/TEST/testAsn/httpServer/HttpServer.cpp
+        RIC-E2-TERMINATION/TEST/testAsn/httpServer/HttpServer.h
         RIC-E2-TERMINATION/base64.h
         RIC-E2-TERMINATION/base64.cpp
         RIC-E2-TERMINATION/TEST/T1/E2Builder.h
@@ -126,7 +127,7 @@ target_link_libraries(sctpClient librmr_si.a)
 #target_link_libraries(sctpClient libnng.a)
 
 add_executable(setUpMessages
-        RIC-E2-TERMINATION/TEST/setUpMessages/SetUpMessages.cpp
+        RIC-E2-TERMINATION/TEST/testAsn/setUpMessages/SetUpMessages.cpp
         RIC-E2-TERMINATION/BuildRunName.h
         )
 
