@@ -19,10 +19,12 @@
 // TODO: High-level file comment.
 
 
+
 #include "sctpThread.h"
+#include "BuildRunName.h"
 
-
-using namespace std::placeholders;
+using namespace std;
+//using namespace std::placeholders;
 using namespace boost::filesystem;
 
 #ifdef __TRACING__
@@ -78,78 +80,71 @@ std::atomic<int64_t> num_of_messages{0};
 std::atomic<int64_t> num_of_XAPP_messages{0};
 static long transactionCounter = 0;
 
-
-int main(const int argc, char **argv) {
-    sctp_params_t sctpParams;
-
-
-
-#ifdef __TRACING__
-    opentracing::Tracer::InitGlobal(tracelibcpp::createTracer("E2 Terminator"));
-    auto span = opentracing::Tracer::Global()->StartSpan(__FUNCTION__);
-#else
-    otSpan span = 0;
-#endif
-
-    {
-        std::random_device device{};
-        std::mt19937 generator(device());
-        std::uniform_int_distribution<long> distribution(1, (long) 1e12);
-        transactionCounter = distribution(generator);
+int buildListeningPort(sctp_params_t &sctpParams) {
+    sctpParams.listenFD = socket (AF_INET6, SOCK_STREAM, IPPROTO_SCTP);
+    struct sockaddr_in6 servaddr {};
+    servaddr.sin6_family = AF_INET6;
+    servaddr.sin6_addr   = in6addr_any;
+    servaddr.sin6_port = htons(SRC_PORT);
+    if (bind(sctpParams.listenFD, (SA *)&servaddr, sizeof(servaddr)) < 0 ) {
+        mdclog_write(MDCLOG_ERR, "Error binding. %s\n", strerror(errno));
+        return -1;
+    }
+    if (setSocketNoBlocking(sctpParams.listenFD) == -1) {
+        //mdclog_write(MDCLOG_ERR, "Error binding. %s", strerror(errno));
+        return -1;
+    }
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        struct sockaddr_in6 cliaddr {};
+        socklen_t len = sizeof(cliaddr);
+        getsockname(sctpParams.listenFD, (SA *)&cliaddr, &len);
+        char buff[1024] {};
+        inet_ntop(AF_INET6, &cliaddr.sin6_addr, buff, sizeof(buff));
+        mdclog_write(MDCLOG_DEBUG, "My address: %s, port %d\n", buff, htons(cliaddr.sin6_port));
     }
 
-    uint64_t st = 0,en = 0;
-    uint32_t aux1 = 0;
-    uint32_t aux2 = 0;
-    st = rdtscp(aux1);
-
-    unsigned num_cpus = std::thread::hardware_concurrency();
-    init_log();
-    mdclog_level_set(MDCLOG_INFO);
-
-    if (std::signal(SIGINT, catch_function) == SIG_ERR) {
-        mdclog_write(MDCLOG_ERR, "Errir initializing SIGINT");
-        exit(1);
+    if (listen(sctpParams.listenFD, SOMAXCONN) < 0) {
+        mdclog_write(MDCLOG_ERR, "Error listening. %s\n", strerror(errno));
+        return -1;
     }
-    if (std::signal(SIGABRT, catch_function)== SIG_ERR) {
-        mdclog_write(MDCLOG_ERR, "Errir initializing SIGABRT");
-        exit(1);
-    }
-    if (std::signal(SIGTERM, catch_function)== SIG_ERR) {
-        mdclog_write(MDCLOG_ERR, "Errir initializing SIGTERM");
-        exit(1);
+    struct epoll_event event {};
+    event.events = EPOLLIN | EPOLLET;
+    event.data.fd = sctpParams.listenFD;
+
+    // add listening port to epoll
+    if (epoll_ctl(sctpParams.epoll_fd, EPOLL_CTL_ADD, sctpParams.listenFD, &event)) {
+        printf("Failed to add descriptor to epoll\n");
+        mdclog_write(MDCLOG_ERR, "Failed to add descriptor to epoll. %s\n", strerror(errno));
+        return -1;
     }
 
+    return 0;
+}
 
-    cpuClock = approx_CPU_MHz(100);
-
-    mdclog_write(MDCLOG_DEBUG, "CPU speed %11.11f", cpuClock);
-    auto result = parse(argc, argv, sctpParams);
-
+int buildConfiguration(sctp_params_t &sctpParams) {
     path p = (sctpParams.configFilePath + "/" + sctpParams.configFileName).c_str();
     if (exists(p)) {
         const int size = 2048;
         auto fileSize = file_size(p);
         if (fileSize > size) {
             mdclog_write(MDCLOG_ERR, "File %s larger than %d", p.string().c_str(), size);
-            exit(-1);
+            return -1;
         }
     } else {
         mdclog_write(MDCLOG_ERR, "Configuration File %s not exists", p.string().c_str());
-        exit(-1);
+        return -1;
     }
-
 
     ReadConfigFile conf;
     if (conf.openConfigFile(p.string()) == -1) {
         mdclog_write(MDCLOG_ERR, "Filed to open config file %s, %s",
                      p.string().c_str(), strerror(errno));
-        exit(-1);
+        return -1;
     }
     int rmrPort = conf.getIntValue("nano");
     if (rmrPort == -1) {
         mdclog_write(MDCLOG_ERR, "illigal RMR port ");
-        exit(-1);
+        return -1;
     }
     sctpParams.rmrPort = (uint16_t)rmrPort;
     snprintf(sctpParams.rmrAddress, sizeof(sctpParams.rmrAddress), "%d", (int) (sctpParams.rmrPort));
@@ -178,7 +173,7 @@ int main(const int argc, char **argv) {
     tmpStr = conf.getStringValue("volume");
     if (tmpStr.length() == 0) {
         mdclog_write(MDCLOG_ERR, "illigal volume.");
-        exit(-1);
+        return -1;
     }
 
     char tmpLogFilespec[VOLUME_URL_SIZE];
@@ -202,30 +197,30 @@ int main(const int argc, char **argv) {
     sctpParams.myIP = conf.getStringValue("local-ip");
     if (sctpParams.myIP.length() == 0) {
         mdclog_write(MDCLOG_ERR, "illigal local-ip.");
-        exit(-1);
+        return -1;
     }
 
-    sctpParams.myIP = conf.getStringValue("external-fqdn");
-    if (sctpParams.myIP.length() == 0) {
-        mdclog_write(MDCLOG_ERR, "illigal external-fqdn.");
-        exit(-1);
+    sctpParams.fqdn = conf.getStringValue("external-fqdn");
+    if (sctpParams.fqdn.length() == 0) {
+        mdclog_write(MDCLOG_ERR, "illigal external-fqdn");
+        return -1;
     }
 
     std::string pod = conf.getStringValue("pod_name");
     if (pod.length() == 0) {
         mdclog_write(MDCLOG_ERR, "illigal pod_name in config file");
-        exit(-1);
+        return -1;
     }
     auto *podName = getenv(pod.c_str());
     if (podName == nullptr) {
         mdclog_write(MDCLOG_ERR, "illigal pod_name or environment varible not exists : %s", pod.c_str());
-        exit(-1);
+        return -1;
 
     } else {
         sctpParams.podName.assign(podName);
         if (sctpParams.podName.length() == 0) {
             mdclog_write(MDCLOG_ERR, "illigal pod_name");
-            exit(-1);
+            return -1;
         }
     }
 
@@ -239,13 +234,6 @@ int main(const int argc, char **argv) {
         sctpParams.trace = false;
     }
     jsonTrace = sctpParams.trace;
-
-    en = rdtscp(aux2);
-
-    mdclog_write(MDCLOG_INFO, "start = %lx end = %lx diff = %lx\n", st, en, en - st);
-    mdclog_write(MDCLOG_INFO, "start high = %lx start lo = %lx end high = %lx end lo = %lx\n",
-            st >> 32, st & 0xFFFFFFFF, (int64_t)en >> 32, en & 0xFFFFFFFF);
-    mdclog_write(MDCLOG_INFO, "ellapsed time = %5.9f\n", (double)(en - st)/cpuClock);
 
     sctpParams.ka_message_length = snprintf(sctpParams.ka_message, 4096, "{\"address\": \"%s:%d\","
                                                                          "\"fqdn\": \"%s\","
@@ -286,7 +274,58 @@ int main(const int argc, char **argv) {
 
     // Enable auto-flushing after each tmpStr record written
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
-    	boostLogger->locked_backend()->auto_flush(true);
+        boostLogger->locked_backend()->auto_flush(true);
+    }
+
+    return 0;
+}
+
+int main(const int argc, char **argv) {
+    sctp_params_t sctpParams;
+
+#ifdef __TRACING__
+    opentracing::Tracer::InitGlobal(tracelibcpp::createTracer("E2 Terminator"));
+    auto span = opentracing::Tracer::Global()->StartSpan(__FUNCTION__);
+#else
+    otSpan span = 0;
+#endif
+
+    {
+        std::random_device device{};
+        std::mt19937 generator(device());
+        std::uniform_int_distribution<long> distribution(1, (long) 1e12);
+        transactionCounter = distribution(generator);
+    }
+
+//    uint64_t st = 0;
+//    uint32_t aux1 = 0;
+//   st = rdtscp(aux1);
+
+    unsigned num_cpus = std::thread::hardware_concurrency();
+    init_log();
+    mdclog_level_set(MDCLOG_INFO);
+
+    if (std::signal(SIGINT, catch_function) == SIG_ERR) {
+        mdclog_write(MDCLOG_ERR, "Error initializing SIGINT");
+        exit(1);
+    }
+    if (std::signal(SIGABRT, catch_function)== SIG_ERR) {
+        mdclog_write(MDCLOG_ERR, "Error initializing SIGABRT");
+        exit(1);
+    }
+    if (std::signal(SIGTERM, catch_function)== SIG_ERR) {
+        mdclog_write(MDCLOG_ERR, "Error initializing SIGTERM");
+        exit(1);
+    }
+
+    cpuClock = approx_CPU_MHz(100);
+
+    mdclog_write(MDCLOG_DEBUG, "CPU speed %11.11f", cpuClock);
+
+    auto result = parse(argc, argv, sctpParams);
+
+    if (buildConfiguration(sctpParams) != 0) {
+        exit(-1);
     }
 
     // start epoll
@@ -307,7 +346,14 @@ int main(const int argc, char **argv) {
         rmr_close(sctpParams.rmrCtx);
         close(sctpParams.epoll_fd);
         exit(-1);
-     }
+    }
+
+    if (buildListeningPort(sctpParams) != 0) {
+        close(sctpParams.rmrListenFd);
+        rmr_close(sctpParams.rmrCtx);
+        close(sctpParams.epoll_fd);
+        exit(-1);
+    }
 
     sctpParams.sctpMap = new mapWrapper();
 
@@ -350,7 +396,7 @@ void handleTermInit(sctp_params_t &sctpParams) {
         auto xappMessages = num_of_XAPP_messages.load(std::memory_order_acquire);
         if (xappMessages > 0) {
             if (mdclog_level_get() >=  MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got a message from some appliction, stop sending E@_TERM_INIT");
+                mdclog_write(MDCLOG_INFO, "Got a message from some appliction, stop sending E2_TERM_INIT");
             }
             return;
         }
@@ -390,7 +436,6 @@ void sendTermInit(sctp_params_t &sctpParams) {
         }
         count++;
     }
-
 }
 
 /**
@@ -434,7 +479,7 @@ int buildInotify(sctp_params_t &sctpParams) {
 
     sctpParams.inotifyWD = inotify_add_watch(sctpParams.inotifyFD,
                                               (const char *)sctpParams.configFilePath.c_str(),
-                                              IN_OPEN | IN_CLOSE);
+                                             (unsigned)IN_OPEN | (unsigned)IN_CLOSE_WRITE | (unsigned)IN_CLOSE_NOWRITE); //IN_CLOSE = (IN_CLOSE_WRITE | IN_CLOSE_NOWRITE)
     if (sctpParams.inotifyWD == -1) {
         mdclog_write(MDCLOG_ERR, "Failed to add directory : %s to  inotify (inotify_add_watch) %s",
                 sctpParams.configFilePath.c_str(),
@@ -545,6 +590,56 @@ void listener(sctp_params_t *params) {
                 handlepoll_error(events[i], message, rmrMessageBuffer, params, &span);
             } else if (events[i].events & EPOLLOUT) {
                 handleEinprogressMessages(events[i], message, rmrMessageBuffer, params, &span);
+            } else if (params->listenFD == events[i].data.fd) {
+                // new connection is requested from RAN  start build connection
+                while (true) {
+                    struct sockaddr in_addr {};
+                    socklen_t in_len;
+                    char hostBuff[NI_MAXHOST];
+                    char portBuff[NI_MAXSERV];
+
+                    in_len = sizeof(in_addr);
+                    auto *peerInfo = (ConnectedCU_t *)calloc(1, sizeof(ConnectedCU_t));
+                    peerInfo->sctpParams = params;
+                    peerInfo->fileDescriptor = accept(params->listenFD, &in_addr, &in_len);
+                    if (peerInfo->fileDescriptor == -1) {
+                        if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+                            /* We have processed all incoming connections. */
+                            break;
+                        } else {
+                            mdclog_write(MDCLOG_ERR, "Accept error, errno = %s", strerror(errno));
+                            break;
+                        }
+                    }
+                    if (setSocketNoBlocking(peerInfo->fileDescriptor) == -1) {
+                        mdclog_write(MDCLOG_ERR, "setSocketNoBlocking failed to set new connection %s on port %s\n", hostBuff, portBuff);
+                        close(peerInfo->fileDescriptor);
+                        break;
+                    }
+                    auto  ans = getnameinfo(&in_addr, in_len,
+                            peerInfo->hostName, NI_MAXHOST,
+                            peerInfo->portNumber, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV);
+                    if (ans < 0) {
+                        mdclog_write(MDCLOG_ERR, "Failed to get info on connection request. %s\n", strerror(errno));
+                        close(peerInfo->fileDescriptor);
+                        break;
+                    }
+                    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                        mdclog_write(MDCLOG_DEBUG, "Accepted connection on descriptor %d (host=%s, port=%s)\n", peerInfo->fileDescriptor, peerInfo->hostName, peerInfo->portNumber);
+                    }
+                    peerInfo->isConnected = false;
+                    peerInfo->gotSetup = false;
+                    if (addToEpoll(params->epoll_fd,
+                                   peerInfo,
+                                   (EPOLLIN | EPOLLET),
+                                   params->sctpMap, nullptr,
+                                   0, &span) != 0) {
+#ifdef __TRACING__
+                        lspan->Finish();
+#endif
+                        break;
+                    }
+                }
             } else if (params->rmrListenFd == events[i].data.fd) {
                 // got message from XAPP
                 num_of_XAPP_messages.fetch_add(1, std::memory_order_release);
@@ -879,7 +974,7 @@ void cleanHashEntry(ConnectedCU_t *val, Sctp_Map_t *m, otSpan *pSpan) {
 #endif
     char *dummy;
     auto port = (uint16_t) strtol(val->portNumber, &dummy, 10);
-    char searchBuff[256]{};
+    char searchBuff[2048]{};
 
     snprintf(searchBuff, sizeof searchBuff, "host:%s:%d", val->hostName, port);
     m->erase(searchBuff);
@@ -916,29 +1011,18 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
     }
 
     while (true) {
-        //TODO add send to VES client or KAFKA
-        //format ts|mtype|direction(D/U)|length of asn data|raw data
-//        auto length = sizeof message.message.time
-//                      + sizeof message.message.enodbName
-//                      + sizeof message.message.messageType
-//                      + sizeof message.message.direction
-//                      + sizeof message.message.asnLength
-//                      + message.message.asnLength;
-
         if (send(fd,message.message.asndata, message.message.asnLength,MSG_NOSIGNAL) < 0) {
             if (errno == EINTR) {
                 continue;
             }
             mdclog_write(MDCLOG_ERR, "error writing to CU a message, %s ", strerror(errno));
-	    // Prevent double free() of peerInfo in the event of connection failure.
-	    // Returning failure will trigger, in x2/endc setup flow, RIC_SCTP_CONNECTION_FAILURE rmr message causing the E2M to retry.
-    	    if (!peerInfo->isConnected){
-    		mdclog_write(MDCLOG_ERR, "connection to CU %s is still in progress.", message.message.enodbName);
+            if (!peerInfo->isConnected) {
+                mdclog_write(MDCLOG_ERR, "connection to CU %s is still in progress.", message.message.enodbName);
 #ifdef __TRACING__
-            lspan->Finish();
+                lspan->Finish();
 #endif
-		return -1;
-	    }
+                return -1;
+            }
             cleanHashEntry(peerInfo, m, &lspan);
             close(fd);
             char key[MAX_ENODB_NAME_SIZE * 2];
@@ -970,7 +1054,6 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
 #ifdef __TRACING__
         lspan->Finish();
 #endif
-
         return 0;
     }
 }
@@ -1120,32 +1203,36 @@ int receiveDataFromSctp(struct epoll_event *events,
     /* We have data on the fd waiting to be read. Read and display it.
  * We must read whatever data is available completely, as we are running
  *  in edge-triggered mode and won't get a notification again for the same data. */
-    int done = 0;
+    ReportingMessages_t message {};
+    auto done = 0;
     auto loglevel = mdclog_level_get();
+
     // get the identity of the interface
-    auto *peerInfo = (ConnectedCU_t *)events->data.ptr;
+    message.peerInfo = (ConnectedCU_t *)events->data.ptr;
+
+
     struct timespec start{0, 0};
     struct timespec decodestart{0, 0};
     struct timespec end{0, 0};
 
     E2AP_PDU_t *pdu = nullptr;
 
-    ReportingMessages_t message {};
 
     while (true) {
         if (loglevel >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "Start Read from SCTP %d fd", peerInfo->fileDescriptor);
+            mdclog_write(MDCLOG_DEBUG, "Start Read from SCTP %d fd", message.peerInfo->fileDescriptor);
             clock_gettime(CLOCK_MONOTONIC, &start);
         }
         // read the buffer directly to rmr payload
         message.message.asndata = rmrMessageBuffer.sendMessage->payload;
         message.message.asnLength = rmrMessageBuffer.sendMessage->len =
-                read(peerInfo->fileDescriptor, rmrMessageBuffer.sendMessage->payload, RECEIVE_SCTP_BUFFER_SIZE);
+                read(message.peerInfo->fileDescriptor, rmrMessageBuffer.sendMessage->payload, RECEIVE_SCTP_BUFFER_SIZE);
+
         if (loglevel >= MDCLOG_DEBUG) {
             mdclog_write(MDCLOG_DEBUG, "Finish Read from SCTP %d fd message length = %ld",
-                    peerInfo->fileDescriptor, message.message.asnLength);
+                    message.peerInfo->fileDescriptor, message.message.asnLength);
         }
-        memcpy(message.message.enodbName, peerInfo->enodbName, sizeof(peerInfo->enodbName));
+        memcpy(message.message.enodbName, message.peerInfo->enodbName, sizeof(message.peerInfo->enodbName));
         message.message.direction = 'U';
         message.message.time.tv_nsec = ts.tv_nsec;
         message.message.time.tv_sec = ts.tv_sec;
@@ -1155,19 +1242,19 @@ int receiveDataFromSctp(struct epoll_event *events,
                 continue;
             }
             /* If errno == EAGAIN, that means we have read all
-               data. So go back to the main loop. */
+               data. So goReportingMessages_t back to the main loop. */
             if (errno != EAGAIN) {
                 mdclog_write(MDCLOG_ERR, "Read error, %s ", strerror(errno));
                 done = 1;
             } else if (loglevel >= MDCLOG_DEBUG) {
-                mdclog_write(MDCLOG_DEBUG, "EAGAIN - descriptor = %d", peerInfo->fileDescriptor);
+                mdclog_write(MDCLOG_DEBUG, "EAGAIN - descriptor = %d", message.peerInfo->fileDescriptor);
             }
             break;
         } else if (message.message.asnLength == 0) {
             /* End of file. The remote has closed the connection. */
             if (loglevel >= MDCLOG_INFO) {
                 mdclog_write(MDCLOG_INFO, "END of File Closed connection - descriptor = %d",
-                             peerInfo->fileDescriptor);
+                             message.peerInfo->fileDescriptor);
             }
             done = 1;
             break;
@@ -1178,13 +1265,13 @@ int receiveDataFromSctp(struct epoll_event *events,
             char printBuffer[4096]{};
             char *tmp = printBuffer;
             for (size_t i = 0; i < (size_t)message.message.asnLength; ++i) {
-                snprintf(tmp, 2, "%02x", message.message.asndata[i]);
+                snprintf(tmp, 3, "%02x", message.message.asndata[i]);
                 tmp += 2;
             }
             printBuffer[message.message.asnLength] = 0;
             clock_gettime(CLOCK_MONOTONIC, &end);
             mdclog_write(MDCLOG_DEBUG, "Before Encoding E2AP PDU for : %s, Read time is : %ld seconds, %ld nanoseconds",
-                         peerInfo->enodbName, end.tv_sec - start.tv_sec, end.tv_nsec - start.tv_nsec);
+                         message.peerInfo->enodbName, end.tv_sec - start.tv_sec, end.tv_nsec - start.tv_nsec);
             mdclog_write(MDCLOG_DEBUG, "PDU buffer length = %ld, data =  : %s", message.message.asnLength,
                          printBuffer);
             clock_gettime(CLOCK_MONOTONIC, &decodestart);
@@ -1194,14 +1281,14 @@ int receiveDataFromSctp(struct epoll_event *events,
                           message.message.asndata, message.message.asnLength);
         if (rval.code != RC_OK) {
             mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) E2AP PDU from RAN : %s", rval.code,
-                         peerInfo->enodbName);
+                         message.peerInfo->enodbName);
             break;
         }
 
         if (loglevel >= MDCLOG_DEBUG) {
             clock_gettime(CLOCK_MONOTONIC, &end);
             mdclog_write(MDCLOG_DEBUG, "After Encoding E2AP PDU for : %s, Read time is : %ld seconds, %ld nanoseconds",
-                         peerInfo->enodbName, end.tv_sec - decodestart.tv_sec, end.tv_nsec - decodestart.tv_nsec);
+                         message.peerInfo->enodbName, end.tv_sec - decodestart.tv_sec, end.tv_nsec - decodestart.tv_nsec);
             char *printBuffer;
             size_t size;
             FILE *stream = open_memstream(&printBuffer, &size);
@@ -1231,8 +1318,7 @@ int receiveDataFromSctp(struct epoll_event *events,
             clock_gettime(CLOCK_MONOTONIC, &end);
             mdclog_write(MDCLOG_DEBUG,
                          "After processing message and sent to rmr for : %s, Read time is : %ld seconds, %ld nanoseconds",
-                         peerInfo->enodbName, end.tv_sec - decodestart.tv_sec, end.tv_nsec - decodestart.tv_nsec);
-
+                         message.peerInfo->enodbName, end.tv_sec - decodestart.tv_sec, end.tv_nsec - decodestart.tv_nsec);
         }
         numOfMessages++;
         // remove the break for EAGAIN
@@ -1253,13 +1339,13 @@ int receiveDataFromSctp(struct epoll_event *events,
 
     if (done) {
         if (loglevel >= MDCLOG_INFO) {
-            mdclog_write(MDCLOG_INFO, "Closed connection - descriptor = %d", peerInfo->fileDescriptor);
+            mdclog_write(MDCLOG_INFO, "Closed connection - descriptor = %d", message.peerInfo->fileDescriptor);
         }
         message.message.asnLength = rmrMessageBuffer.sendMessage->len =
                 snprintf((char *)rmrMessageBuffer.sendMessage->payload,
                         256,
                         "%s|CU disconnected unexpectedly",
-                        peerInfo->enodbName);
+                        message.peerInfo->enodbName);
         message.message.asndata = rmrMessageBuffer.sendMessage->payload;
 
         if (sendRequestToXapp(message,
@@ -1270,7 +1356,7 @@ int receiveDataFromSctp(struct epoll_event *events,
         }
 
         /* Closing descriptor make epoll remove it from the set of descriptors which are monitored. */
-        close(peerInfo->fileDescriptor);
+        close(message.peerInfo->fileDescriptor);
         cleanHashEntry((ConnectedCU_t *) events->data.ptr, sctpMap, &lspan);
     }
     if (loglevel >= MDCLOG_DEBUG) {
@@ -1286,6 +1372,81 @@ int receiveDataFromSctp(struct epoll_event *events,
     return 0;
 }
 
+static void buildAndsendSetupRequest(ReportingMessages_t &message,
+                                     E2setupRequestIEs_t *ie,
+                                     RmrMessagesBuffer_t &rmrMessageBuffer,
+                                     E2AP_PDU_t *pdu) {
+    auto logLevel = mdclog_level_get();
+
+
+    if (buildRanName(message.peerInfo->enodbName, ie) < 0) {
+        mdclog_write(MDCLOG_ERR, "Bad param in E2setupRequestIEs GlobalE2node_ID.\n");
+    } else {
+        memcpy(message.message.enodbName, message.peerInfo->enodbName, strlen(message.peerInfo->enodbName));
+    }
+    // now we can send the data to e2Mgr
+    auto buffer_size = RECEIVE_SCTP_BUFFER_SIZE;
+
+    auto *rmrMsg = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, buffer_size);
+    // add addrees to message
+    auto j = snprintf((char *)rmrMsg->payload, 256, "%s:%d|", message.peerInfo->sctpParams->myIP.c_str(), message.peerInfo->sctpParams->rmrPort);
+
+
+    unsigned char *buffer = &rmrMsg->payload[j];
+    // encode to xml
+    asn_enc_rval_t er;
+    er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, buffer, buffer_size - j);
+    if (er.encoded == -1) {
+        mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
+    } else if (er.encoded > (ssize_t) buffer_size) {
+        mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s",
+                     (int) buffer_size,
+                     asn_DEF_E2AP_PDU.name);
+    } else {
+        if (logLevel >= MDCLOG_DEBUG) {
+            mdclog_write(MDCLOG_DEBUG, "Buffer of size %d, data = %s", (int) er.encoded, buffer);
+        }
+        // TODO send to RMR
+        message.message.messageType = rmrMsg->mtype = RIC_X2_SETUP_REQ;
+        rmrMsg->state = 0;
+        rmr_bytes2meid(rmrMsg, (unsigned char *) message.message.enodbName, strlen(message.message.enodbName));
+
+        static unsigned char tx[32];
+        snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
+        rmr_bytes2xact(rmrMsg, tx, strlen((const char *) tx));
+
+        rmrMsg = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMsg);
+        if (rmrMsg == nullptr) {
+            mdclog_write(MDCLOG_ERR, "RMR failed to send returned nullptr");
+        } else if (rmrMsg->state != 0) {
+            char meid[RMR_MAX_MEID]{};
+            if (rmrMsg->state == RMR_ERR_RETRY) {
+                usleep(5);
+                rmrMsg->state = 0;
+                mdclog_write(MDCLOG_INFO, "RETRY sending Message %d to Xapp from %s",
+                             rmrMsg->mtype, rmr_get_meid(rmrMsg, (unsigned char *) meid));
+                rmrMsg = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMsg);
+                if (rmrMsg == nullptr) {
+                    mdclog_write(MDCLOG_ERR, "RMR failed send returned nullptr");
+                } else if (rmrMsg->state != 0) {
+                    mdclog_write(MDCLOG_ERR,
+                                 "RMR Retry failed %s sending request %d to Xapp from %s",
+                                 translateRmrErrorMessages(rmrMsg->state).c_str(),
+                                 rmrMsg->mtype,
+                                 rmr_get_meid(rmrMsg, (unsigned char *) meid));
+                }
+            } else {
+                mdclog_write(MDCLOG_ERR, "RMR failed: %s. sending request %d to Xapp from %s",
+                             translateRmrErrorMessages(rmrMsg->state).c_str(),
+                             rmrMsg->mtype,
+                             rmr_get_meid(rmrMsg, (unsigned char *) meid));
+            }
+        }
+        message.peerInfo->gotSetup = true;
+        buildJsonMessage(message);
+    }
+
+}
 /**
  *
  * @param pdu
@@ -1304,92 +1465,65 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
     otSpan lspan = 0;
 #endif
 
+    auto logLevel = mdclog_level_get();
     auto procedureCode = ((InitiatingMessage_t *) pdu->choice.initiatingMessage)->procedureCode;
-    if (mdclog_level_get() >= MDCLOG_INFO) {
-        mdclog_write(MDCLOG_INFO, "Initiating message %ld", procedureCode);
+    if (logLevel >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_DEBUG, "Initiating message %ld\n", procedureCode);
     }
     switch (procedureCode) {
-        case ProcedureCode_id_x2Setup: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got Setup Initiating  message from CU - %s",
-                             message.message.enodbName);
+        case ProcedureCode_id_E2setup: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got E2setup\n");
+            }
+
+            memset(message.peerInfo->enodbName, 0 , MAX_ENODB_NAME_SIZE);
+            for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.count; i++) {
+                auto *ie = pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.array[i];
+                if (ie->id == ProtocolIE_ID_id_GlobalE2node_ID) {
+                    if (ie->value.present == E2setupRequestIEs__value_PR_GlobalE2node_ID) {
+                        buildAndsendSetupRequest(message, ie, rmrMessageBuffer, pdu);
+                        break;
+                    }
+                }
             }
             break;
         }
-        case ProcedureCode_id_endcX2Setup: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got X2 EN-DC Setup Request from CU - %s",
-                             message.message.enodbName);
+        case ProcedureCode_id_ErrorIndication: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got ErrorIndication %s", message.message.enodbName);
+            }
+            if (sendRequestToXapp(message, RIC_ERROR_INDICATION, rmrMessageBuffer, &lspan) != 0) {
+                mdclog_write(MDCLOG_ERR, "RIC_ERROR_INDICATION failed to send to xAPP");
             }
             break;
         }
-        case ProcedureCode_id_ricSubscription: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got RIC Subscription Request message from CU - %s",
-                             message.message.enodbName);
+        case ProcedureCode_id_Reset: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got Reset %s", message.message.enodbName);
             }
-            break;
-        }
-        case ProcedureCode_id_ricSubscriptionDelete: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got RIC Subscription Delete Request message from CU - %s",
-                             message.message.enodbName);
-            }
-            break;
-        }
-        case ProcedureCode_id_endcConfigurationUpdate: {
-            if (sendRequestToXapp(message, RIC_ENDC_CONF_UPDATE, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "E2 EN-DC CONFIGURATION UPDATE message failed to send to xAPP");
-            }
-            break;
-        }
-        case ProcedureCode_id_eNBConfigurationUpdate: {
-            if (sendRequestToXapp(message, RIC_ENB_CONF_UPDATE, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "E2 EN-BC CONFIGURATION UPDATE message failed to send to xAPP");
-            }
-            break;
-        }
-        case ProcedureCode_id_x2Removal: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got E2 Removal Initiating  message from CU - %s",
-                             message.message.enodbName);
-            }
-            break;
-        }
-        case ProcedureCode_id_loadIndication: {
-            if (sendRequestToXapp(message, RIC_ENB_LOAD_INFORMATION, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Load indication message failed to send to xAPP");
-            }
-            break;
-        }
-        case ProcedureCode_id_resourceStatusReportingInitiation: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got Status reporting initiation message from CU - %s",
-                             message.message.enodbName);
-            }
-            break;
-        }
-        case ProcedureCode_id_resourceStatusReporting: {
-            if (sendRequestToXapp(message, RIC_RESOURCE_STATUS_UPDATE, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Resource Status Reporting message failed to send to xAPP");
-            }
-            break;
-        }
-        case ProcedureCode_id_reset: {
             if (sendRequestToXapp(message, RIC_X2_RESET, rmrMessageBuffer, &lspan) != 0) {
                 mdclog_write(MDCLOG_ERR, "RIC_X2_RESET message failed to send to xAPP");
             }
             break;
         }
-        case ProcedureCode_id_ricIndication: {
-            for (int i = 0; i < pdu->choice.initiatingMessage->value.choice.RICindication.protocolIEs.list.count; i++) {
+        case ProcedureCode_id_RICcontrol: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICcontrol %s", message.message.enodbName);
+            }
+            break;
+        }
+        case ProcedureCode_id_RICindication: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICindication %s", message.message.enodbName);
+            }
+            for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.RICindication.protocolIEs.list.count; i++) {
                 auto messageSent = false;
                 RICindication_IEs_t *ie = pdu->choice.initiatingMessage->value.choice.RICindication.protocolIEs.list.array[i];
-                if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                if (logLevel >= MDCLOG_DEBUG) {
                     mdclog_write(MDCLOG_DEBUG, "ie type (ProtocolIE_ID) = %ld", ie->id);
                 }
                 if (ie->id == ProtocolIE_ID_id_RICrequestID) {
-                    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                    if (logLevel >= MDCLOG_DEBUG) {
                         mdclog_write(MDCLOG_DEBUG, "Got RIC requestId entry, ie type (ProtocolIE_ID) = %ld", ie->id);
                     }
                     if (ie->value.present == RICindication_IEs__value_PR_RICrequestID) {
@@ -1398,14 +1532,14 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                         snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
                         rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, strlen((const char *) tx));
                         rmr_bytes2meid(rmrMessageBuffer.sendMessage,
-                                (unsigned char *)message.message.enodbName,
-                                strlen(message.message.enodbName));
+                                       (unsigned char *)message.message.enodbName,
+                                       strlen(message.message.enodbName));
                         rmrMessageBuffer.sendMessage->state = 0;
                         rmrMessageBuffer.sendMessage->sub_id = (int) ie->value.choice.RICrequestID.ricRequestorID;
                         if (mdclog_level_get() >= MDCLOG_DEBUG) {
                             mdclog_write(MDCLOG_DEBUG, "RIC sub id = %d, message type = %d",
-                                    rmrMessageBuffer.sendMessage->sub_id,
-                                    rmrMessageBuffer.sendMessage->mtype);
+                                         rmrMessageBuffer.sendMessage->sub_id,
+                                         rmrMessageBuffer.sendMessage->mtype);
                         }
                         sendRmrMessage(rmrMessageBuffer, message, &lspan);
                         messageSent = true;
@@ -1419,21 +1553,30 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             }
             break;
         }
-        case ProcedureCode_id_errorIndication: {
-            if (sendRequestToXapp(message, RIC_ERROR_INDICATION, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Error Indication message failed to send to xAPP");
+        case ProcedureCode_id_RICserviceQuery: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICserviceQuery %s", message.message.enodbName);
             }
             break;
         }
-        case ProcedureCode_id_ricServiceUpdate : {
+        case ProcedureCode_id_RICserviceUpdate: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICserviceUpdate %s", message.message.enodbName);
+            }
             if (sendRequestToXapp(message, RIC_SERVICE_UPDATE, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Service Update message failed to send to xAPP");
+                mdclog_write(MDCLOG_ERR, "RIC_SERVICE_UPDATE message failed to send to xAPP");
             }
             break;
         }
-        case ProcedureCode_id_gNBStatusIndication : {
-            if (sendRequestToXapp(message, RIC_GNB_STATUS_INDICATION, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "RIC_GNB_STATUS_INDICATION failed to send to xAPP");
+        case ProcedureCode_id_RICsubscription: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICsubscription %s", message.message.enodbName);
+            }
+            break;
+        }
+        case ProcedureCode_id_RICsubscriptionDelete: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICsubscriptionDelete %s", message.message.enodbName);
             }
             break;
         }
@@ -1469,101 +1612,40 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t 
     otSpan lspan = 0;
 #endif
     auto procedureCode = pdu->choice.successfulOutcome->procedureCode;
-    if (mdclog_level_get() >= MDCLOG_INFO) {
+    auto logLevel = mdclog_level_get();
+    if (logLevel >= MDCLOG_INFO) {
         mdclog_write(MDCLOG_INFO, "Successful Outcome %ld", procedureCode);
     }
     switch (procedureCode) {
-        case ProcedureCode_id_x2Setup: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got Succesful Setup response from CU - %s",
-                             message.message.enodbName);
-            }
-            if (sendResponseToXapp(message, RIC_X2_SETUP_RESP,
-                                   RIC_X2_SETUP_REQ, rmrMessageBuffer, sctpMap, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send Succesful Setup response for CU - %s",
-                             message.message.enodbName);
+        case ProcedureCode_id_E2setup: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got E2setup\n");
             }
             break;
         }
-        case ProcedureCode_id_endcX2Setup: { //X2_EN_DC_SETUP_REQUEST_FROM_CU
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got Succesful E2 EN-DC Setup response from CU - %s",
-                             message.message.enodbName);
+        case ProcedureCode_id_ErrorIndication: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got ErrorIndication %s", message.message.enodbName);
             }
-            if (sendResponseToXapp(message, RIC_ENDC_X2_SETUP_RESP,
-                                   RIC_ENDC_X2_SETUP_REQ, rmrMessageBuffer, sctpMap, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send Succesful X2 EN DC Setup response for CU - %s",
-                             message.message.enodbName);
+            if (sendRequestToXapp(message, RIC_ERROR_INDICATION, rmrMessageBuffer, &lspan) != 0) {
+                mdclog_write(MDCLOG_ERR, "RIC_ERROR_INDICATION failed to send to xAPP");
             }
             break;
         }
-        case ProcedureCode_id_endcConfigurationUpdate: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got Succesful E2 EN-DC CONFIGURATION UPDATE from CU - %s",
-                             message.message.enodbName);
+        case ProcedureCode_id_Reset: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got Reset %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_ENDC_CONF_UPDATE_ACK, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send Succesful E2 EN DC CONFIGURATION response for CU - %s",
-                             message.message.enodbName);
+            if (sendRequestToXapp(message, RIC_X2_RESET, rmrMessageBuffer, &lspan) != 0) {
+                mdclog_write(MDCLOG_ERR, "RIC_X2_RESET message failed to send to xAPP");
             }
             break;
         }
-        case ProcedureCode_id_eNBConfigurationUpdate: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got Succesful E2 ENB CONFIGURATION UPDATE from CU - %s",
-                             message.message.enodbName);
+        case ProcedureCode_id_RICcontrol: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICcontrol %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_ENB_CONF_UPDATE_ACK, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send Succesful E2 ENB CONFIGURATION response for CU - %s",
-                             message.message.enodbName);
-            }
-            break;
-        }
-        case ProcedureCode_id_reset: {
-            if (sendRequestToXapp(message, RIC_X2_RESET_RESP, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send Succesful E2_RESET response for CU - %s",
-                             message.message.enodbName);
-            }
-            break;
-
-        }
-        case ProcedureCode_id_resourceStatusReportingInitiation: {
-            if (sendRequestToXapp(message, RIC_RES_STATUS_RESP, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR,
-                             "Failed to send Succesful 2_REQUEST_STATUS_REPORTING_INITIATION response for CU - %s",
-                             message.message.enodbName);
-            }
-            break;
-        }
-        case ProcedureCode_id_ricSubscription: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got Succesful RIC Subscription response from CU - %s",
-                             message.message.enodbName);
-            }
-            if (sendRequestToXapp(message, RIC_SUB_RESP, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Subscription successful message failed to send to xAPP");
-            }
-            break;
-
-        }
-        case ProcedureCode_id_ricSubscriptionDelete: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO,
-                             "Got Succesful RIC Subscription Delete response from CU - %s",
-                             message.message.enodbName);
-            }
-            if (sendRequestToXapp(message, RIC_SUB_DEL_RESP, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Subscription delete successful message failed to send to xAPP");
-            }
-            break;
-        }
-        case ProcedureCode_id_ricControl: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO,
-                             "Got Succesful RIC control response from CU - %s",
-                             message.message.enodbName);
-            }
-            for (int i = 0;
+            for (auto i = 0;
                  i < pdu->choice.successfulOutcome->value.choice.RICcontrolAcknowledge.protocolIEs.list.count; i++) {
                 auto messageSent = false;
                 RICcontrolAcknowledge_IEs_t *ie = pdu->choice.successfulOutcome->value.choice.RICcontrolAcknowledge.protocolIEs.list.array[i];
@@ -1582,8 +1664,8 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t 
                         snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
                         rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, strlen((const char *) tx));
                         rmr_bytes2meid(rmrMessageBuffer.sendMessage,
-                                (unsigned char *)message.message.enodbName,
-                                strlen(message.message.enodbName));
+                                       (unsigned char *)message.message.enodbName,
+                                       strlen(message.message.enodbName));
 
                         sendRmrMessage(rmrMessageBuffer, message, &lspan);
                         messageSent = true;
@@ -1594,6 +1676,81 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t 
                 if (messageSent) {
                     break;
                 }
+            }
+
+            break;
+        }
+        case ProcedureCode_id_RICindication: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICindication %s", message.message.enodbName);
+            }
+            for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.RICindication.protocolIEs.list.count; i++) {
+                auto messageSent = false;
+                RICindication_IEs_t *ie = pdu->choice.initiatingMessage->value.choice.RICindication.protocolIEs.list.array[i];
+                if (logLevel >= MDCLOG_DEBUG) {
+                    mdclog_write(MDCLOG_DEBUG, "ie type (ProtocolIE_ID) = %ld", ie->id);
+                }
+                if (ie->id == ProtocolIE_ID_id_RICrequestID) {
+                    if (logLevel >= MDCLOG_DEBUG) {
+                        mdclog_write(MDCLOG_DEBUG, "Got RIC requestId entry, ie type (ProtocolIE_ID) = %ld", ie->id);
+                    }
+                    if (ie->value.present == RICindication_IEs__value_PR_RICrequestID) {
+                        static unsigned char tx[32];
+                        message.message.messageType = rmrMessageBuffer.sendMessage->mtype = RIC_INDICATION;
+                        snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
+                        rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, strlen((const char *) tx));
+                        rmr_bytes2meid(rmrMessageBuffer.sendMessage,
+                                       (unsigned char *)message.message.enodbName,
+                                       strlen(message.message.enodbName));
+                        rmrMessageBuffer.sendMessage->state = 0;
+                        rmrMessageBuffer.sendMessage->sub_id = (int) ie->value.choice.RICrequestID.ricRequestorID;
+                        if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                            mdclog_write(MDCLOG_DEBUG, "RIC sub id = %d, message type = %d",
+                                         rmrMessageBuffer.sendMessage->sub_id,
+                                         rmrMessageBuffer.sendMessage->mtype);
+                        }
+                        sendRmrMessage(rmrMessageBuffer, message, &lspan);
+                        messageSent = true;
+                    } else {
+                        mdclog_write(MDCLOG_ERR, "RIC request id missing illigal request");
+                    }
+                }
+                if (messageSent) {
+                    break;
+                }
+            }
+            break;
+        }
+        case ProcedureCode_id_RICserviceQuery: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICserviceQuery %s", message.message.enodbName);
+            }
+            break;
+        }
+        case ProcedureCode_id_RICserviceUpdate: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICserviceUpdate %s", message.message.enodbName);
+            }
+            if (sendRequestToXapp(message, RIC_SERVICE_UPDATE, rmrMessageBuffer, &lspan) != 0) {
+                mdclog_write(MDCLOG_ERR, "RIC_SERVICE_UPDATE message failed to send to xAPP");
+            }
+            break;
+        }
+        case ProcedureCode_id_RICsubscription: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICsubscription %s", message.message.enodbName);
+            }
+            if (sendRequestToXapp(message, RIC_SUB_RESP, rmrMessageBuffer, &lspan) != 0) {
+                mdclog_write(MDCLOG_ERR, "Subscription successful message failed to send to xAPP");
+            }
+            break;
+        }
+        case ProcedureCode_id_RICsubscriptionDelete: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICsubscriptionDelete %s", message.message.enodbName);
+            }
+            if (sendRequestToXapp(message, RIC_SUB_DEL_RESP, rmrMessageBuffer, &lspan) != 0) {
+                mdclog_write(MDCLOG_ERR, "Subscription delete successful message failed to send to xAPP");
             }
             break;
         }
@@ -1631,100 +1788,48 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
     otSpan lspan = 0;
 #endif
     auto procedureCode = pdu->choice.unsuccessfulOutcome->procedureCode;
-    if (mdclog_level_get() >= MDCLOG_INFO) {
+    auto logLevel = mdclog_level_get();
+    if (logLevel >= MDCLOG_INFO) {
         mdclog_write(MDCLOG_INFO, "Unsuccessful Outcome %ld", procedureCode);
     }
     switch (procedureCode) {
-        case ProcedureCode_id_x2Setup: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO,
-                             "Got Unsuccessful Setup response from CU - %s",
-                             message.message.enodbName);
-            }
-            if (sendResponseToXapp(message,
-                                   RIC_X2_SETUP_FAILURE, RIC_X2_SETUP_REQ,
-                                   rmrMessageBuffer,
-                                   sctpMap,
-                                   &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR,
-                             "Failed to send Unsuccessful Setup response for CU - %s",
-                             message.message.enodbName);
-                break;
+        case ProcedureCode_id_E2setup: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got E2setup\n");
             }
             break;
         }
-        case ProcedureCode_id_endcX2Setup: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO,
-                             "Got Unsuccessful E2 EN-DC Setup response from CU - %s",
-                             message.message.enodbName);
+        case ProcedureCode_id_ErrorIndication: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got ErrorIndication %s", message.message.enodbName);
             }
-            if (sendResponseToXapp(message, RIC_ENDC_X2_SETUP_FAILURE,
-                                   RIC_ENDC_X2_SETUP_REQ,
-                                   rmrMessageBuffer,
-                                   sctpMap,
-                                   &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send Unsuccessful E2 EN DC Setup response for CU - %s",
-                             message.message.enodbName);
+            if (sendRequestToXapp(message, RIC_ERROR_INDICATION, rmrMessageBuffer, &lspan) != 0) {
+                mdclog_write(MDCLOG_ERR, "RIC_ERROR_INDICATION failed to send to xAPP");
             }
             break;
         }
-        case ProcedureCode_id_endcConfigurationUpdate: {
-            if (sendRequestToXapp(message, RIC_ENDC_CONF_UPDATE_FAILURE, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send Unsuccessful E2 EN DC CONFIGURATION response for CU - %s",
-                             message.message.enodbName);
+        case ProcedureCode_id_Reset: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got Reset %s", message.message.enodbName);
+            }
+            if (sendRequestToXapp(message, RIC_X2_RESET, rmrMessageBuffer, &lspan) != 0) {
+                mdclog_write(MDCLOG_ERR, "RIC_X2_RESET message failed to send to xAPP");
             }
             break;
         }
-        case ProcedureCode_id_eNBConfigurationUpdate: {
-            if (sendRequestToXapp(message, RIC_ENB_CONF_UPDATE_FAILURE, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send Unsuccessful E2 ENB CONFIGURATION response for CU - %s",
-                             message.message.enodbName);
-            }
-            break;
-        }
-        case ProcedureCode_id_resourceStatusReportingInitiation: {
-            if (sendRequestToXapp(message, RIC_RES_STATUS_FAILURE, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR,
-                             "Failed to send Succesful E2_REQUEST_STATUS_REPORTING_INITIATION response for CU - %s",
-                             message.message.enodbName);
-            }
-            break;
-        }
-        case ProcedureCode_id_ricSubscription: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got Unsuccessful RIC Subscription Response from CU - %s",
-                             message.message.enodbName);
-            }
-            if (sendRequestToXapp(message, RIC_SUB_FAILURE, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Subscription unsuccessful message failed to send to xAPP");
-            }
-            break;
-        }
-        case ProcedureCode_id_ricSubscriptionDelete: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got Unsuccessful RIC Subscription Delete Response from CU - %s",
-                             message.message.enodbName);
-            }
-            if (sendRequestToXapp(message, RIC_SUB_DEL_FAILURE, rmrMessageBuffer, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Subscription Delete unsuccessful message failed to send to xAPP");
-            }
-            break;
-        }
-        case ProcedureCode_id_ricControl: {
-            if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got UNSuccesful RIC control response from CU - %s",
-                             message.message.enodbName);
+        case ProcedureCode_id_RICcontrol: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICcontrol %s", message.message.enodbName);
             }
             for (int i = 0;
                  i < pdu->choice.unsuccessfulOutcome->value.choice.RICcontrolFailure.protocolIEs.list.count; i++) {
                 auto messageSent = false;
                 RICcontrolFailure_IEs_t *ie = pdu->choice.unsuccessfulOutcome->value.choice.RICcontrolFailure.protocolIEs.list.array[i];
-                if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                if (logLevel >= MDCLOG_DEBUG) {
                     mdclog_write(MDCLOG_DEBUG, "ie type (ProtocolIE_ID) = %ld", ie->id);
                 }
                 if (ie->id == ProtocolIE_ID_id_RICrequestID) {
-                    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                    if (logLevel >= MDCLOG_DEBUG) {
                         mdclog_write(MDCLOG_DEBUG, "Got RIC requestId entry, ie type (ProtocolIE_ID) = %ld", ie->id);
                     }
                     if (ie->value.present == RICcontrolFailure_IEs__value_PR_RICrequestID) {
@@ -1734,7 +1839,8 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
                         static unsigned char tx[32];
                         snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
                         rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, strlen((const char *) tx));
-    			rmr_bytes2meid(rmrMessageBuffer.sendMessage, (unsigned char *)message.message.enodbName, strlen(message.message.enodbName));
+                        rmr_bytes2meid(rmrMessageBuffer.sendMessage, (unsigned char *) message.message.enodbName,
+                                       strlen(message.message.enodbName));
                         sendRmrMessage(rmrMessageBuffer, message, &lspan);
                         messageSent = true;
                     } else {
@@ -1744,6 +1850,80 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
                 if (messageSent) {
                     break;
                 }
+            }
+            break;
+        }
+        case ProcedureCode_id_RICindication: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICindication %s", message.message.enodbName);
+            }
+            for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.RICindication.protocolIEs.list.count; i++) {
+                auto messageSent = false;
+                RICindication_IEs_t *ie = pdu->choice.initiatingMessage->value.choice.RICindication.protocolIEs.list.array[i];
+                if (logLevel >= MDCLOG_DEBUG) {
+                    mdclog_write(MDCLOG_DEBUG, "ie type (ProtocolIE_ID) = %ld", ie->id);
+                }
+                if (ie->id == ProtocolIE_ID_id_RICrequestID) {
+                    if (logLevel >= MDCLOG_DEBUG) {
+                        mdclog_write(MDCLOG_DEBUG, "Got RIC requestId entry, ie type (ProtocolIE_ID) = %ld", ie->id);
+                    }
+                    if (ie->value.present == RICindication_IEs__value_PR_RICrequestID) {
+                        static unsigned char tx[32];
+                        message.message.messageType = rmrMessageBuffer.sendMessage->mtype = RIC_INDICATION;
+                        snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
+                        rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, strlen((const char *) tx));
+                        rmr_bytes2meid(rmrMessageBuffer.sendMessage,
+                                       (unsigned char *)message.message.enodbName,
+                                       strlen(message.message.enodbName));
+                        rmrMessageBuffer.sendMessage->state = 0;
+                        rmrMessageBuffer.sendMessage->sub_id = (int) ie->value.choice.RICrequestID.ricRequestorID;
+                        if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                            mdclog_write(MDCLOG_DEBUG, "RIC sub id = %d, message type = %d",
+                                         rmrMessageBuffer.sendMessage->sub_id,
+                                         rmrMessageBuffer.sendMessage->mtype);
+                        }
+                        sendRmrMessage(rmrMessageBuffer, message, &lspan);
+                        messageSent = true;
+                    } else {
+                        mdclog_write(MDCLOG_ERR, "RIC request id missing illigal request");
+                    }
+                }
+                if (messageSent) {
+                    break;
+                }
+            }
+            break;
+        }
+        case ProcedureCode_id_RICserviceQuery: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICserviceQuery %s", message.message.enodbName);
+            }
+            break;
+        }
+        case ProcedureCode_id_RICserviceUpdate: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICserviceUpdate %s", message.message.enodbName);
+            }
+            if (sendRequestToXapp(message, RIC_SERVICE_UPDATE, rmrMessageBuffer, &lspan) != 0) {
+                mdclog_write(MDCLOG_ERR, "RIC_SERVICE_UPDATE message failed to send to xAPP");
+            }
+            break;
+        }
+        case ProcedureCode_id_RICsubscription: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICsubscription %s", message.message.enodbName);
+            }
+            if (sendRequestToXapp(message, RIC_SUB_FAILURE, rmrMessageBuffer, &lspan) != 0) {
+                mdclog_write(MDCLOG_ERR, "Subscription unsuccessful message failed to send to xAPP");
+            }
+            break;
+        }
+        case ProcedureCode_id_RICsubscriptionDelete: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICsubscriptionDelete %s", message.message.enodbName);
+            }
+            if (sendRequestToXapp(message, RIC_SUB_DEL_FAILURE, rmrMessageBuffer, &lspan) != 0) {
+                mdclog_write(MDCLOG_ERR, "Subscription Delete unsuccessful message failed to send to xAPP");
             }
             break;
         }
@@ -2325,6 +2505,7 @@ sendFailedSendingMessagetoXapp(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingM
  * @param size size of the buffer to send
  * @return
  */
+/*
 int sendResponseToXapp(ReportingMessages_t &message,
                        int msgType,
                        int requestType,
@@ -2370,6 +2551,7 @@ int sendResponseToXapp(ReportingMessages_t &message,
 #endif
     return rc;
 }
+*/
 
 /**
  * build the SCTP connection to eNodB or gNb
@@ -2434,16 +2616,11 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
         }
     }
 
-    // check if not alread connected. if connected send the request and return
+    // check if not connected. if connected send the request and return
     auto *peerInfo = (ConnectedCU_t *)sctpMap->find(message.message.enodbName);
     if (peerInfo != nullptr) {
-//        snprintf(strErr,
-//                128,
-//                "Device %s already connected please remove and then setup again",
-//                message.message.enodbName);
         if (mdclog_level_get() >= MDCLOG_INFO) {
-            mdclog_write(MDCLOG_INFO,
-                         "Device already connected to %s",
+            mdclog_write(MDCLOG_INFO, "Device already connected to %s",
                          message.message.enodbName);
         }
         message.message.messageType = msg->mtype;
@@ -2694,17 +2871,21 @@ int addToEpoll(int epoll_fd,
                          strerror(errno), __func__, __LINE__);
         }
         close(peerInfo->fileDescriptor);
-        cleanHashEntry(peerInfo, sctpMap, &lspan);
-        char key[MAX_ENODB_NAME_SIZE * 2];
-        snprintf(key, MAX_ENODB_NAME_SIZE * 2, "msg:%s|%d", enodbName, msgType);
-        if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "remove key = %s from %s at line %d", key, __FUNCTION__, __LINE__);
+        if (enodbName != nullptr) {
+            cleanHashEntry(peerInfo, sctpMap, &lspan);
+            char key[MAX_ENODB_NAME_SIZE * 2];
+            snprintf(key, MAX_ENODB_NAME_SIZE * 2, "msg:%s|%d", enodbName, msgType);
+            if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "remove key = %s from %s at line %d", key, __FUNCTION__, __LINE__);
+            }
+            auto tmp = sctpMap->find(key);
+            if (tmp) {
+                free(tmp);
+                sctpMap->erase(key);
+            }
+        } else {
+            peerInfo->enodbName[0] = 0;
         }
-    	auto tmp = sctpMap->find(key);
-        if (tmp) {
-            free(tmp);
-        }
-        sctpMap->erase(key);
         mdclog_write(MDCLOG_ERR, "epoll_ctl EPOLL_CTL_ADD (may chack not to quit here)");
 #ifdef __TRACING__
         lspan->Finish();

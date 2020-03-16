@@ -76,7 +76,7 @@ int base64::encode(const unsigned char *src, int srcLen, char unsigned *dst, lon
     dstLen = pos - dst;return 0;
 }
 
-int base64::decode(const unsigned char *src, int srcLen, char unsigned *dst, long &dstLen) {
+int base64::decode(const unsigned char *src, int srcLen, char unsigned *dst, long dstLen) {
     unsigned char inv_table[INVERSE_TABLE_SIZE];
     memset(inv_table, 0x80, INVERSE_TABLE_SIZE);
     for (ulong i = 0; i < sizeof(base64_table) - 1; i++) {

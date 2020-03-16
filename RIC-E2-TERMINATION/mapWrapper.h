@@ -41,9 +41,6 @@ class mapWrapper {
 public:
     void *find(char *key) {
         shared_lock<shared_timed_mutex> read(fence);
-        if (mdclog_level_get() >= MDCLOG_DEBUG) {
-
-        }
         auto entry = keyMap.find(key);
         if (entry == keyMap.end()) {
             return nullptr;

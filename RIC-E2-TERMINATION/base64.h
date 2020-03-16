@@ -55,7 +55,7 @@ public:
      * @param dstLen
      * @return 0 = OK -1 fault
      */
-    static int decode(const unsigned char *src, int srcLen, char unsigned *dst, long &dstLen);
+    static int decode(const unsigned char *src, int srcLen, char unsigned *dst, long dstLen);
 
 };
 

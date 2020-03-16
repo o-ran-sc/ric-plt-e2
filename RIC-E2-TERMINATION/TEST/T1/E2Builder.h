@@ -28,61 +28,98 @@
 #include <cstdlib>
 #include <sys/types.h>
 #include <error.h>
-#include <mdclog/mdclog.h>
 #include <algorithm>
 
 
-#include <mdclog/mdclog.h>
+//#include <mdclog/mdclog.h>
 
 
-#include "asn1cFiles/E2AP-PDU.h"
-#include "asn1cFiles/InitiatingMessage.h"
-#include "asn1cFiles/SuccessfulOutcome.h"
-#include "asn1cFiles/UnsuccessfulOutcome.h"
+#include "oranE2/E2AP-PDU.h"
+#include "oranE2/InitiatingMessage.h"
+#include "oranE2/SuccessfulOutcome.h"
+#include "oranE2/UnsuccessfulOutcome.h"
 
-#include "asn1cFiles/ProtocolIE-Field.h"
-
-#include "asn1cFiles/FDD-Info.h"
-#include "asn1cFiles/TDD-Info.h"
-#include "asn1cFiles/Neighbour-Information.h"
-
-
-#include "asn1cFiles/constr_TYPE.h"
-#include "asn1cFiles/asn_constant.h"
+#include "oranE2/ProtocolIE-Field.h"
+#include "oranE2/ENB-ID.h"
+#include "oranE2/GlobalENB-ID.h"
+#include "oranE2/GlobalE2node-gNB-ID.h"
+#include "oranE2/constr_TYPE.h"
+#include "oranE2/asn_constant.h"
 
 using namespace std;
 
-#define printEntry(type, function) \
-    if (mdclog_level_get() >= MDCLOG_DEBUG) { \
-        mdclog_write(MDCLOG_DEBUG, "start Test %s , %s", type, function); \
-    }
+#define printEntry(type, function);  fprintf(stdout, "start Test %s , %s", type, function);
 
 
 static void checkAndPrint(asn_TYPE_descriptor_t *typeDescriptor, void *data, char *dataType, const char *function) {
     char errbuf[128]; /* Buffer for error message */
     size_t errlen = sizeof(errbuf); /* Size of the buffer */
     if (asn_check_constraints(typeDescriptor, data, errbuf, &errlen) != 0) {
-        mdclog_write(MDCLOG_ERR, "%s Constraint validation failed: %s", dataType, errbuf);
-    } else if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "%s successes function %s", dataType, function);
+        fprintf(stderr, "%s Constraint validation failed: %s", dataType, errbuf);
     }
+    fprintf(stdout, "%s successes function %s", dataType, function);
+}
+
+void createPLMN_IDByMCCandMNC(PLMN_Identity_t *plmnId, int mcc, int mnc) {
+
+    //printEntry("PLMN_Identity_t", __func__)
+
+    ASN_STRUCT_RESET(asn_DEF_PLMN_Identity, plmnId);
+    plmnId->size = 3;
+    plmnId->buf = (uint8_t *) calloc(1, 3);
+    volatile auto mcc1 = (unsigned int) (mcc / 100);
+    volatile auto mcc2 = (unsigned int) (mcc / 10 % 10);
+    volatile auto mcc3 = (unsigned int) (mcc % 10);
+    plmnId->buf[0] = mcc2 << 4 | mcc1;
+
+    volatile auto mnc1 = (unsigned int)0;
+    volatile auto mnc2 = (unsigned int)0;
+    volatile auto mnc3 = (unsigned int)0;
+
+    if (mnc >= 100) {
+        mnc1 = (unsigned int) (mnc / 100);
+        mnc2 = (unsigned int) (mnc / 10 % 10);
+        mnc3 = (unsigned int) (mnc % 10);
+    } else {
+        mnc1 = (unsigned int) (mnc / 10);
+        mnc2 = (unsigned int) (mnc % 10);
+        mnc3 = 15;
+    }
+    plmnId->buf[1] = mcc3 << 4 | mnc3 ;
+    plmnId->buf[2] = mnc2 << 4 | mnc1 ;
+
+    //checkAndPrint(&asn_DEF_PLMN_Identity, plmnId, (char *) "PLMN_Identity_t", __func__);
+
+}
+
+
+PLMN_Identity_t *createPLMN_ID(const unsigned char *data) {
+    printEntry("PLMN_Identity_t", __func__)
+    auto *plmnId = (PLMN_Identity_t *) calloc(1, sizeof(PLMN_Identity_t));
+    ASN_STRUCT_RESET(asn_DEF_PLMN_Identity, plmnId);
+    plmnId->size = 3;
+    plmnId->buf = (uint8_t *) calloc(1, 3);
+    memcpy(plmnId->buf, data, 3);
+
+    checkAndPrint(&asn_DEF_PLMN_Identity, plmnId, (char *) "PLMN_Identity_t", __func__);
+
+    return plmnId;
 }
 
 BIT_STRING_t *createBIT_STRING(int size, int unusedBits, uint8_t *data) {
     printEntry("BIT_STRING_t", __func__)
-    auto *bitString = (BIT_STRING_t *)calloc(1, sizeof(BIT_STRING_t));
+    auto *bitString = (BIT_STRING_t *) calloc(1, sizeof(BIT_STRING_t));
     ASN_STRUCT_RESET(asn_DEF_BIT_STRING, bitString);
     bitString->size = size;
     bitString->bits_unused = unusedBits;
-    bitString->buf = (uint8_t *)calloc(1, size);
+    bitString->buf = (uint8_t *) calloc(1, size);
     // set bits to zero
-    data[bitString->size - 1] = ((unsigned)(data[bitString->size - 1] >>
-            (unsigned)bitString->bits_unused) << (unsigned)bitString->bits_unused);
+    data[bitString->size - 1] = ((unsigned) (data[bitString->size - 1] >>
+                                                                       (unsigned) bitString->bits_unused)
+            << (unsigned) bitString->bits_unused);
     memcpy(bitString->buf, data, size);
 
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_BIT_STRING, bitString, (char *)"BIT_STRING_t", __func__);
-    }
+    checkAndPrint(&asn_DEF_BIT_STRING, bitString, (char *) "BIT_STRING_t", __func__);
 
     return bitString;
 }
@@ -90,36 +127,20 @@ BIT_STRING_t *createBIT_STRING(int size, int unusedBits, uint8_t *data) {
 
 OCTET_STRING_t *createOCTET_STRING(const unsigned char *data, int size) {
     printEntry("OCTET_STRING_t", __func__)
-    auto *octs = (PLMN_Identity_t *)calloc(1, sizeof(PLMN_Identity_t));
+    auto *octs = (PLMN_Identity_t *) calloc(1, sizeof(PLMN_Identity_t));
     ASN_STRUCT_RESET(asn_DEF_OCTET_STRING, octs);
     octs->size = size;
-    octs->buf = (uint8_t *)calloc(1, size);
+    octs->buf = (uint8_t *) calloc(1, size);
     memcpy(octs->buf, data, size);
 
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_OCTET_STRING, octs, (char *)"OCTET_STRING_t", __func__);
-    }
+    checkAndPrint(&asn_DEF_OCTET_STRING, octs, (char *) "OCTET_STRING_t", __func__);
     return octs;
 }
 
 
-PLMN_Identity_t *createPLMN_ID(const unsigned char *data) {
-    printEntry("PLMN_Identity_t", __func__)
-    auto *plmnId = (PLMN_Identity_t *)calloc(1, sizeof(PLMN_Identity_t));
-    ASN_STRUCT_RESET(asn_DEF_PLMN_Identity, plmnId);
-    plmnId->size = 3;
-    plmnId->buf = (uint8_t *)calloc(1, 3);
-    memcpy(plmnId->buf, data, 3);
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_PLMN_Identity, plmnId, (char *)"PLMN_Identity_t", __func__);
-    }
-    return plmnId;
-}
-
 ENB_ID_t *createENB_ID(ENB_ID_PR enbType, unsigned char *data) {
     printEntry("ENB_ID_t", __func__)
-    auto *enb = (ENB_ID_t *)calloc(1, sizeof(ENB_ID_t));
+    auto *enb = (ENB_ID_t *) calloc(1, sizeof(ENB_ID_t));
     ASN_STRUCT_RESET(asn_DEF_ENB_ID, enb);
 
     enb->present = enbType;
@@ -131,9 +152,10 @@ ENB_ID_t *createENB_ID(ENB_ID_PR enbType, unsigned char *data) {
 
             enb->present = ENB_ID_PR_macro_eNB_ID;
 
-            enb->choice.macro_eNB_ID.buf = (uint8_t *)calloc(1, enb->choice.macro_eNB_ID.size);
-            data[enb->choice.macro_eNB_ID.size - 1] = ((unsigned)(data[enb->choice.macro_eNB_ID.size - 1] >>
-                    (unsigned)enb->choice.macro_eNB_ID.bits_unused) << (unsigned)enb->choice.macro_eNB_ID.bits_unused);
+            enb->choice.macro_eNB_ID.buf = (uint8_t *) calloc(1, enb->choice.macro_eNB_ID.size);
+            data[enb->choice.macro_eNB_ID.size - 1] = ((unsigned) (data[enb->choice.macro_eNB_ID.size - 1] >>
+                                                                                                           (unsigned) enb->choice.macro_eNB_ID.bits_unused)
+                    << (unsigned) enb->choice.macro_eNB_ID.bits_unused);
             memcpy(enb->choice.macro_eNB_ID.buf, data, enb->choice.macro_eNB_ID.size);
 
             break;
@@ -143,9 +165,10 @@ ENB_ID_t *createENB_ID(ENB_ID_PR enbType, unsigned char *data) {
             enb->choice.home_eNB_ID.bits_unused = 4;
             enb->present = ENB_ID_PR_home_eNB_ID;
 
-            enb->choice.home_eNB_ID.buf = (uint8_t *)calloc(1, enb->choice.home_eNB_ID.size);
-            data[enb->choice.home_eNB_ID.size - 1] = ((unsigned)(data[enb->choice.home_eNB_ID.size - 1] >>
-                    (unsigned)enb->choice.home_eNB_ID.bits_unused) << (unsigned)enb->choice.home_eNB_ID.bits_unused);
+            enb->choice.home_eNB_ID.buf = (uint8_t *) calloc(1, enb->choice.home_eNB_ID.size);
+            data[enb->choice.home_eNB_ID.size - 1] = ((unsigned) (data[enb->choice.home_eNB_ID.size - 1] >>
+                                                                                                         (unsigned) enb->choice.home_eNB_ID.bits_unused)
+                    << (unsigned) enb->choice.home_eNB_ID.bits_unused);
             memcpy(enb->choice.home_eNB_ID.buf, data, enb->choice.home_eNB_ID.size);
             break;
         }
@@ -154,9 +177,11 @@ ENB_ID_t *createENB_ID(ENB_ID_PR enbType, unsigned char *data) {
             enb->choice.short_Macro_eNB_ID.bits_unused = 6;
             enb->present = ENB_ID_PR_short_Macro_eNB_ID;
 
-            enb->choice.short_Macro_eNB_ID.buf = (uint8_t *)calloc(1, enb->choice.short_Macro_eNB_ID.size);
-            data[enb->choice.short_Macro_eNB_ID.size - 1] = ((unsigned)(data[enb->choice.short_Macro_eNB_ID.size - 1] >>
-                    (unsigned)enb->choice.short_Macro_eNB_ID.bits_unused) << (unsigned)enb->choice.short_Macro_eNB_ID.bits_unused);
+            enb->choice.short_Macro_eNB_ID.buf = (uint8_t *) calloc(1, enb->choice.short_Macro_eNB_ID.size);
+            data[enb->choice.short_Macro_eNB_ID.size - 1] = (
+                    (unsigned) (data[enb->choice.short_Macro_eNB_ID.size - 1] >>
+                                                                              (unsigned) enb->choice.short_Macro_eNB_ID.bits_unused)
+                            << (unsigned) enb->choice.short_Macro_eNB_ID.bits_unused);
             memcpy(enb->choice.short_Macro_eNB_ID.buf, data, enb->choice.short_Macro_eNB_ID.size);
             break;
         }
@@ -165,9 +190,10 @@ ENB_ID_t *createENB_ID(ENB_ID_PR enbType, unsigned char *data) {
             enb->choice.long_Macro_eNB_ID.bits_unused = 3;
             enb->present = ENB_ID_PR_long_Macro_eNB_ID;
 
-            enb->choice.long_Macro_eNB_ID.buf = (uint8_t *)calloc(1, enb->choice.long_Macro_eNB_ID.size);
-            data[enb->choice.long_Macro_eNB_ID.size - 1] = ((unsigned)(data[enb->choice.long_Macro_eNB_ID.size - 1] >>
-                    (unsigned)enb->choice.long_Macro_eNB_ID.bits_unused) << (unsigned)enb->choice.long_Macro_eNB_ID.bits_unused);
+            enb->choice.long_Macro_eNB_ID.buf = (uint8_t *) calloc(1, enb->choice.long_Macro_eNB_ID.size);
+            data[enb->choice.long_Macro_eNB_ID.size - 1] =
+                    ((unsigned) (data[enb->choice.long_Macro_eNB_ID.size - 1] >> (unsigned) enb->choice.long_Macro_eNB_ID.bits_unused)
+                            << (unsigned) enb->choice.long_Macro_eNB_ID.bits_unused);
             memcpy(enb->choice.long_Macro_eNB_ID.buf, data, enb->choice.long_Macro_eNB_ID.size);
             break;
         }
@@ -176,282 +202,26 @@ ENB_ID_t *createENB_ID(ENB_ID_PR enbType, unsigned char *data) {
             return nullptr;
     }
 
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_ENB_ID, enb, (char *)"ENB_ID_t", __func__);
-    }
+    checkAndPrint(&asn_DEF_ENB_ID, enb, (char *) "ENB_ID_t", __func__);
     return enb;
 }
 
 GlobalENB_ID_t *createGlobalENB_ID(PLMN_Identity_t *plmnIdentity, ENB_ID_t *enbId) {
     printEntry("GlobalENB_ID_t", __func__)
-    auto *genbId = (GlobalENB_ID_t *)calloc(1, sizeof(GlobalENB_ID_t));
+    auto *genbId = (GlobalENB_ID_t *) calloc(1, sizeof(GlobalENB_ID_t));
     ASN_STRUCT_RESET(asn_DEF_GlobalENB_ID, genbId);
     memcpy(&genbId->pLMN_Identity, plmnIdentity, sizeof(PLMN_Identity_t));
     memcpy(&genbId->eNB_ID, enbId, sizeof(ENB_ID_t));
 
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_GlobalENB_ID, genbId, (char *)"GlobalENB_ID_t", __func__);
-    }
+    checkAndPrint(&asn_DEF_GlobalENB_ID, genbId, (char *) "GlobalENB_ID_t", __func__);
     return genbId;
 }
 
 
-ECGI_t *CreateECGI(PLMN_Identity_t *plmnIdentity, BIT_STRING_t * eUtran) {
-    printEntry("ECGI_t", __func__)
-    auto *ecgi = (ECGI_t *)calloc(1, sizeof(ECGI_t));
-    ASN_STRUCT_RESET(asn_DEF_ECGI, ecgi);
-
-    memcpy(&ecgi->pLMN_Identity, plmnIdentity, sizeof(PLMN_Identity_t));
-    memcpy(&ecgi->eUTRANcellIdentifier, eUtran, sizeof(BIT_STRING_t));
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_ECGI, ecgi, (char *)"ECGI_t", __func__);
-    }
-    return ecgi;
-}
-
-//
-//FDD-Info ::= SEQUENCE {
-//        uL-EARFCN						EARFCN,
-//        dL-EARFCN						EARFCN,
-//        uL-Transmission-Bandwidth		Transmission-Bandwidth,
-//        dL-Transmission-Bandwidth		Transmission-Bandwidth,
-//        iE-Extensions				ProtocolExtensionContainer { {FDD-Info-ExtIEs} } OPTIONAL,
-//        ...
+//static void buildInitiatingMessagePDU(E2AP_PDU_t &pdu, InitiatingMessage_t *initMsg) {
+//    pdu.present = E2AP_PDU_PR_initiatingMessage;
+//    pdu.choice.initiatingMessage = initMsg;
 //}
-//
-//FDD-Info-ExtIEs X2AP-PROTOCOL-EXTENSION ::= {
-//        { ID id-UL-EARFCNExtension						CRITICALITY reject	EXTENSION EARFCNExtension									PRESENCE optional}|
-//        { ID id-DL-EARFCNExtension						CRITICALITY reject	EXTENSION EARFCNExtension									PRESENCE optional}|
-//        { ID id-OffsetOfNbiotChannelNumberToDL-EARFCN	CRITICALITY reject	EXTENSION OffsetOfNbiotChannelNumberToEARFCN		PRESENCE optional}|
-//        { ID id-OffsetOfNbiotChannelNumberToUL-EARFCN	CRITICALITY reject	EXTENSION OffsetOfNbiotChannelNumberToEARFCN		PRESENCE optional}|
-//        { ID id-NRS-NSSS-PowerOffset					CRITICALITY ignore	EXTENSION NRS-NSSS-PowerOffset							PRESENCE optional}|
-//        { ID id-NSSS-NumOccasionDifferentPrecoder		CRITICALITY ignore	EXTENSION NSSS-NumOccasionDifferentPrecoder			PRESENCE optional},
-//        ...
-//}
-
-static FDD_Info_t *create_fdd(long dL_EARFCN,
-        long uL_EARFCN,
-        e_Transmission_Bandwidth ultb,
-        e_Transmission_Bandwidth dltb) {
-    printEntry("FDD_Info_t", __func__)
-    auto *fdd = (FDD_Info_t *)calloc(1, sizeof(FDD_Info_t));
-    ASN_STRUCT_RESET(asn_DEF_FDD_Info, fdd);
-
-    //EARFCN ::= INTEGER (0..maxEARFCN)
-
-    if (dL_EARFCN >= 0 && dL_EARFCN <= maxEARFCN) {
-        fdd->dL_EARFCN = dL_EARFCN;
-    } else {
-        fdd->dL_EARFCN = maxEARFCN;
-    }
-    if (uL_EARFCN >= 0 && uL_EARFCN <= maxEARFCN) {
-        fdd->uL_EARFCN = uL_EARFCN;
-    } else {
-        fdd->uL_EARFCN = maxEARFCN;
-    }
-
-    fdd->uL_Transmission_Bandwidth = ultb;
-    fdd->dL_Transmission_Bandwidth = dltb;
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_FDD_Info, fdd, (char *)"FDD_Info_t", __func__);
-    }
-
-    return fdd;
-}
-
-SpecialSubframe_Info_t *createSpecialSubframe_Info(e_CyclicPrefixDL eCyclicPrefixDl,
-        e_CyclicPrefixUL eCyclicPrefixUl,
-        e_SpecialSubframePatterns eSpecialSubframePatterns) {
-    printEntry("SpecialSubframe_Info_t", __func__)
-    auto *ssf = (SpecialSubframe_Info_t *)calloc(1, sizeof(SpecialSubframe_Info_t));
-    ASN_STRUCT_RESET(asn_DEF_SpecialSubframe_Info, ssf);
-
-    ssf->cyclicPrefixDL = eCyclicPrefixDl;
-    ssf->cyclicPrefixUL = eCyclicPrefixUl;
-    ssf->specialSubframePatterns = eSpecialSubframePatterns;
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_SpecialSubframe_Info, ssf, (char *)"SpecialSubframe_Info_t", __func__);
-    }
-    return ssf;
-}
-
-//TDD-Info ::= SEQUENCE {
-//        eARFCN							EARFCN,
-//        transmission-Bandwidth			Transmission-Bandwidth,
-//        subframeAssignment				SubframeAssignment,
-//        specialSubframe-Info			SpecialSubframe-Info,
-//        iE-Extensions					ProtocolExtensionContainer { {TDD-Info-ExtIEs} } OPTIONAL,
-//        ...
-//}
-//
-//TDD-Info-ExtIEs X2AP-PROTOCOL-EXTENSION ::= {
-//        { ID id-AdditionalSpecialSubframe-Info			CRITICALITY ignore	EXTENSION AdditionalSpecialSubframe-Info				PRESENCE optional}|
-//        { ID id-eARFCNExtension							CRITICALITY reject	EXTENSION EARFCNExtension									PRESENCE optional}|
-//        { ID id-AdditionalSpecialSubframeExtension-Info	CRITICALITY ignore	EXTENSION AdditionalSpecialSubframeExtension-Info	PRESENCE optional}|
-//        { ID id-OffsetOfNbiotChannelNumberToDL-EARFCN	CRITICALITY reject	EXTENSION OffsetOfNbiotChannelNumberToEARFCN		PRESENCE optional}|
-//        { ID id-NBIoT-UL-DL-AlignmentOffset				CRITICALITY reject	EXTENSION NBIoT-UL-DL-AlignmentOffset					PRESENCE optional},
-//        ...
-//}
-
-static TDD_Info_t *create_Tdd(long eARFCN,
-        e_Transmission_Bandwidth tb,
-        e_SubframeAssignment sfA,
-        SpecialSubframe_Info_t *ssfi) {
-    printEntry("TDD_Info_t", __func__)
-    auto *tdd = (TDD_Info_t *)calloc(1, sizeof(FDD_Info_t));
-    ASN_STRUCT_RESET(asn_DEF_TDD_Info, tdd);
-
-    if (eARFCN >= 0 && eARFCN <= maxEARFCN) {
-        tdd->eARFCN = eARFCN;
-    } else {
-        tdd->eARFCN = maxEARFCN;
-    }
-    tdd->transmission_Bandwidth = tb;
-    tdd->subframeAssignment = sfA;
-    memcpy(&tdd->specialSubframe_Info, ssfi, sizeof(SpecialSubframe_Info_t));
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_TDD_Info, tdd, (char *)"TDD_Info_t", __func__);
-    }
-    return tdd;
-}
-
-static EUTRA_Mode_Info_t *createEUTRA_Mode_Info_FDD(FDD_Info_t *fdd) {
-    printEntry("EUTRA_Mode_Info_t", __func__)
-    auto *eutraModeInfo = (EUTRA_Mode_Info_t *)calloc(1, sizeof(EUTRA_Mode_Info_t));
-    ASN_STRUCT_RESET(asn_DEF_EUTRA_Mode_Info, eutraModeInfo);
-
-    eutraModeInfo->present = EUTRA_Mode_Info_PR_fDD;
-    eutraModeInfo->choice.fDD = fdd;
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_EUTRA_Mode_Info, eutraModeInfo, (char *)"EUTRA_Mode_Info_t", __func__);
-    }
-    return eutraModeInfo;
-
-}
-
-static EUTRA_Mode_Info_t *createEUTRA_Mode_Info_TDD(TDD_Info_t *tdd) {
-    printEntry("EUTRA_Mode_Info_t", __func__)
-    auto *eutraModeInfo = (EUTRA_Mode_Info_t *)calloc(1, sizeof(EUTRA_Mode_Info_t));
-    ASN_STRUCT_RESET(asn_DEF_EUTRA_Mode_Info, eutraModeInfo);
-
-    eutraModeInfo->present = EUTRA_Mode_Info_PR_tDD;
-    eutraModeInfo->choice.tDD = tdd;
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_EUTRA_Mode_Info, eutraModeInfo, (char *)"EUTRA_Mode_Info_t", __func__);
-    }
-    return eutraModeInfo;
-
-}
-
-Neighbour_Information__Member *createNeighbour_Information__Member(ECGI_t *eCGI, long pci, long eARFCN) {
-    printEntry("Neighbour_Information__Member", __func__)
-    auto *nigborInformation = (Neighbour_Information__Member *)calloc(1, sizeof(Neighbour_Information__Member));
-    ASN_STRUCT_RESET(asn_DEF_Neighbour_Information, nigborInformation);
-
-    memcpy(&nigborInformation->eCGI, eCGI, sizeof(ECGI_t));
-    nigborInformation->pCI = pci;
-    nigborInformation->eARFCN = eARFCN;
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_Neighbour_Information, nigborInformation, (char *)"Neighbour_Information__Member", __func__);
-    }
-    return nigborInformation;
-}
-
-void buildNeighbour_InformationVector(Neighbour_Information_t *neighbourInformation, Neighbour_Information__Member *member) {
-    ASN_SEQUENCE_ADD(&neighbourInformation->list, member);
-}
-
-//ServedCell-Information ::= SEQUENCE {
-//        pCI					PCI,
-//        cellId				ECGI,
-//        tAC					TAC,
-//        broadcastPLMNs		BroadcastPLMNs-Item,
-//        eUTRA-Mode-Info		EUTRA-Mode-Info,
-//        iE-Extensions		ProtocolExtensionContainer { {ServedCell-Information-ExtIEs} } OPTIONAL,
-//        ...
-//}
-//
-//ServedCell-Information-ExtIEs X2AP-PROTOCOL-EXTENSION ::= {
-//        { ID id-Number-of-Antennaports				CRITICALITY ignore	EXTENSION Number-of-Antennaports					PRESENCE optional}|
-//        { ID id-PRACH-Configuration					CRITICALITY ignore	EXTENSION PRACH-Configuration						PRESENCE optional}|
-//        { ID id-MBSFN-Subframe-Info					CRITICALITY ignore	EXTENSION MBSFN-Subframe-Infolist				PRESENCE optional}|
-//        { ID id-CSG-Id								CRITICALITY ignore	EXTENSION CSG-Id									PRESENCE optional}|
-//        { ID id-MBMS-Service-Area-List				CRITICALITY ignore	EXTENSION MBMS-Service-Area-Identity-List		PRESENCE optional}|
-//        { ID id-MultibandInfoList					CRITICALITY ignore	EXTENSION MultibandInfoList							PRESENCE optional}|
-//        { ID id-FreqBandIndicatorPriority			CRITICALITY ignore	EXTENSION FreqBandIndicatorPriority				PRESENCE optional}|
-//        { ID id-BandwidthReducedSI					CRITICALITY ignore	EXTENSION BandwidthReducedSI						PRESENCE optional}|
-//        { ID id-ProtectedEUTRAResourceIndication	CRITICALITY ignore	EXTENSION ProtectedEUTRAResourceIndication	PRESENCE optional}|
-//        { ID id-BPLMN-ID-Info-EUTRA					CRITICALITY ignore 	EXTENSION BPLMN-ID-Info-EUTRA						PRESENCE optional},
-//        ...
-//}
-
-/**
- *
- * @param pci
- * @param cellId
- * @param tac
- * @param broadcastPLMNs
- * @param eutranModeInfo
- * @return
- */
-ServedCell_Information_t *createServedCellInfo(long pci,
-        ECGI_t *cellId,
-        TAC_t *tac,
-        vector<PLMN_Identity_t> &broadcastPLMNs,
-        EUTRA_Mode_Info_t *eutranModeInfo) {
-
-    printEntry("ServedCell_Information_t", __func__)
-    auto servedCellinfo = (ServedCell_Information_t *)calloc(1, sizeof(ServedCell_Information_t));
-    ASN_STRUCT_RESET(asn_DEF_ServedCell_Information, servedCellinfo);
-
-    servedCellinfo->pCI = pci;
-    memcpy(&servedCellinfo->cellId, cellId, sizeof(ECGI_t));
-    memcpy(&servedCellinfo->tAC, tac, sizeof(TAC_t));
-
-    for (auto v : broadcastPLMNs) {
-        ASN_SEQUENCE_ADD(&servedCellinfo->broadcastPLMNs.list, &v);
-    }
-
-    memcpy(&servedCellinfo->eUTRA_Mode_Info, eutranModeInfo, sizeof(EUTRA_Mode_Info_t));
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_ServedCell_Information, servedCellinfo, (char *)"ServedCell_Information_t", __func__);
-    }
-
-    return servedCellinfo;
-}
-
-
-ServedCells__Member *createServedCellsMember(ServedCell_Information_t *servedCellInfo, Neighbour_Information_t *neighbourInformation) {
-    printEntry("ServedCells__Member", __func__)
-    auto servedCellMember = (ServedCells__Member *)calloc(1, sizeof(ServedCells__Member));
-
-    memcpy(&servedCellMember->servedCellInfo, servedCellInfo, sizeof(ServedCell_Information_t));
-    servedCellMember->neighbour_Info = neighbourInformation;
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_ServedCells, servedCellMember, (char *)"ServedCells__Member", __func__);
-    }
-
-    return servedCellMember;
-}
-
-void buildServedCells(ServedCells_t *servedCells, ServedCells__Member *member) {
-    ASN_SEQUENCE_ADD(&servedCells->list, member);
-}
-
-
-static void buildInitiatingMessagePDU(E2AP_PDU_t &pdu, InitiatingMessage_t *initMsg) {
-    pdu.present = E2AP_PDU_PR_initiatingMessage;
-    pdu.choice.initiatingMessage = initMsg;
-}
 
 template<typename T>
 static void buildInitMsg(InitiatingMessage_t &initMsg,
@@ -480,52 +250,12 @@ static void buildInitMsg(InitiatingMessage_t &initMsg,
             memcpy(&initMsg.value.choice.RICcontrolRequest, value, sizeof(*value));
             break;
         }
-        case InitiatingMessage__value_PR_X2SetupRequest: {
-            memcpy(&initMsg.value.choice.X2SetupRequest, value, sizeof(*value));
-            break;
-        }
-        case InitiatingMessage__value_PR_ENDCX2SetupRequest: {
-            memcpy(&initMsg.value.choice.ENDCX2SetupRequest, value, sizeof(*value));
-            break;
-        }
-        case InitiatingMessage__value_PR_ResourceStatusRequest: {
-            memcpy(&initMsg.value.choice.ResourceStatusRequest, value, sizeof(*value));
-            break;
-        }
-        case InitiatingMessage__value_PR_ENBConfigurationUpdate: {
-            memcpy(&initMsg.value.choice.ENBConfigurationUpdate, value, sizeof(*value));
-            break;
-        }
-        case InitiatingMessage__value_PR_ENDCConfigurationUpdate: {
-            memcpy(&initMsg.value.choice.ENDCConfigurationUpdate, value, sizeof(*value));
-            break;
-        }
-        case InitiatingMessage__value_PR_ResetRequest: {
-            memcpy(&initMsg.value.choice.ResetRequest, value, sizeof(*value));
-            break;
-        }
         case InitiatingMessage__value_PR_RICindication: {
             memcpy(&initMsg.value.choice.RICindication, value, sizeof(*value));
             break;
         }
         case InitiatingMessage__value_PR_RICserviceQuery: {
             memcpy(&initMsg.value.choice.RICserviceQuery, value, sizeof(*value));
-            break;
-        }
-        case InitiatingMessage__value_PR_LoadInformation: {
-            memcpy(&initMsg.value.choice.LoadInformation, value, sizeof(*value));
-            break;
-        }
-        case InitiatingMessage__value_PR_GNBStatusIndication: {
-            memcpy(&initMsg.value.choice.GNBStatusIndication, value, sizeof(*value));
-            break;
-        }
-        case InitiatingMessage__value_PR_ResourceStatusUpdate: {
-            memcpy(&initMsg.value.choice.ResourceStatusUpdate, value, sizeof(*value));
-            break;
-        }
-        case InitiatingMessage__value_PR_ErrorIndication: {
-            memcpy(&initMsg.value.choice.ErrorIndication, value, sizeof(*value));
             break;
         }
         case InitiatingMessage__value_PR_NOTHING:
@@ -535,10 +265,10 @@ static void buildInitMsg(InitiatingMessage_t &initMsg,
     }
 }
 
-static void buildSuccsesfulMessagePDU(E2AP_PDU_t &pdu, SuccessfulOutcome_t *succMsg) {
-    pdu.present = E2AP_PDU_PR_successfulOutcome;
-    pdu.choice.successfulOutcome = succMsg;
-}
+//static void buildSuccsesfulMessagePDU(E2AP_PDU_t &pdu, SuccessfulOutcome_t *succMsg) {
+//    pdu.present = E2AP_PDU_PR_successfulOutcome;
+//    pdu.choice.successfulOutcome = succMsg;
+//}
 
 template<typename T>
 static void buildSuccMsg(SuccessfulOutcome_t &succMsg,
@@ -567,26 +297,6 @@ static void buildSuccMsg(SuccessfulOutcome_t &succMsg,
             memcpy(&succMsg.value.choice.RICcontrolAcknowledge, value, sizeof(*value));
             break;
         }
-        case SuccessfulOutcome__value_PR_X2SetupResponse: {
-            memcpy(&succMsg.value.choice.X2SetupResponse, value, sizeof(*value));
-            break;
-        }
-        case SuccessfulOutcome__value_PR_ENDCX2SetupResponse: {
-            memcpy(&succMsg.value.choice.ENDCX2SetupResponse, value, sizeof(*value));
-            break;
-        }
-        case SuccessfulOutcome__value_PR_ResourceStatusResponse: {
-            memcpy(&succMsg.value.choice.ResourceStatusResponse, value, sizeof(*value));
-            break;
-        }
-        case SuccessfulOutcome__value_PR_ENBConfigurationUpdateAcknowledge: {
-            memcpy(&succMsg.value.choice.ENBConfigurationUpdateAcknowledge, value, sizeof(*value));
-            break;
-        }
-        case SuccessfulOutcome__value_PR_ENDCConfigurationUpdateAcknowledge: {
-            memcpy(&succMsg.value.choice.ENDCConfigurationUpdateAcknowledge, value, sizeof(*value));
-            break;
-        }
         case SuccessfulOutcome__value_PR_ResetResponse: {
             memcpy(&succMsg.value.choice.ResetResponse, value, sizeof(*value));
             break;
@@ -598,10 +308,10 @@ static void buildSuccMsg(SuccessfulOutcome_t &succMsg,
 }
 
 
-static void buildUnSucssesfullMessagePDU(E2AP_PDU_t &pdu, UnsuccessfulOutcome_t *unSuccMsg) {
-    pdu.present = E2AP_PDU_PR_unsuccessfulOutcome;
-    pdu.choice.unsuccessfulOutcome = unSuccMsg;
-}
+//static void buildUnSucssesfullMessagePDU(E2AP_PDU_t &pdu, UnsuccessfulOutcome_t *unSuccMsg) {
+//    pdu.present = E2AP_PDU_PR_unsuccessfulOutcome;
+//    pdu.choice.unsuccessfulOutcome = unSuccMsg;
+//}
 
 template<typename T>
 static void buildUnSuccMsg(UnsuccessfulOutcome_t &unSuccMsg,
@@ -629,26 +339,7 @@ static void buildUnSuccMsg(UnsuccessfulOutcome_t &unSuccMsg,
         case UnsuccessfulOutcome__value_PR_RICcontrolFailure: {
             memcpy(&unSuccMsg.value.choice.RICcontrolFailure, value, sizeof(*value));
             break;
-        }
-        case UnsuccessfulOutcome__value_PR_X2SetupFailure: {
-            memcpy(&unSuccMsg.value.choice.X2SetupFailure, value, sizeof(*value));
-            break;
-        }
-        case UnsuccessfulOutcome__value_PR_ENDCX2SetupFailure: {
-            memcpy(&unSuccMsg.value.choice.ENDCX2SetupFailure, value, sizeof(*value));
-            break;
-        }
-        case UnsuccessfulOutcome__value_PR_ResourceStatusFailure: {
-            memcpy(&unSuccMsg.value.choice.ResourceStatusFailure, value, sizeof(*value));
-            break;
-        }
-        case UnsuccessfulOutcome__value_PR_ENBConfigurationUpdateFailure: {
-            memcpy(&unSuccMsg.value.choice.ENBConfigurationUpdateFailure, value, sizeof(*value));
-            break;
-        }
-        case UnsuccessfulOutcome__value_PR_ENDCConfigurationUpdateFailure: {
-            memcpy(&unSuccMsg.value.choice.ENDCConfigurationUpdateFailure, value, sizeof(*value));
-            break;
+
         }
         case UnsuccessfulOutcome__value_PR_NOTHING:
         default:
@@ -657,19 +348,20 @@ static void buildUnSuccMsg(UnsuccessfulOutcome_t &unSuccMsg,
 }
 
 
-static void createPLMN_ID(PLMN_Identity_t &plmnId, const unsigned char *data) {
-    //printEntry("PLMN_Identity_t", __func__)
-    //PLMN_Identity_t *plmnId = calloc(1, sizeof(PLMN_Identity_t));
-    ASN_STRUCT_RESET(asn_DEF_PLMN_Identity, &plmnId);
-    plmnId.size = 3;
-    plmnId.buf = (uint8_t *) calloc(1, 3);
-    memcpy(plmnId.buf, data, 3);
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_PLMN_Identity, &plmnId, (char *) "PLMN_Identity_t", __func__);
-    }
-
-}
+//static void createPLMN_ID(PLMN_Identity_t &plmnId, const unsigned char *data) {
+//    //printEntry("PLMN_Identity_t", __func__)
+//    //PLMN_Identity_t *plmnId = calloc(1, sizeof(PLMN_Identity_t));
+//    ASN_STRUCT_RESET(asn_DEF_PLMN_Identity, &plmnId);
+//    plmnId.size = 3;//    uint64_t st = 0;
+////    uint32_t aux1 = 0;
+////    st = rdtscp(aux1);
+//
+//    plmnId.buf = (uint8_t *) calloc(1, 3);
+//    memcpy(plmnId.buf, data, 3);
+//
+//    checkAndPrint(&asn_DEF_PLMN_Identity, &plmnId, (char *) "PLMN_Identity_t", __func__);
+//
+//}
 
 static void createENB_ID(ENB_ID_t &enb, ENB_ID_PR enbType, unsigned char *data) {
     //printEntry("ENB_ID_t", __func__)
@@ -730,9 +422,7 @@ static void createENB_ID(ENB_ID_t &enb, ENB_ID_PR enbType, unsigned char *data) 
             break;
     }
 
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_ENB_ID, &enb, (char *) "ENB_ID_t", __func__);
-    }
+    checkAndPrint(&asn_DEF_ENB_ID, &enb, (char *) "ENB_ID_t", __func__);
 }
 
 
@@ -740,11 +430,191 @@ static void buildGlobalENB_ID(GlobalENB_ID_t *gnbId,
                               const unsigned char *gnbData,
                               ENB_ID_PR enbType,
                               unsigned char *enbData) {
-    createPLMN_ID(gnbId->pLMN_Identity, gnbData);
+    auto *plmnID = createPLMN_ID(gnbData);
+    memcpy(&gnbId->pLMN_Identity, plmnID, sizeof(PLMN_Identity_t));
     createENB_ID(gnbId->eNB_ID, enbType, enbData);
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        checkAndPrint(&asn_DEF_GlobalENB_ID, gnbId, (char *) "GlobalENB_ID_t", __func__);
-    }
+    checkAndPrint(&asn_DEF_GlobalENB_ID, gnbId, (char *) "GlobalENB_ID_t", __func__);
+}
+
+
+void buildSetupRequest(E2AP_PDU_t *pdu, int mcc, int mnc) {
+    ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
+
+    pdu->choice.initiatingMessage = (InitiatingMessage_t *)calloc(1, sizeof(InitiatingMessage_t));
+    auto *initiatingMessage = pdu->choice.initiatingMessage;
+    ASN_STRUCT_RESET(asn_DEF_InitiatingMessage, initiatingMessage);
+    initiatingMessage->procedureCode = ProcedureCode_id_E2setup;
+    initiatingMessage->criticality = Criticality_reject;
+    initiatingMessage->value.present = InitiatingMessage__value_PR_E2setupRequest;
+
+    auto *e2SetupRequestIEs = (E2setupRequestIEs_t *)calloc(1, sizeof(E2setupRequestIEs_t));
+    ASN_STRUCT_RESET(asn_DEF_E2setupRequestIEs, e2SetupRequestIEs);
+
+    e2SetupRequestIEs->value.choice.GlobalE2node_ID.choice.gNB = (GlobalE2node_gNB_ID_t *)calloc(1, sizeof(GlobalE2node_gNB_ID_t));
+    auto *globalE2NodeGNbId = e2SetupRequestIEs->value.choice.GlobalE2node_ID.choice.gNB;
+    ASN_STRUCT_RESET(asn_DEF_GlobalE2node_gNB_ID, globalE2NodeGNbId);
+
+    createPLMN_IDByMCCandMNC(&globalE2NodeGNbId->global_gNB_ID.plmn_id, mcc, mnc);
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.present = GNB_ID_Choice_PR_gnb_ID;
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.size = 4;
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.buf =
+            (uint8_t *) calloc(1, globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.size); //22..32 bits
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.bits_unused = 0;
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.buf[0] = 0xB5;
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.buf[1] = 0xC6;
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.buf[2] = 0x77;
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.buf[3] = 0x88;
+
+    e2SetupRequestIEs->criticality = Criticality_reject;
+    e2SetupRequestIEs->id = ProtocolIE_ID_id_GlobalE2node_ID;
+    e2SetupRequestIEs->value.present = E2setupRequestIEs__value_PR_GlobalE2node_ID;
+    e2SetupRequestIEs->value.choice.GlobalE2node_ID.present = GlobalE2node_ID_PR_gNB;
+
+
+    auto *e2SetupRequest = &initiatingMessage->value.choice.E2setupRequest;
+
+    ASN_STRUCT_RESET(asn_DEF_E2setupRequest, e2SetupRequest);
+    ASN_SEQUENCE_ADD(&e2SetupRequest->protocolIEs.list, e2SetupRequestIEs);
+
+    pdu->present = E2AP_PDU_PR_initiatingMessage;
+}
+
+void buildSetupRequestWithFunc(E2AP_PDU_t *pdu, int mcc, int mnc) {
+    ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
+
+    pdu->choice.initiatingMessage = (InitiatingMessage_t *)calloc(1, sizeof(InitiatingMessage_t));
+    auto *initiatingMessage = pdu->choice.initiatingMessage;
+    ASN_STRUCT_RESET(asn_DEF_InitiatingMessage, initiatingMessage);
+    initiatingMessage->procedureCode = ProcedureCode_id_E2setup;
+    initiatingMessage->criticality = Criticality_reject;
+    initiatingMessage->value.present = InitiatingMessage__value_PR_E2setupRequest;
+
+    auto *e2SetupRequestIEs = (E2setupRequestIEs_t *)calloc(1, sizeof(E2setupRequestIEs_t));
+    ASN_STRUCT_RESET(asn_DEF_E2setupRequestIEs, e2SetupRequestIEs);
+
+    e2SetupRequestIEs->value.choice.GlobalE2node_ID.choice.gNB = (GlobalE2node_gNB_ID_t *)calloc(1, sizeof(GlobalE2node_gNB_ID_t));
+    auto *globalE2NodeGNbId = e2SetupRequestIEs->value.choice.GlobalE2node_ID.choice.gNB;
+    ASN_STRUCT_RESET(asn_DEF_GlobalE2node_gNB_ID, globalE2NodeGNbId);
+
+    createPLMN_IDByMCCandMNC(&globalE2NodeGNbId->global_gNB_ID.plmn_id, mcc, mnc);
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.present = GNB_ID_Choice_PR_gnb_ID;
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.size = 4;
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.buf =
+            (uint8_t *) calloc(1, globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.size); //22..32 bits
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.bits_unused = 0;
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.buf[0] = 0xB5;
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.buf[1] = 0xC6;
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.buf[2] = 0x77;
+    globalE2NodeGNbId->global_gNB_ID.gnb_id.choice.gnb_ID.buf[3] = 0x88;
+
+    e2SetupRequestIEs->criticality = Criticality_reject;
+    e2SetupRequestIEs->id = ProtocolIE_ID_id_GlobalE2node_ID;
+    e2SetupRequestIEs->value.present = E2setupRequestIEs__value_PR_GlobalE2node_ID;
+    e2SetupRequestIEs->value.choice.GlobalE2node_ID.present = GlobalE2node_ID_PR_gNB;
+
+
+    auto *e2SetupRequest = &initiatingMessage->value.choice.E2setupRequest;
+
+    ASN_STRUCT_RESET(asn_DEF_E2setupRequest, e2SetupRequest);
+    ASN_SEQUENCE_ADD(&e2SetupRequest->protocolIEs.list, e2SetupRequestIEs);
+
+    auto *ranFlistIEs = (E2setupRequestIEs_t *)calloc(1, sizeof(E2setupRequestIEs_t));
+    ASN_STRUCT_RESET(asn_DEF_E2setupRequestIEs, ranFlistIEs);
+    ranFlistIEs->criticality = Criticality_reject;
+    ranFlistIEs->id = ProtocolIE_ID_id_RANfunctionsAdded;
+    ranFlistIEs->value.present = E2setupRequestIEs__value_PR_RANfunctions_List;
+
+    auto *itemIes = (RANfunction_ItemIEs_t *)calloc(1, sizeof(RANfunction_ItemIEs_t));
+    ASN_STRUCT_RESET(asn_DEF_RANfunction_ItemIEs, itemIes);
+
+    uint8_t buf[3] = {0x33, 0x44, 0x55};
+
+    itemIes->id = ProtocolIE_ID_id_RANfunction_Item;
+    itemIes->criticality = Criticality_reject;
+    itemIes->value.present = RANfunction_ItemIEs__value_PR_RANfunction_Item;
+    itemIes->value.choice.RANfunction_Item.ranFunctionID = 1;
+    auto *ranDef = &itemIes->value.choice.RANfunction_Item.ranFunctionDefinition;
+    ranDef->size = 3;
+    ranDef->buf = (uint8_t *)calloc(1, ranDef->size);
+    memcpy(ranDef->buf, buf, ranDef->size);
+
+    ASN_SEQUENCE_ADD(&ranFlistIEs->value.choice.RANfunctions_List.list, itemIes);
+
+    auto *itemIes1 = (RANfunction_ItemIEs_t *)calloc(1, sizeof(RANfunction_ItemIEs_t));
+    ASN_STRUCT_RESET(asn_DEF_RANfunction_ItemIEs, itemIes1);
+    itemIes1->id = ProtocolIE_ID_id_RANfunction_Item;
+    itemIes1->criticality = Criticality_reject;
+    itemIes1->value.present = RANfunction_ItemIEs__value_PR_RANfunction_Item;
+    itemIes1->value.choice.RANfunction_Item.ranFunctionID = 7;
+    ranDef = &itemIes1->value.choice.RANfunction_Item.ranFunctionDefinition;
+    ranDef->size = 3;
+    ranDef->buf = (uint8_t *)calloc(1, ranDef->size);
+    memcpy(ranDef->buf, buf, ranDef->size);
+    ASN_SEQUENCE_ADD(&ranFlistIEs->value.choice.RANfunctions_List.list, itemIes1);
+
+
+    ASN_SEQUENCE_ADD(&e2SetupRequest->protocolIEs.list, ranFlistIEs);
+
+    pdu->present = E2AP_PDU_PR_initiatingMessage;
+}
+
+
+
+
+
+void buildSetupSuccsessfulResponse(E2AP_PDU_t *pdu, int mcc, int mnc, uint8_t *data) {
+    ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
+
+    pdu->choice.successfulOutcome = (SuccessfulOutcome_t *)calloc(1, sizeof(SuccessfulOutcome_t));
+    SuccessfulOutcome_t *successfulOutcome = pdu->choice.successfulOutcome;
+    successfulOutcome->procedureCode = ProcedureCode_id_E2setup;
+    successfulOutcome->criticality = Criticality_reject;
+    successfulOutcome->value.present = SuccessfulOutcome__value_PR_E2setupResponse;
+
+    auto *e2SetupResponseIe = (E2setupResponseIEs_t *)calloc(1, sizeof(E2setupResponseIEs_t));
+    ASN_STRUCT_RESET(asn_DEF_E2setupResponseIEs, e2SetupResponseIe);
+
+    e2SetupResponseIe->criticality = Criticality_reject;
+    e2SetupResponseIe->id = ProtocolIE_ID_id_GlobalRIC_ID;
+    e2SetupResponseIe->value.present = E2setupResponseIEs__value_PR_GlobalRIC_ID;
+    createPLMN_IDByMCCandMNC(&e2SetupResponseIe->value.choice.GlobalRIC_ID.pLMN_Identity, mcc, mnc);
+
+    e2SetupResponseIe->value.choice.GlobalRIC_ID.ric_ID = {nullptr, 3, 4};
+    e2SetupResponseIe->value.choice.GlobalRIC_ID.ric_ID.buf = (uint8_t *)calloc(1, e2SetupResponseIe->value.choice.GlobalRIC_ID.ric_ID.size);
+    memcpy(e2SetupResponseIe->value.choice.GlobalRIC_ID.ric_ID.buf, data, e2SetupResponseIe->value.choice.GlobalRIC_ID.ric_ID.size);
+    e2SetupResponseIe->value.choice.GlobalRIC_ID.ric_ID.buf[2] &= (unsigned)0xF0;
+
+
+    ASN_STRUCT_RESET(asn_DEF_E2setupResponse, &successfulOutcome->value.choice.E2setupResponse);
+    ASN_SEQUENCE_ADD(&successfulOutcome->value.choice.E2setupResponse.protocolIEs.list, e2SetupResponseIe);
+
+    pdu->present = E2AP_PDU_PR_successfulOutcome;
+}
+
+
+void buildSetupUnSuccsessfulResponse(E2AP_PDU_t *pdu) {
+    ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
+
+    pdu->choice.unsuccessfulOutcome = (UnsuccessfulOutcome_t *)calloc(1, sizeof(UnsuccessfulOutcome_t));
+    UnsuccessfulOutcome_t *uns = pdu->choice.unsuccessfulOutcome;
+    uns->procedureCode = ProcedureCode_id_E2setup;
+    uns->criticality = Criticality_reject;
+    uns->value.present = UnsuccessfulOutcome__value_PR_E2setupFailure;
+
+    auto *e2SetupFIE = (E2setupFailureIEs_t *)calloc(1, sizeof(E2setupFailureIEs_t));
+    ASN_STRUCT_RESET(asn_DEF_E2setupFailureIEs, e2SetupFIE);
+
+    e2SetupFIE->criticality = Criticality_reject;
+    e2SetupFIE->id = ProtocolIE_ID_id_GlobalRIC_ID;
+    e2SetupFIE->value.present = E2setupFailureIEs__value_PR_Cause;
+    e2SetupFIE->value.choice.Cause.present = Cause_PR_transport;
+    e2SetupFIE->value.choice.Cause.choice.transport = CauseTransport_transport_resource_unavailable;
+
+
+    ASN_STRUCT_RESET(asn_DEF_E2setupFailure, &uns->value.choice.E2setupFailure);
+    ASN_SEQUENCE_ADD(&uns->value.choice.E2setupFailure.protocolIEs.list, e2SetupFIE);
+
+    pdu->present = E2AP_PDU_PR_unsuccessfulOutcome;
 }
 
 #endif //E2_E2BUILDER_H

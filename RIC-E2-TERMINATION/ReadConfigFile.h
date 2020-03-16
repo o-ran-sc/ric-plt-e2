@@ -70,23 +70,29 @@ public:
                 section = line.substr(1, sectionEnd - 1) + ".";
                 continue;
             }
+            if (mdclog_level_get() >= MDCLOG_INFO) {
+                mdclog_write(MDCLOG_INFO, "line = %s ", line.c_str());
+            }
 
             auto leftHand = line.find('=');
             if (leftHand == std::string::npos) {
-                mdclog_write(MDCLOG_ERR, "problematic entry: %s  ", line.c_str());
+                mdclog_write(MDCLOG_ERR, "problematic entry: %s  no equal sign", line.c_str());
                 continue;
             }
 //            auto name = line.substr(0,leftHand);
 //            trim(name);
             auto name = section + trim(line.substr(0, leftHand));
 
-            auto value = line.substr(leftHand+1);
+            auto value = line.substr(leftHand + 1);
             if (value.length() == 0) {
                 mdclog_write(MDCLOG_ERR, "problematic entry: %s no value ", line.c_str());
                 continue;
 
             }
             trim(value);
+            if (mdclog_level_get() >= MDCLOG_INFO) {
+                mdclog_write(MDCLOG_INFO, "entry = %s value = %s", name.c_str(), value.c_str());
+            }
             //cout << "entry = " << name << " value = " << value  << endl;
             entries[name] = value;
         }

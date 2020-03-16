@@ -55,8 +55,6 @@ Ensure(base64, encDec) {
     assert_that(base64::decode(buf, length, backBackBuff, length2) == 0);
     std::string str1( backBackBuff, backBackBuff + sizeof backBackBuff / sizeof backBackBuff[0]);
 
-    assert_that(str.length() == (ulong)length2)
-    //auto val = str.compare((const char *)backBackBuff);
     assert_that(str.compare((const char *)backBackBuff) == 0)
     free(backBackBuff);
     free(buf);

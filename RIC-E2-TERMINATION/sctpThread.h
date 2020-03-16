@@ -69,13 +69,17 @@
 
 #include <mdclog/mdclog.h>
 
-#include "asn1cFiles/E2AP-PDU.h"
-#include "asn1cFiles/ProtocolIE-Container.h"
-#include "asn1cFiles/InitiatingMessage.h"
-#include "asn1cFiles/SuccessfulOutcome.h"
-#include "asn1cFiles/UnsuccessfulOutcome.h"
-#include "asn1cFiles/ProtocolIE-Container.h"
-#include "asn1cFiles/ProtocolIE-Field.h"
+#include "oranE2/E2AP-PDU.h"
+#include "oranE2/ProtocolIE-Container.h"
+#include "oranE2/InitiatingMessage.h"
+#include "oranE2/SuccessfulOutcome.h"
+#include "oranE2/UnsuccessfulOutcome.h"
+#include "oranE2/ProtocolIE-Container.h"
+#include "oranE2/ProtocolIE-Field.h"
+#include "oranE2/GlobalE2node-gNB-ID.h"
+#include "oranE2/GlobalE2node-en-gNB-ID.h"
+#include "oranE2/GlobalE2node-ng-eNB-ID.h"
+#include "oranE2/GlobalE2node-eNB-ID.h"
 
 #include "cxxopts.hpp"
 //#include "config-cpp/include/config-cpp/config-cpp.h"
@@ -104,7 +108,7 @@ namespace expr = boost::log::expressions;
 
 #define MAXEVENTS 128
 
-#define RECEIVE_SCTP_BUFFER_SIZE (64*1024)
+#define RECEIVE_SCTP_BUFFER_SIZE (8*1024)
 #define RECEIVE_XAPP_BUFFER_SIZE RECEIVE_SCTP_BUFFER_SIZE 
 
 typedef mapWrapper Sctp_Map_t;
@@ -120,6 +124,7 @@ typedef const int otSpan;
 typedef struct sctp_params {
     uint16_t rmrPort = 0;
     int      epoll_fd = 0;
+    int      listenFD = 0;
     int      rmrListenFd = 0;
     int      inotifyFD = 0;
     int      inotifyWD = 0;
@@ -148,6 +153,8 @@ typedef struct ConnectedCU {
     size_t asnLength = 0;
     int mtype = 0;
     bool isConnected = false;
+    bool gotSetup = false;
+    sctp_params_t *sctpParams = nullptr;
 } ConnectedCU_t ;
 
 #define MAX_RMR_BUFF_ARRY 32
@@ -171,10 +178,11 @@ typedef struct formatedMessage {
 } FormatedMessage_t;
 
 typedef struct ReportingMessages {
-    FormatedMessage_t message;
-    long outLen;
-    unsigned char base64Data[RECEIVE_SCTP_BUFFER_SIZE * 2];
-    char buffer[RECEIVE_SCTP_BUFFER_SIZE * 8];
+    FormatedMessage_t message {};
+    ConnectedCU_t *peerInfo = nullptr;
+    long outLen = 0;
+    unsigned char base64Data[RECEIVE_SCTP_BUFFER_SIZE * 2] {};
+    char buffer[RECEIVE_SCTP_BUFFER_SIZE * 8] {};
 } ReportingMessages_t;
 
 cxxopts::ParseResult parse(int argc, char *argv[], sctp_params_t &pSctpParams);
@@ -250,12 +258,14 @@ int sendRequestToXapp(ReportingMessages_t &message,
  * @param pSpan
  * @return
  */
+/*
 int sendResponseToXapp(ReportingMessages_t &message,
                        int msgType,
                        int requestType,
                        RmrMessagesBuffer_t &rmrMessageBuffer,
                        Sctp_Map_t *sctpMap,
                        otSpan *pSpan);
+*/
 
 /**
  *
@@ -384,7 +394,6 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
  * @return
  */
 int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &message, otSpan *pSpan);
-
 /**
  *
  * @param epoll_fd
@@ -428,7 +437,7 @@ string translateRmrErrorMessages(int state);
 static inline uint64_t rdtscp(uint32_t &aux) {
     uint64_t rax,rdx;
     asm volatile ("rdtscp\n" : "=a" (rax), "=d" (rdx), "=c" (aux) : :);
-    return (rdx << 32) + rax;
+    return (rdx << (unsigned)32) + rax;
 }
 #ifndef RIC_SCTP_CONNECTION_FAILURE
 #define RIC_SCTP_CONNECTION_FAILURE  10080
