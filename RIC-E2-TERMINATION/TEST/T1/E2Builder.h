@@ -567,26 +567,49 @@ void buildSetupSuccsessfulResponse(E2AP_PDU_t *pdu, int mcc, int mnc, uint8_t *d
 
     pdu->choice.successfulOutcome = (SuccessfulOutcome_t *)calloc(1, sizeof(SuccessfulOutcome_t));
     SuccessfulOutcome_t *successfulOutcome = pdu->choice.successfulOutcome;
+    ASN_STRUCT_RESET(asn_DEF_E2setupResponse, &successfulOutcome->value.choice.E2setupResponse);
     successfulOutcome->procedureCode = ProcedureCode_id_E2setup;
     successfulOutcome->criticality = Criticality_reject;
     successfulOutcome->value.present = SuccessfulOutcome__value_PR_E2setupResponse;
 
-    auto *e2SetupResponseIe = (E2setupResponseIEs_t *)calloc(1, sizeof(E2setupResponseIEs_t));
-    ASN_STRUCT_RESET(asn_DEF_E2setupResponseIEs, e2SetupResponseIe);
 
-    e2SetupResponseIe->criticality = Criticality_reject;
-    e2SetupResponseIe->id = ProtocolIE_ID_id_GlobalRIC_ID;
-    e2SetupResponseIe->value.present = E2setupResponseIEs__value_PR_GlobalRIC_ID;
-    createPLMN_IDByMCCandMNC(&e2SetupResponseIe->value.choice.GlobalRIC_ID.pLMN_Identity, mcc, mnc);
+    auto *globalRicidIE = (E2setupResponseIEs_t *)calloc(1, sizeof(E2setupResponseIEs_t));
+    ASN_STRUCT_RESET(asn_DEF_E2setupResponseIEs, globalRicidIE);
 
-    e2SetupResponseIe->value.choice.GlobalRIC_ID.ric_ID = {nullptr, 3, 4};
-    e2SetupResponseIe->value.choice.GlobalRIC_ID.ric_ID.buf = (uint8_t *)calloc(1, e2SetupResponseIe->value.choice.GlobalRIC_ID.ric_ID.size);
-    memcpy(e2SetupResponseIe->value.choice.GlobalRIC_ID.ric_ID.buf, data, e2SetupResponseIe->value.choice.GlobalRIC_ID.ric_ID.size);
-    e2SetupResponseIe->value.choice.GlobalRIC_ID.ric_ID.buf[2] &= (unsigned)0xF0;
+    globalRicidIE->criticality = Criticality_reject;
+    globalRicidIE->id = ProtocolIE_ID_id_GlobalRIC_ID;
+    globalRicidIE->value.present = E2setupResponseIEs__value_PR_GlobalRIC_ID;
+    createPLMN_IDByMCCandMNC(&globalRicidIE->value.choice.GlobalRIC_ID.pLMN_Identity, mcc, mnc);
+
+    globalRicidIE->value.choice.GlobalRIC_ID.ric_ID = {nullptr, 3, 4};
+    globalRicidIE->value.choice.GlobalRIC_ID.ric_ID.buf = (uint8_t *)calloc(1, globalRicidIE->value.choice.GlobalRIC_ID.ric_ID.size);
+    memcpy(globalRicidIE->value.choice.GlobalRIC_ID.ric_ID.buf, data, globalRicidIE->value.choice.GlobalRIC_ID.ric_ID.size);
+    globalRicidIE->value.choice.GlobalRIC_ID.ric_ID.buf[2] &= (unsigned)0xF0;
 
 
     ASN_STRUCT_RESET(asn_DEF_E2setupResponse, &successfulOutcome->value.choice.E2setupResponse);
-    ASN_SEQUENCE_ADD(&successfulOutcome->value.choice.E2setupResponse.protocolIEs.list, e2SetupResponseIe);
+    ASN_SEQUENCE_ADD(&successfulOutcome->value.choice.E2setupResponse.protocolIEs.list, globalRicidIE);
+
+    auto *ranFunctionAdd = (E2setupResponseIEs_t *)calloc(1, sizeof(E2setupResponseIEs_t));
+    ASN_STRUCT_RESET(asn_DEF_E2setupResponseIEs, ranFunctionAdd);
+    ranFunctionAdd->criticality = Criticality_reject;
+    ranFunctionAdd->id = ProtocolIE_ID_id_RANfunctionsAccepted;
+    ranFunctionAdd->value.present = E2setupResponseIEs__value_PR_RANfunctionsID_List;
+
+    auto *ranFuncIdItemIEs = (RANfunctionID_ItemIEs_t *)calloc(1, sizeof(RANfunctionID_ItemIEs_t));
+
+    ranFuncIdItemIEs->criticality = Criticality_ignore;
+    ranFuncIdItemIEs->id = ProtocolIE_ID_id_RANfunctionID_Item;
+    ranFuncIdItemIEs->value.present = RANfunctionID_ItemIEs__value_PR_RANfunctionID_Item;
+    ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionID = 10;
+    ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionRevision = 1;
+
+    ASN_SEQUENCE_ADD(&ranFunctionAdd->value.choice.RANfunctionsID_List.list, ranFuncIdItemIEs);
+    ASN_SEQUENCE_ADD(&successfulOutcome->value.choice.E2setupResponse.protocolIEs.list, ranFunctionAdd);
+
+
+
+
 
     pdu->present = E2AP_PDU_PR_successfulOutcome;
 }

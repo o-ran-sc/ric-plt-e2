@@ -27,9 +27,6 @@ using namespace std;
 //using namespace std::placeholders;
 using namespace boost::filesystem;
 
-#ifdef __TRACING__
-using namespace opentracing;
-#endif
 //#ifdef __cplusplus
 //extern "C"
 //{
@@ -85,7 +82,7 @@ int buildListeningPort(sctp_params_t &sctpParams) {
     struct sockaddr_in6 servaddr {};
     servaddr.sin6_family = AF_INET6;
     servaddr.sin6_addr   = in6addr_any;
-    servaddr.sin6_port = htons(SRC_PORT);
+    servaddr.sin6_port = htons(sctpParams.sctpPort);
     if (bind(sctpParams.listenFD, (SA *)&servaddr, sizeof(servaddr)) < 0 ) {
         mdclog_write(MDCLOG_ERR, "Error binding. %s\n", strerror(errno));
         return -1;
@@ -200,6 +197,13 @@ int buildConfiguration(sctp_params_t &sctpParams) {
         return -1;
     }
 
+    int sctpPort = conf.getIntValue("sctp-port");
+    if (sctpPort == -1) {
+        mdclog_write(MDCLOG_ERR, "illigal SCTP port ");
+        return -1;
+    }
+    sctpParams.sctpPort = (uint16_t)sctpPort;
+
     sctpParams.fqdn = conf.getStringValue("external-fqdn");
     if (sctpParams.fqdn.length() == 0) {
         mdclog_write(MDCLOG_ERR, "illigal external-fqdn");
@@ -235,7 +239,7 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     }
     jsonTrace = sctpParams.trace;
 
-    sctpParams.ka_message_length = snprintf(sctpParams.ka_message, 4096, "{\"address\": \"%s:%d\","
+    sctpParams.ka_message_length = snprintf(sctpParams.ka_message, KA_MESSAGE_SIZE, "{\"address\": \"%s:%d\","
                                                                          "\"fqdn\": \"%s\","
                                                                          "\"pod_name\": \"%s\"}",
                                             (const char *)sctpParams.myIP.c_str(),
@@ -283,13 +287,6 @@ int buildConfiguration(sctp_params_t &sctpParams) {
 int main(const int argc, char **argv) {
     sctp_params_t sctpParams;
 
-#ifdef __TRACING__
-    opentracing::Tracer::InitGlobal(tracelibcpp::createTracer("E2 Terminator"));
-    auto span = opentracing::Tracer::Global()->StartSpan(__FUNCTION__);
-#else
-    otSpan span = 0;
-#endif
-
     {
         std::random_device device{};
         std::mt19937 generator(device());
@@ -335,7 +332,7 @@ int main(const int argc, char **argv) {
         exit(-1);
     }
 
-    getRmrContext(sctpParams, &span);
+    getRmrContext(sctpParams);
     if (sctpParams.rmrCtx == nullptr) {
         close(sctpParams.epoll_fd);
         exit(-1);
@@ -380,9 +377,6 @@ int main(const int argc, char **argv) {
         t.join();
     }
 
-#ifdef __TRACING__
-    opentracing::Tracer::Global()->Close();
-#endif
     return 0;
 }
 
@@ -506,11 +500,6 @@ int buildInotify(sctp_params_t &sctpParams) {
  * @return
  */
 void listener(sctp_params_t *params) {
-#ifdef __TRACING__
-    auto span = opentracing::Tracer::Global()->StartSpan(__FUNCTION__);
-#else
-    otSpan span = 0;
-#endif
     int num_of_SCTP_messages = 0;
     auto totalTime = 0.0;
     mdclog_mdc_clean();
@@ -587,9 +576,9 @@ void listener(sctp_params_t *params) {
 
 
             if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP)) {
-                handlepoll_error(events[i], message, rmrMessageBuffer, params, &span);
+                handlepoll_error(events[i], message, rmrMessageBuffer, params);
             } else if (events[i].events & EPOLLOUT) {
-                handleEinprogressMessages(events[i], message, rmrMessageBuffer, params, &span);
+                handleEinprogressMessages(events[i], message, rmrMessageBuffer, params);
             } else if (params->listenFD == events[i].data.fd) {
                 // new connection is requested from RAN  start build connection
                 while (true) {
@@ -633,10 +622,7 @@ void listener(sctp_params_t *params) {
                                    peerInfo,
                                    (EPOLLIN | EPOLLET),
                                    params->sctpMap, nullptr,
-                                   0, &span) != 0) {
-#ifdef __TRACING__
-                        lspan->Finish();
-#endif
+                                   0) != 0) {
                         break;
                     }
                 }
@@ -650,8 +636,7 @@ void listener(sctp_params_t *params) {
                 if (receiveXappMessages(params->epoll_fd,
                                         params->sctpMap,
                                         rmrMessageBuffer,
-                                        message.message.time,
-                                        &span) != 0) {
+                                        message.message.time) != 0) {
                     mdclog_write(MDCLOG_ERR, "Error handling Xapp message");
                 }
             } else if (params->inotifyFD == events[i].data.fd) {
@@ -669,8 +654,7 @@ void listener(sctp_params_t *params) {
                                     params->sctpMap,
                                     num_of_SCTP_messages,
                                     rmrMessageBuffer,
-                                    message.message.time,
-                                    &span);
+                                    message.message.time);
             }
 
             clock_gettime(CLOCK_MONOTONIC, &end);
@@ -685,11 +669,6 @@ void listener(sctp_params_t *params) {
             }
         }
     }
-#ifdef __TRACING__
-    span->Finish();
-#else
-
-#endif
 }
 
 /**
@@ -809,19 +788,11 @@ void handleConfigChange(sctp_params_t *sctpParams) {
  * @param message
  * @param rmrMessageBuffer
  * @param params
- * @param pSpan
  */
 void handleEinprogressMessages(struct epoll_event &event,
                                ReportingMessages_t &message,
                                RmrMessagesBuffer_t &rmrMessageBuffer,
-                               sctp_params_t *params,
-                               otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
+                               sctp_params_t *params) {
     auto *peerInfo = (ConnectedCU_t *)event.data.ptr;
     memcpy(message.message.enodbName, peerInfo->enodbName, sizeof(peerInfo->enodbName));
 
@@ -844,26 +815,20 @@ void handleEinprogressMessages(struct epoll_event &event,
         message.message.asnLength = rmrMessageBuffer.sendMessage->len;
         mdclog_write(MDCLOG_ERR, "%s", rmrMessageBuffer.sendMessage->payload);
         message.message.direction = 'N';
-        if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer, &lspan) != 0) {
+        if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer) != 0) {
             mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
         }
         memset(peerInfo->asnData, 0, peerInfo->asnLength);
         peerInfo->asnLength = 0;
         peerInfo->mtype = 0;
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return;
     }
 
     peerInfo->isConnected = true;
 
     if (modifyToEpoll(params->epoll_fd, peerInfo, (EPOLLIN | EPOLLET), params->sctpMap, peerInfo->enodbName,
-                      peerInfo->mtype, &lspan) != 0) {
+                      peerInfo->mtype) != 0) {
         mdclog_write(MDCLOG_ERR, "epoll_ctl EPOLL_CTL_MOD");
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return;
     }
 
@@ -876,36 +841,23 @@ void handleEinprogressMessages(struct epoll_event &event,
         mdclog_write(MDCLOG_DEBUG, "send the delayed SETUP/ENDC SETUP to sctp for %s",
                      message.message.enodbName);
     }
-    if (sendSctpMsg(peerInfo, message, params->sctpMap, &lspan) != 0) {
+    if (sendSctpMsg(peerInfo, message, params->sctpMap) != 0) {
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
             mdclog_write(MDCLOG_DEBUG, "Error write to SCTP  %s %d", __func__, __LINE__);
         }
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return;
     }
 
     memset(peerInfo->asnData, 0, peerInfo->asnLength);
     peerInfo->asnLength = 0;
     peerInfo->mtype = 0;
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
 }
 
 
 void handlepoll_error(struct epoll_event &event,
                       ReportingMessages_t &message,
                       RmrMessagesBuffer_t &rmrMessageBuffer,
-                      sctp_params_t *params,
-                      otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
+                      sctp_params_t *params) {
     if (event.data.fd != params->rmrListenFd) {
         auto *peerInfo = (ConnectedCU_t *)event.data.ptr;
         mdclog_write(MDCLOG_ERR, "epoll error, events %0x on fd %d, RAN NAME : %s",
@@ -919,19 +871,15 @@ void handlepoll_error(struct epoll_event &event,
 
         memcpy(message.message.enodbName, peerInfo->enodbName, sizeof(peerInfo->enodbName));
         message.message.direction = 'N';
-        if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer, &lspan) != 0) {
+        if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer) != 0) {
             mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
         }
 
         close(peerInfo->fileDescriptor);
-        cleanHashEntry((ConnectedCU_t *) event.data.ptr, params->sctpMap, &lspan);
+        cleanHashEntry((ConnectedCU_t *) event.data.ptr, params->sctpMap);
     } else {
         mdclog_write(MDCLOG_ERR, "epoll error, events %0x on RMR FD", event.events);
     }
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
-
 }
 /**
  *
@@ -963,15 +911,8 @@ int setSocketNoBlocking(int socket) {
  *
  * @param val
  * @param m
- * @param pSpan
  */
-void cleanHashEntry(ConnectedCU_t *val, Sctp_Map_t *m, otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-//    otSpan lspan = 0;
-#endif
+void cleanHashEntry(ConnectedCU_t *val, Sctp_Map_t *m) {
     char *dummy;
     auto port = (uint16_t) strtol(val->portNumber, &dummy, 10);
     char searchBuff[2048]{};
@@ -981,9 +922,6 @@ void cleanHashEntry(ConnectedCU_t *val, Sctp_Map_t *m, otSpan *pSpan) {
 
     m->erase(val->enodbName);
     free(val);
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
 }
 
 /**
@@ -996,13 +934,7 @@ void cleanHashEntry(ConnectedCU_t *val, Sctp_Map_t *m, otSpan *pSpan) {
  * @param mtype message number
  * @return 0 success, anegative number on fail
  */
-int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_t *m, otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
+int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_t *m) {
     auto loglevel = mdclog_level_get();
     int fd = peerInfo->fileDescriptor;
     if (loglevel >= MDCLOG_DEBUG) {
@@ -1018,12 +950,9 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
             mdclog_write(MDCLOG_ERR, "error writing to CU a message, %s ", strerror(errno));
             if (!peerInfo->isConnected) {
                 mdclog_write(MDCLOG_ERR, "connection to CU %s is still in progress.", message.message.enodbName);
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
                 return -1;
             }
-            cleanHashEntry(peerInfo, m, &lspan);
+            cleanHashEntry(peerInfo, m);
             close(fd);
             char key[MAX_ENODB_NAME_SIZE * 2];
             snprintf(key, MAX_ENODB_NAME_SIZE * 2, "msg:%s|%d", message.message.enodbName,
@@ -1036,9 +965,6 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
                 free(tmp);
             }
             m->erase(key);
-#ifdef __TRACING__
-            lspan->Finish();
-#endif
             return -1;
         }
         message.message.direction = 'D';
@@ -1051,9 +977,6 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
                          message.message.enodbName,
                          __FUNCTION__);
         }
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return 0;
     }
 }
@@ -1062,16 +985,9 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
  *
  * @param message
  * @param rmrMessageBuffer
- * @param pSpan
  */
-void getRequestMetaData(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer, otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-//    otSpan lspan = 0;
-#endif
-    rmr_get_meid(rmrMessageBuffer.rcvMessage, (unsigned char *)(message.message.enodbName));
+void getRequestMetaData(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer) {
+    rmr_get_meid(rmrMessageBuffer.rcvMessage, (unsigned char *) (message.message.enodbName));
 
     message.message.asndata = rmrMessageBuffer.rcvMessage->payload;
     message.message.asnLength = rmrMessageBuffer.rcvMessage->len;
@@ -1080,10 +996,6 @@ void getRequestMetaData(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMe
         mdclog_write(MDCLOG_DEBUG, "Message from Xapp RAN name = %s message length = %ld",
                      message.message.enodbName, (unsigned long) message.message.asnLength);
     }
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
-
 }
 
 
@@ -1093,13 +1005,7 @@ void getRequestMetaData(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMe
  * @param data the data recived from xAPP
  * @return 0 success all other values are fault
  */
-int getSetupRequestMetaData(ReportingMessages_t &message, char *data, char *host, uint16_t &port, otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-//    otSpan lspan = 0;
-#endif
+int getSetupRequestMetaData(ReportingMessages_t &message, char *data, char *host, uint16_t &port) {
     auto loglevel = mdclog_level_get();
 
     char delimiter[4] {};
@@ -1115,9 +1021,6 @@ int getSetupRequestMetaData(ReportingMessages_t &message, char *data, char *host
         memcpy(host, val, tmp - val );
     } else {
         mdclog_write(MDCLOG_ERR, "wrong Host Name for setup request %s", data);
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -1;
     }
 
@@ -1130,9 +1033,6 @@ int getSetupRequestMetaData(ReportingMessages_t &message, char *data, char *host
         port = (uint16_t)strtol(val, &dummy, 10);
     } else {
         mdclog_write(MDCLOG_ERR, "wrong Port for setup request %s", data);
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -2;
     }
 
@@ -1144,10 +1044,6 @@ int getSetupRequestMetaData(ReportingMessages_t &message, char *data, char *host
         memcpy(message.message.enodbName, val, tmp - val);
     } else {
         mdclog_write(MDCLOG_ERR, "wrong gNb/Enodeb name for setup request %s", data);
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
-
         return -3;
     }
     val = strtok_r(nullptr, delimiter, &tmp);
@@ -1159,9 +1055,6 @@ int getSetupRequestMetaData(ReportingMessages_t &message, char *data, char *host
         message.message.asnLength = (uint16_t) strtol(val, &dummy, 10);
     } else {
         mdclog_write(MDCLOG_ERR, "wrong ASN length for setup request %s", data);
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -4;
     }
 
@@ -1171,10 +1064,6 @@ int getSetupRequestMetaData(ReportingMessages_t &message, char *data, char *host
         mdclog_write(MDCLOG_INFO, "Message from Xapp RAN name = %s host address = %s port = %d",
                      message.message.enodbName, host, port);
     }
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
-
     return 0;
 }
 
@@ -1185,21 +1074,13 @@ int getSetupRequestMetaData(ReportingMessages_t &message, char *data, char *host
  * @param numOfMessages
  * @param rmrMessageBuffer
  * @param ts
- * @param pSpan
  * @return
  */
 int receiveDataFromSctp(struct epoll_event *events,
                         Sctp_Map_t *sctpMap,
                         int &numOfMessages,
                         RmrMessagesBuffer_t &rmrMessageBuffer,
-                        struct timespec &ts,
-                        otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
+                        struct timespec &ts) {
     /* We have data on the fd waiting to be read. Read and display it.
  * We must read whatever data is available completely, as we are running
  *  in edge-triggered mode and won't get a notification again for the same data. */
@@ -1299,15 +1180,15 @@ int receiveDataFromSctp(struct epoll_event *events,
 
         switch (pdu->present) {
             case E2AP_PDU_PR_initiatingMessage: {//initiating message
-                asnInitiatingRequest(pdu, message, rmrMessageBuffer, &lspan);
+                asnInitiatingRequest(pdu, message, rmrMessageBuffer);
                 break;
             }
             case E2AP_PDU_PR_successfulOutcome: { //successful outcome
-                asnSuccsesfulMsg(pdu, message, sctpMap, rmrMessageBuffer, &lspan);
+                asnSuccsesfulMsg(pdu, message, sctpMap, rmrMessageBuffer);
                 break;
             }
             case E2AP_PDU_PR_unsuccessfulOutcome: { //Unsuccessful Outcome
-                asnUnSuccsesfulMsg(pdu, message, sctpMap, rmrMessageBuffer, &lspan);
+                asnUnSuccsesfulMsg(pdu, message, sctpMap, rmrMessageBuffer);
                 break;
             }
             default:
@@ -1350,14 +1231,13 @@ int receiveDataFromSctp(struct epoll_event *events,
 
         if (sendRequestToXapp(message,
                               RIC_SCTP_CONNECTION_FAILURE,
-                              rmrMessageBuffer,
-                              &lspan) != 0) {
+                              rmrMessageBuffer) != 0) {
             mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
         }
 
         /* Closing descriptor make epoll remove it from the set of descriptors which are monitored. */
         close(message.peerInfo->fileDescriptor);
-        cleanHashEntry((ConnectedCU_t *) events->data.ptr, sctpMap, &lspan);
+        cleanHashEntry((ConnectedCU_t *) events->data.ptr, sctpMap);
     }
     if (loglevel >= MDCLOG_DEBUG) {
         clock_gettime(CLOCK_MONOTONIC, &end);
@@ -1365,10 +1245,6 @@ int receiveDataFromSctp(struct epoll_event *events,
                      end.tv_sec - start.tv_sec, end.tv_nsec - start.tv_nsec);
 
     }
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
-
     return 0;
 }
 
@@ -1407,7 +1283,7 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
             mdclog_write(MDCLOG_DEBUG, "Buffer of size %d, data = %s", (int) er.encoded, buffer);
         }
         // TODO send to RMR
-        message.message.messageType = rmrMsg->mtype = RIC_X2_SETUP_REQ;
+        message.message.messageType = rmrMsg->mtype = RIC_E2_SETUP_REQ;
         rmrMsg->state = 0;
         rmr_bytes2meid(rmrMsg, (unsigned char *) message.message.enodbName, strlen(message.message.enodbName));
 
@@ -1452,19 +1328,10 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
  * @param pdu
  * @param message
  * @param rmrMessageBuffer
- * @param pSpan
  */
 void asnInitiatingRequest(E2AP_PDU_t *pdu,
                           ReportingMessages_t &message,
-                          RmrMessagesBuffer_t &rmrMessageBuffer,
-                          otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
-
+                          RmrMessagesBuffer_t &rmrMessageBuffer) {
     auto logLevel = mdclog_level_get();
     auto procedureCode = ((InitiatingMessage_t *) pdu->choice.initiatingMessage)->procedureCode;
     if (logLevel >= MDCLOG_DEBUG) {
@@ -1492,7 +1359,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got ErrorIndication %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_ERROR_INDICATION, rmrMessageBuffer, &lspan) != 0) {
+            if (sendRequestToXapp(message, RIC_ERROR_INDICATION, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "RIC_ERROR_INDICATION failed to send to xAPP");
             }
             break;
@@ -1501,7 +1368,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got Reset %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_X2_RESET, rmrMessageBuffer, &lspan) != 0) {
+            if (sendRequestToXapp(message, RIC_X2_RESET, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "RIC_X2_RESET message failed to send to xAPP");
             }
             break;
@@ -1541,7 +1408,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                                          rmrMessageBuffer.sendMessage->sub_id,
                                          rmrMessageBuffer.sendMessage->mtype);
                         }
-                        sendRmrMessage(rmrMessageBuffer, message, &lspan);
+                        sendRmrMessage(rmrMessageBuffer, message);
                         messageSent = true;
                     } else {
                         mdclog_write(MDCLOG_ERR, "RIC request id missing illigal request");
@@ -1563,7 +1430,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICserviceUpdate %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_SERVICE_UPDATE, rmrMessageBuffer, &lspan) != 0) {
+            if (sendRequestToXapp(message, RIC_SERVICE_UPDATE, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "RIC_SERVICE_UPDATE message failed to send to xAPP");
             }
             break;
@@ -1589,10 +1456,6 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             break;
         }
     }
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
-
 }
 
 /**
@@ -1601,16 +1464,9 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
  * @param message
  * @param sctpMap
  * @param rmrMessageBuffer
- * @param pSpan
  */
 void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t *sctpMap,
-                      RmrMessagesBuffer_t &rmrMessageBuffer, otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
+                      RmrMessagesBuffer_t &rmrMessageBuffer) {
     auto procedureCode = pdu->choice.successfulOutcome->procedureCode;
     auto logLevel = mdclog_level_get();
     if (logLevel >= MDCLOG_INFO) {
@@ -1627,7 +1483,7 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t 
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got ErrorIndication %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_ERROR_INDICATION, rmrMessageBuffer, &lspan) != 0) {
+            if (sendRequestToXapp(message, RIC_ERROR_INDICATION, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "RIC_ERROR_INDICATION failed to send to xAPP");
             }
             break;
@@ -1636,7 +1492,7 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t 
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got Reset %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_X2_RESET, rmrMessageBuffer, &lspan) != 0) {
+            if (sendRequestToXapp(message, RIC_X2_RESET, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "RIC_X2_RESET message failed to send to xAPP");
             }
             break;
@@ -1667,7 +1523,7 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t 
                                        (unsigned char *)message.message.enodbName,
                                        strlen(message.message.enodbName));
 
-                        sendRmrMessage(rmrMessageBuffer, message, &lspan);
+                        sendRmrMessage(rmrMessageBuffer, message);
                         messageSent = true;
                     } else {
                         mdclog_write(MDCLOG_ERR, "RIC request id missing illigal request");
@@ -1709,7 +1565,7 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t 
                                          rmrMessageBuffer.sendMessage->sub_id,
                                          rmrMessageBuffer.sendMessage->mtype);
                         }
-                        sendRmrMessage(rmrMessageBuffer, message, &lspan);
+                        sendRmrMessage(rmrMessageBuffer, message);
                         messageSent = true;
                     } else {
                         mdclog_write(MDCLOG_ERR, "RIC request id missing illigal request");
@@ -1731,7 +1587,7 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t 
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICserviceUpdate %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_SERVICE_UPDATE, rmrMessageBuffer, &lspan) != 0) {
+            if (sendRequestToXapp(message, RIC_SERVICE_UPDATE, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "RIC_SERVICE_UPDATE message failed to send to xAPP");
             }
             break;
@@ -1740,7 +1596,7 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t 
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICsubscription %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_SUB_RESP, rmrMessageBuffer, &lspan) != 0) {
+            if (sendRequestToXapp(message, RIC_SUB_RESP, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "Subscription successful message failed to send to xAPP");
             }
             break;
@@ -1749,7 +1605,7 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t 
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICsubscriptionDelete %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_SUB_DEL_RESP, rmrMessageBuffer, &lspan) != 0) {
+            if (sendRequestToXapp(message, RIC_SUB_DEL_RESP, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "Subscription delete successful message failed to send to xAPP");
             }
             break;
@@ -1762,10 +1618,6 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t 
             break;
         }
     }
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
-
 }
 
 /**
@@ -1774,19 +1626,11 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t 
  * @param message
  * @param sctpMap
  * @param rmrMessageBuffer
- * @param pSpan
  */
 void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
                         ReportingMessages_t &message,
                         Sctp_Map_t *sctpMap,
-                        RmrMessagesBuffer_t &rmrMessageBuffer,
-                        otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
+                        RmrMessagesBuffer_t &rmrMessageBuffer) {
     auto procedureCode = pdu->choice.unsuccessfulOutcome->procedureCode;
     auto logLevel = mdclog_level_get();
     if (logLevel >= MDCLOG_INFO) {
@@ -1803,7 +1647,7 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got ErrorIndication %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_ERROR_INDICATION, rmrMessageBuffer, &lspan) != 0) {
+            if (sendRequestToXapp(message, RIC_ERROR_INDICATION, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "RIC_ERROR_INDICATION failed to send to xAPP");
             }
             break;
@@ -1812,7 +1656,7 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got Reset %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_X2_RESET, rmrMessageBuffer, &lspan) != 0) {
+            if (sendRequestToXapp(message, RIC_X2_RESET, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "RIC_X2_RESET message failed to send to xAPP");
             }
             break;
@@ -1841,7 +1685,7 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
                         rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, strlen((const char *) tx));
                         rmr_bytes2meid(rmrMessageBuffer.sendMessage, (unsigned char *) message.message.enodbName,
                                        strlen(message.message.enodbName));
-                        sendRmrMessage(rmrMessageBuffer, message, &lspan);
+                        sendRmrMessage(rmrMessageBuffer, message);
                         messageSent = true;
                     } else {
                         mdclog_write(MDCLOG_ERR, "RIC request id missing illigal request");
@@ -1882,7 +1726,7 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
                                          rmrMessageBuffer.sendMessage->sub_id,
                                          rmrMessageBuffer.sendMessage->mtype);
                         }
-                        sendRmrMessage(rmrMessageBuffer, message, &lspan);
+                        sendRmrMessage(rmrMessageBuffer, message);
                         messageSent = true;
                     } else {
                         mdclog_write(MDCLOG_ERR, "RIC request id missing illigal request");
@@ -1904,7 +1748,7 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICserviceUpdate %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_SERVICE_UPDATE, rmrMessageBuffer, &lspan) != 0) {
+            if (sendRequestToXapp(message, RIC_SERVICE_UPDATE, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "RIC_SERVICE_UPDATE message failed to send to xAPP");
             }
             break;
@@ -1913,7 +1757,7 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICsubscription %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_SUB_FAILURE, rmrMessageBuffer, &lspan) != 0) {
+            if (sendRequestToXapp(message, RIC_SUB_FAILURE, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "Subscription unsuccessful message failed to send to xAPP");
             }
             break;
@@ -1922,7 +1766,7 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICsubscriptionDelete %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_SUB_DEL_FAILURE, rmrMessageBuffer, &lspan) != 0) {
+            if (sendRequestToXapp(message, RIC_SUB_DEL_FAILURE, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "Subscription Delete unsuccessful message failed to send to xAPP");
             }
             break;
@@ -1936,10 +1780,6 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
             break;
         }
     }
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
-
 }
 
 /**
@@ -1947,19 +1787,11 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
  * @param message
  * @param requestId
  * @param rmrMmessageBuffer
- * @param pSpan
  * @return
  */
 int sendRequestToXapp(ReportingMessages_t &message,
                       int requestId,
-                      RmrMessagesBuffer_t &rmrMmessageBuffer,
-                      otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
+                      RmrMessagesBuffer_t &rmrMmessageBuffer) {
     rmr_bytes2meid(rmrMmessageBuffer.sendMessage,
                    (unsigned char *)message.message.enodbName,
                    strlen(message.message.enodbName));
@@ -1969,29 +1801,16 @@ int sendRequestToXapp(ReportingMessages_t &message,
     snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
     rmr_bytes2xact(rmrMmessageBuffer.sendMessage, tx, strlen((const char *) tx));
 
-    auto rc = sendRmrMessage(rmrMmessageBuffer, message, &lspan);
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
-
+    auto rc = sendRmrMessage(rmrMmessageBuffer, message);
     return rc;
 }
 
 
-void getRmrContext(sctp_params_t &pSctpParams, otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-//    otSpan lspan = 0;
-#endif
+void getRmrContext(sctp_params_t &pSctpParams) {
     pSctpParams.rmrCtx = nullptr;
     pSctpParams.rmrCtx = rmr_init(pSctpParams.rmrAddress, RMR_MAX_RCV_BYTES, RMRFL_NONE);
     if (pSctpParams.rmrCtx == nullptr) {
         mdclog_write(MDCLOG_ERR, "Failed to initialize RMR");
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return;
     }
 
@@ -2014,9 +1833,6 @@ void getRmrContext(sctp_params_t &pSctpParams, otSpan *pSpan) {
     if (mdclog_level_get() >= MDCLOG_INFO) {
         mdclog_write(MDCLOG_INFO, "RMR running");
     }
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
     rmr_init_trace(pSctpParams.rmrCtx, 200);
     // get the RMR fd for the epoll
     pSctpParams.rmrListenFd = rmr_get_rcvfd(pSctpParams.rmrCtx);
@@ -2039,27 +1855,15 @@ void getRmrContext(sctp_params_t &pSctpParams, otSpan *pSpan) {
  * @param sctpMap
  * @param rmrMessageBuffer
  * @param ts
- * @param pSpan
  * @return
  */
 int receiveXappMessages(int epoll_fd,
                         Sctp_Map_t *sctpMap,
                         RmrMessagesBuffer_t &rmrMessageBuffer,
-                        struct timespec &ts,
-                        otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
+                        struct timespec &ts) {
     if (rmrMessageBuffer.rcvMessage == nullptr) {
         //we have error
         mdclog_write(MDCLOG_ERR, "RMR Allocation message, %s", strerror(errno));
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
-
         return -1;
     }
 
@@ -2070,10 +1874,6 @@ int receiveXappMessages(int epoll_fd,
     if (rmrMessageBuffer.rcvMessage == nullptr) {
         mdclog_write(MDCLOG_ERR, "RMR Receving message with null pointer, Realloc rmr mesage buffer");
         rmrMessageBuffer.rcvMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
-
         return -2;
     }
     ReportingMessages_t message;
@@ -2085,212 +1885,178 @@ int receiveXappMessages(int epoll_fd,
     //auto msgData = msg->payload;
     if (rmrMessageBuffer.rcvMessage->state != 0) {
         mdclog_write(MDCLOG_ERR, "RMR Receving message with stat = %d", rmrMessageBuffer.rcvMessage->state);
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
-
         return -1;
     }
     switch (rmrMessageBuffer.rcvMessage->mtype) {
-        case RIC_X2_SETUP_REQ: {
-            if (connectToCUandSetUp(rmrMessageBuffer, message, epoll_fd, sctpMap, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "ERROR in connectToCUandSetUp on RIC_X2_SETUP_REQ");
-                message.message.messageType = rmrMessageBuffer.sendMessage->mtype = RIC_SCTP_CONNECTION_FAILURE;
-                message.message.direction = 'N';
-                message.message.asnLength = rmrMessageBuffer.sendMessage->len =
-                        snprintf((char *)rmrMessageBuffer.sendMessage->payload,
-                                256,
-                                "ERROR in connectToCUandSetUp on RIC_X2_SETUP_REQ");
-                rmrMessageBuffer.sendMessage->state = 0;
-                message.message.asndata = rmrMessageBuffer.sendMessage->payload;
+//        case RIC_X2_SETUP_REQ: {
+//            if (connectToCUandSetUp(rmrMessageBuffer, message, epoll_fd, sctpMap) != 0) {
+//                mdclog_write(MDCLOG_ERR, "ERROR in connectToCUandSetUp on RIC_X2_SETUP_REQ");
+//                message.message.messageType = rmrMessageBuffer.sendMessage->mtype = RIC_SCTP_CONNECTION_FAILURE;
+//                message.message.direction = 'N';
+//                message.message.asnLength = rmrMessageBuffer.sendMessage->len =
+//                        snprintf((char *)rmrMessageBuffer.sendMessage->payload,
+//                                256,
+//                                "ERROR in connectToCUandSetUp on RIC_X2_SETUP_REQ");
+//                rmrMessageBuffer.sendMessage->state = 0;
+//                message.message.asndata = rmrMessageBuffer.sendMessage->payload;
+//
+//                if (mdclog_level_get() >= MDCLOG_DEBUG) {
+//                    mdclog_write(MDCLOG_DEBUG, "start writing to rmr buffer");
+//                }
+//                rmr_bytes2xact(rmrMessageBuffer.sendMessage, rmrMessageBuffer.rcvMessage->xaction, RMR_MAX_XID);
+//                rmr_str2meid(rmrMessageBuffer.sendMessage, (unsigned char *)message.message.enodbName);
+//
+//                sendRmrMessage(rmrMessageBuffer, message);
+//                return -3;
+//            }
+//            break;
+//        }
+//        case RIC_ENDC_X2_SETUP_REQ: {
+//            if (connectToCUandSetUp(rmrMessageBuffer, message, epoll_fd, sctpMap) != 0) {
+//                mdclog_write(MDCLOG_ERR, "ERROR in connectToCUandSetUp on RIC_ENDC_X2_SETUP_REQ");
+//                message.message.messageType = rmrMessageBuffer.sendMessage->mtype = RIC_SCTP_CONNECTION_FAILURE;
+//                message.message.direction = 'N';
+//                message.message.asnLength = rmrMessageBuffer.sendMessage->len =
+//                        snprintf((char *)rmrMessageBuffer.sendMessage->payload, 256,
+//                                 "ERROR in connectToCUandSetUp on RIC_ENDC_X2_SETUP_REQ");
+//                rmrMessageBuffer.sendMessage->state = 0;
+//                message.message.asndata = rmrMessageBuffer.sendMessage->payload;
+//
+//                if (mdclog_level_get() >= MDCLOG_DEBUG) {
+//                    mdclog_write(MDCLOG_DEBUG, "start writing to rmr buffer");
+//                }
+//
+//                rmr_bytes2xact(rmrMessageBuffer.sendMessage, rmrMessageBuffer.rcvMessage->xaction, RMR_MAX_XID);
+//                rmr_str2meid(rmrMessageBuffer.sendMessage, (unsigned char *) message.message.enodbName);
+//
+//                sendRmrMessage(rmrMessageBuffer, message);
+//                return -3;
+//            }
+//            break;
+//        }
+//        case RIC_ENDC_CONF_UPDATE: {
+//            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+//                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENDC_CONF_UPDATE");
+//                return -4;
+//            }
+//            break;
+//        }
+//        case RIC_ENDC_CONF_UPDATE_ACK: {
+//            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+//                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENDC_CONF_UPDATE_ACK");
+//                return -4;
+//            }
+//            break;
+//        }
+//        case RIC_ENDC_CONF_UPDATE_FAILURE: {
+//            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+//                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENDC_CONF_UPDATE_FAILURE");
+//                return -4;
+//            }
+//            break;
+//        }
+//        case RIC_ENB_CONF_UPDATE: {
+//            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+//                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENDC_CONF_UPDATE");
+//                return -4;
+//            }
+//            break;
+//        }
+//        case RIC_ENB_CONF_UPDATE_ACK: {
+//            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+//                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENB_CONF_UPDATE_ACK");
+//                return -4;
+//            }
+//            break;
+//        }
+//        case RIC_ENB_CONF_UPDATE_FAILURE: {
+//            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+//                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENB_CONF_UPDATE_FAILURE");
+//                return -4;
+//            }
+//            break;
+//        }
+//        case RIC_RES_STATUS_REQ: {
+//            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+//                mdclog_write(MDCLOG_ERR, "Failed to send RIC_RES_STATUS_REQ");
+//                return -6;
+//            }
+//            break;
+//        }
 
-                if (mdclog_level_get() >= MDCLOG_DEBUG) {
-                    mdclog_write(MDCLOG_DEBUG, "start writing to rmr buffer");
-                }
-                rmr_bytes2xact(rmrMessageBuffer.sendMessage, rmrMessageBuffer.rcvMessage->xaction, RMR_MAX_XID);
-                rmr_str2meid(rmrMessageBuffer.sendMessage, (unsigned char *)message.message.enodbName);
-
-                sendRmrMessage(rmrMessageBuffer, message, &lspan);
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
-                return -3;
+        case RIC_E2_SETUP_RESP : {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+                mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_SETUP_RESP");
+                return -6;
             }
             break;
         }
-        case RIC_ENDC_X2_SETUP_REQ: {
-            if (connectToCUandSetUp(rmrMessageBuffer, message, epoll_fd, sctpMap, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "ERROR in connectToCUandSetUp on RIC_ENDC_X2_SETUP_REQ");
-                message.message.messageType = rmrMessageBuffer.sendMessage->mtype = RIC_SCTP_CONNECTION_FAILURE;
-                message.message.direction = 'N';
-                message.message.asnLength = rmrMessageBuffer.sendMessage->len =
-                        snprintf((char *)rmrMessageBuffer.sendMessage->payload, 256,
-                                 "ERROR in connectToCUandSetUp on RIC_ENDC_X2_SETUP_REQ");
-                rmrMessageBuffer.sendMessage->state = 0;
-                message.message.asndata = rmrMessageBuffer.sendMessage->payload;
-
-                if (mdclog_level_get() >= MDCLOG_DEBUG) {
-                    mdclog_write(MDCLOG_DEBUG, "start writing to rmr buffer");
-                }
-
-                rmr_bytes2xact(rmrMessageBuffer.sendMessage, rmrMessageBuffer.rcvMessage->xaction, RMR_MAX_XID);
-                rmr_str2meid(rmrMessageBuffer.sendMessage, (unsigned char *) message.message.enodbName);
-
-                sendRmrMessage(rmrMessageBuffer, message, &lspan);
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
-                return -3;
+        case RIC_E2_SETUP_FAILURE : {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+                mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_SETUP_FAILURE");
+                return -6;
             }
             break;
         }
-        case RIC_ENDC_CONF_UPDATE: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENDC_CONF_UPDATE");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
-                return -4;
-            }
-            break;
-        }
-        case RIC_ENDC_CONF_UPDATE_ACK: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENDC_CONF_UPDATE_ACK");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
-                return -4;
-            }
-            break;
-        }
-        case RIC_ENDC_CONF_UPDATE_FAILURE: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENDC_CONF_UPDATE_FAILURE");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
-
-                return -4;
-            }
-            break;
-        }
-        case RIC_ENB_CONF_UPDATE: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENDC_CONF_UPDATE");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
-                return -4;
-            }
-            break;
-        }
-        case RIC_ENB_CONF_UPDATE_ACK: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENB_CONF_UPDATE_ACK");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
-                return -4;
-            }
-            break;
-        }
-        case RIC_ENB_CONF_UPDATE_FAILURE: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENB_CONF_UPDATE_FAILURE");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
-                return -4;
-            }
-            break;
-        }
-        case RIC_RES_STATUS_REQ: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send RIC_RES_STATUS_REQ");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
+        case RIC_ERROR_INDICATION: {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ERROR_INDICATION");
                 return -6;
             }
             break;
         }
         case RIC_SUB_REQ: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SUB_REQ");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
                 return -6;
             }
             break;
         }
         case RIC_SUB_DEL_REQ: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SUB_DEL_REQ");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
                 return -6;
             }
             break;
         }
         case RIC_CONTROL_REQ: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_CONTROL_REQ");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
                 return -6;
             }
             break;
         }
         case RIC_SERVICE_QUERY: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SERVICE_QUERY");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
                 return -6;
             }
             break;
         }
         case RIC_SERVICE_UPDATE_ACK: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SERVICE_UPDATE_ACK");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
                 return -6;
             }
             break;
         }
         case RIC_SERVICE_UPDATE_FAILURE: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SERVICE_UPDATE_FAILURE");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
                 return -6;
             }
             break;
         }
         case RIC_X2_RESET: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_X2_RESET");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
                 return -6;
             }
             break;
         }
         case RIC_X2_RESET_RESP: {
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap, &lspan) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_X2_RESET_RESP");
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
                 return -6;
             }
             break;
@@ -2319,8 +2085,7 @@ int receiveXappMessages(int epoll_fd,
                                                                    peerInfo->enodbName);
                     message.message.asndata = rmrMessageBuffer.sendMessage->payload;
                     mdclog_write(MDCLOG_INFO, "%s", message.message.asndata);
-                    if (sendRequestToXapp(message,
-                                          RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer, &lspan) != 0) {
+                    if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer) != 0) {
                         mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
                     }
                     free(peerInfo);
@@ -2365,17 +2130,11 @@ int receiveXappMessages(int epoll_fd,
             buildJsonMessage(message);
 
 
-#ifdef __TRACING__
-            lspan->Finish();
-#endif
             return -7;
     }
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
         mdclog_write(MDCLOG_DEBUG, "EXIT OK from %s", __FUNCTION__);
     }
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
     return 0;
 }
 
@@ -2385,31 +2144,19 @@ int receiveXappMessages(int epoll_fd,
  * @param message
  * @param failedMsgId
  * @param sctpMap
- * @param pSpan
  * @return
  */
 int sendDirectionalSctpMsg(RmrMessagesBuffer_t &messageBuffer,
                            ReportingMessages_t &message,
                            int failedMsgId,
-                           Sctp_Map_t *sctpMap,
-                           otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
+                           Sctp_Map_t *sctpMap) {
 
-    getRequestMetaData(message, messageBuffer, &lspan);
+    getRequestMetaData(message, messageBuffer);
     if (mdclog_level_get() >= MDCLOG_INFO) {
         mdclog_write(MDCLOG_INFO, "send message to %s address", message.message.enodbName);
     }
 
-    auto rc = sendMessagetoCu(sctpMap, messageBuffer, message, failedMsgId, &lspan);
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
-
+    auto rc = sendMessagetoCu(sctpMap, messageBuffer, message, failedMsgId);
     return rc;
 }
 
@@ -2419,41 +2166,25 @@ int sendDirectionalSctpMsg(RmrMessagesBuffer_t &messageBuffer,
  * @param messageBuffer
  * @param message
  * @param failedMesgId
- * @param pSpan
  * @return
  */
 int sendMessagetoCu(Sctp_Map_t *sctpMap,
                     RmrMessagesBuffer_t &messageBuffer,
                     ReportingMessages_t &message,
-                    int failedMesgId,
-                    otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
+                    int failedMesgId) {
     auto *peerInfo = (ConnectedCU_t *) sctpMap->find(message.message.enodbName);
     if (peerInfo == nullptr) {
         if (failedMesgId != 0) {
-            sendFailedSendingMessagetoXapp(messageBuffer, message, failedMesgId, &lspan);
+            sendFailedSendingMessagetoXapp(messageBuffer, message, failedMesgId);
         } else {
             mdclog_write(MDCLOG_ERR, "Failed to send message no CU entry %s", message.message.enodbName);
         }
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
-
         return -1;
     }
 
     // get the FD
     message.message.messageType = messageBuffer.rcvMessage->mtype;
-    auto rc = sendSctpMsg(peerInfo, message, sctpMap, &lspan);
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
-
+    auto rc = sendSctpMsg(peerInfo, message, sctpMap);
     return rc;
 }
 
@@ -2465,14 +2196,7 @@ int sendMessagetoCu(Sctp_Map_t *sctpMap,
  * @param failedMesgId the return message type error
  */
 void
-sendFailedSendingMessagetoXapp(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &message, int failedMesgId,
-                               otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
+sendFailedSendingMessagetoXapp(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &message, int failedMesgId) {
     rmr_mbuf_t *msg = rmrMessageBuffer.sendMessage;
     msg->len = snprintf((char *) msg->payload, 200, "the gNb/eNode name %s not found",
                         message.message.enodbName);
@@ -2486,72 +2210,9 @@ sendFailedSendingMessagetoXapp(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingM
     snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
     rmr_bytes2xact(msg, tx, strlen((const char *) tx));
 
-    sendRmrMessage(rmrMessageBuffer, message, &lspan);
-#ifdef __TRACING__
-    lspan->Finish();pLogSink
-#endif
-
+    sendRmrMessage(rmrMessageBuffer, message);
 }
 
-/**
- * Send Response back to xApp, message is used only when there was a request from the xApp
- *
- * @param enodbName the name of the gNb/eNodeB
- * @param msgType  the value of the message to the xApp
- * @param requestType The request that was sent by the xAPP
- * @param rmrCtx the rmr identifier
- * @param sctpMap hash map holds data on the requestrs
- * @param buf  the buffer to send to xAPP
- * @param size size of the buffer to send
- * @return
- */
-/*
-int sendResponseToXapp(ReportingMessages_t &message,
-                       int msgType,
-                       int requestType,
-                       RmrMessagesBuffer_t &rmrMessageBuffer,
-                       Sctp_Map_t *sctpMap,
-                       otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
-    char key[MAX_ENODB_NAME_SIZE * 2];
-    snprintf(key, MAX_ENODB_NAME_SIZE * 2, "msg:%s|%d", message.message.enodbName, requestType);
-
-    auto xact = sctpMap->find(key);
-    if (xact == nullptr) {
-        mdclog_write(MDCLOG_ERR, "NO Request %s found for this response from CU: %s", key,
-                     message.message.enodbName);
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
-
-        return -1;
-    }
-    sctpMap->erase(key);
-
-    message.message.messageType = rmrMessageBuffer.sendMessage->mtype = msgType; //SETUP_RESPONSE_MESSAGE_TYPE;
-    rmr_bytes2payload(rmrMessageBuffer.sendMessage, (unsigned char *) message.message.asndata,
-                      message.message.asnLength);
-    rmr_bytes2xact(rmrMessageBuffer.sendMessage, (const unsigned char *)xact, strlen((const char *)xact));
-    rmr_str2meid(rmrMessageBuffer.sendMessage, (unsigned char *) message.message.enodbName);
-    rmrMessageBuffer.sendMessage->state = 0;
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "remove key = %s from %s at line %d", key, __FUNCTION__, __LINE__);
-    }
-    free(xact);
-
-    auto rc = sendRmrMessage(rmrMessageBuffer, message, &lspan);
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
-    return rc;
-}
-*/
 
 /**
  * build the SCTP connection to eNodB or gNb
@@ -2559,20 +2220,12 @@ int sendResponseToXapp(ReportingMessages_t &message,
  * @param message
  * @param epoll_fd
  * @param sctpMap
- * @param pSpan
  * @return
  */
 int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
                         ReportingMessages_t &message,
                         int epoll_fd,
-                        Sctp_Map_t *sctpMap,
-                        otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
+                        Sctp_Map_t *sctpMap) {
     struct sockaddr_in6 servaddr{};
     struct addrinfo hints{}, *result;
     auto msgData = rmrMessageBuffer.rcvMessage->payload;
@@ -2588,13 +2241,10 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
         mdclog_write(MDCLOG_INFO, "message %d Received for MEID :%s. SETUP/EN-DC Setup Request from xApp, Message = %s",
                      msg->mtype, meid, msgData);
     }
-    if (getSetupRequestMetaData(message, (char *)msgData, host, port, &lspan) < 0) {
+    if (getSetupRequestMetaData(message, (char *)msgData, host, port) < 0) {
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
             mdclog_write(MDCLOG_DEBUG, "Error in setup parameters %s, %d", __func__, __LINE__);
         }
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -1;
     }
 
@@ -2609,9 +2259,6 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
             mdclog_write(MDCLOG_ERR,
                          "Try to connect CU %s to Host %s but %s already connected",
                          message.message.enodbName, host, e);
-#ifdef __TRACING__
-            lspan->Finish();
-#endif
             return -1;
         }
     }
@@ -2624,12 +2271,9 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
                          message.message.enodbName);
         }
         message.message.messageType = msg->mtype;
-        auto rc = sendSctpMsg(peerInfo, message, sctpMap, &lspan);
+        auto rc = sendSctpMsg(peerInfo, message, sctpMap);
         if (rc != 0) {
             mdclog_write(MDCLOG_ERR, "failed write to SCTP %s, %d", __func__, __LINE__);
-#ifdef __TRACING__
-            lspan->Finish();
-#endif
             return -1;
         }
 
@@ -2642,9 +2286,6 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
             mdclog_write(MDCLOG_DEBUG, "set key = %s from %s at line %d", key, __FUNCTION__, __LINE__);
         }
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return 0;
     }
 
@@ -2654,26 +2295,17 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
     // new connection
     if ((peerInfo->fileDescriptor = socket(AF_INET6, SOCK_STREAM, IPPROTO_SCTP)) < 0) {
         mdclog_write(MDCLOG_ERR, "Socket Error, %s %s, %d", strerror(errno), __func__, __LINE__);
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -1;
     }
 
     auto optval = 1;
     if (setsockopt(peerInfo->fileDescriptor, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof optval) != 0) {
         mdclog_write(MDCLOG_ERR, "setsockopt SO_REUSEPORT Error, %s %s, %d", strerror(errno), __func__, __LINE__);
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -1;
     }
     optval = 1;
     if (setsockopt(peerInfo->fileDescriptor, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval) != 0) {
         mdclog_write(MDCLOG_ERR, "setsockopt SO_REUSEADDR Error, %s %s, %d", strerror(errno), __func__, __LINE__);
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -1;
     }
     servaddr.sin6_family = AF_INET6;
@@ -2685,9 +2317,6 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
 
     if (bind(peerInfo->fileDescriptor, (struct sockaddr*)&localAddr , sizeof(struct sockaddr_in6)) < 0) {
         mdclog_write(MDCLOG_ERR, "bind Socket Error, %s %s, %d", strerror(errno), __func__, __LINE__);
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -1;
     }//Ends the binding.
 
@@ -2696,9 +2325,6 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
     if (getaddrinfo(host, nullptr, &hints, &result) < 0) {
         close(peerInfo->fileDescriptor);
         mdclog_write(MDCLOG_ERR, "getaddrinfo error for %s, Error = %s", host, strerror(errno));
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -1;
     }
     memcpy(&servaddr, result->ai_addr, sizeof(struct sockaddr_in6));
@@ -2714,10 +2340,7 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
 
     // Add to Epol
     if (addToEpoll(epoll_fd, peerInfo, (EPOLLOUT | EPOLLIN | EPOLLET), sctpMap, message.message.enodbName,
-                   msg->mtype, &lspan) != 0) {
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
+                   msg->mtype) != 0) {
         return -1;
     }
 
@@ -2729,9 +2352,6 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
                     portBuff, sizeof(portBuff),
                     (uint) (NI_NUMERICHOST) | (uint) (NI_NUMERICSERV)) != 0) {
         mdclog_write(MDCLOG_ERR, "getnameinfo() Error, %s  %s %d", strerror(errno), __func__, __LINE__);
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -1;
     }
 
@@ -2739,9 +2359,6 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
         mdclog_write(MDCLOG_ERR, "setSocketNoBlocking failed to set new connection %s on sctpPort %s", hostBuff,
                      portBuff);
         close(peerInfo->fileDescriptor);
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -1;
     }
 
@@ -2775,9 +2392,6 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
             mdclog_write(MDCLOG_ERR, "connect FD %d to host : %s port %d, %s",
                          peerInfo->fileDescriptor, host, port, strerror(errno));
             close(peerInfo->fileDescriptor);
-#ifdef __TRACING__
-            lspan->Finish();
-#endif
             return -1;
         }
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
@@ -2789,9 +2403,6 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
         memcpy(peerInfo->asnData, message.message.asndata, message.message.asnLength);
         peerInfo->asnLength = message.message.asnLength;
         peerInfo->mtype = msg->mtype;
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return 0;
     }
 
@@ -2801,11 +2412,7 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
 
     peerInfo->isConnected = true;
 
-    if (modifyToEpoll(epoll_fd, peerInfo, (EPOLLIN | EPOLLET), sctpMap, message.message.enodbName, msg->mtype,
-                      &lspan) != 0) {
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
+    if (modifyToEpoll(epoll_fd, peerInfo, (EPOLLIN | EPOLLET), sctpMap, message.message.enodbName, msg->mtype) != 0) {
         return -1;
     }
 
@@ -2817,11 +2424,8 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
         mdclog_write(MDCLOG_DEBUG, "Send SCTP message to FD %d", peerInfo->fileDescriptor);
     }
-    if (sendSctpMsg(peerInfo, message, sctpMap, &lspan) != 0) {
+    if (sendSctpMsg(peerInfo, message, sctpMap) != 0) {
         mdclog_write(MDCLOG_ERR, "Error write to SCTP  %s %d", __func__, __LINE__);
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -1;
     }
     memset(peerInfo->asnData, 0, message.message.asnLength);
@@ -2831,9 +2435,6 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
         mdclog_write(MDCLOG_DEBUG, "Sent message to SCTP for %s", message.message.enodbName);
     }
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
     return 0;
 }
 
@@ -2845,7 +2446,6 @@ int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
  * @param sctpMap
  * @param enodbName
  * @param msgType
- * @param pSpan
  * @return
  */
 int addToEpoll(int epoll_fd,
@@ -2853,14 +2453,7 @@ int addToEpoll(int epoll_fd,
                uint32_t events,
                Sctp_Map_t *sctpMap,
                char *enodbName,
-               int msgType,
-               otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
+               int msgType) {
     // Add to Epol
     struct epoll_event event{};
     event.data.ptr = peerInfo;
@@ -2872,7 +2465,7 @@ int addToEpoll(int epoll_fd,
         }
         close(peerInfo->fileDescriptor);
         if (enodbName != nullptr) {
-            cleanHashEntry(peerInfo, sctpMap, &lspan);
+            cleanHashEntry(peerInfo, sctpMap);
             char key[MAX_ENODB_NAME_SIZE * 2];
             snprintf(key, MAX_ENODB_NAME_SIZE * 2, "msg:%s|%d", enodbName, msgType);
             if (mdclog_level_get() >= MDCLOG_DEBUG) {
@@ -2887,14 +2480,8 @@ int addToEpoll(int epoll_fd,
             peerInfo->enodbName[0] = 0;
         }
         mdclog_write(MDCLOG_ERR, "epoll_ctl EPOLL_CTL_ADD (may chack not to quit here)");
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -1;
     }
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
     return 0;
 }
 
@@ -2906,7 +2493,6 @@ int addToEpoll(int epoll_fd,
  * @param sctpMap
  * @param enodbName
  * @param msgType
- * @param pSpan
  * @return
  */
 int modifyToEpoll(int epoll_fd,
@@ -2914,14 +2500,7 @@ int modifyToEpoll(int epoll_fd,
                   uint32_t events,
                   Sctp_Map_t *sctpMap,
                   char *enodbName,
-                  int msgType,
-                  otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-    otSpan lspan = 0;
-#endif
+                  int msgType) {
     // Add to Epol
     struct epoll_event event{};
     event.data.ptr = peerInfo;
@@ -2932,7 +2511,7 @@ int modifyToEpoll(int epoll_fd,
                          strerror(errno), __func__, __LINE__);
         }
         close(peerInfo->fileDescriptor);
-        cleanHashEntry(peerInfo, sctpMap, &lspan);
+        cleanHashEntry(peerInfo, sctpMap);
         char key[MAX_ENODB_NAME_SIZE * 2];
         snprintf(key, MAX_ENODB_NAME_SIZE * 2, "msg:%s|%d", enodbName, msgType);
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
@@ -2944,42 +2523,13 @@ int modifyToEpoll(int epoll_fd,
         }
         sctpMap->erase(key);
         mdclog_write(MDCLOG_ERR, "epoll_ctl EPOLL_CTL_ADD (may chack not to quit here)");
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -1;
     }
-#ifdef __TRACING__
-    lspan->Finish();
-#endif
     return 0;
 }
 
 
-int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &message, otSpan *pSpan) {
-#ifdef __TRACING__
-    auto lspan = opentracing::Tracer::Global()->StartSpan(
-            __FUNCTION__, { opentracing::ChildOf(&pSpan->get()->context()) });
-#else
-//    otSpan lspan = 0;
-#endif
-    //serialize the span
-#ifdef __TRACING__
-    std::unordered_map<std::string, std::string> data;
-    RICCarrierWriter carrier(data);
-    opentracing::Tracer::Global()->Inject((lspan.get())->context(), carrier);
-    nlohmann::json j = data;
-    std::string str = j.dump();
-    static auto maxTraceLength = 0;
-
-    maxTraceLength = str.length() > maxTraceLength ? str.length() : maxTraceLength;
-    // serialized context can be put to RMR message using function:
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "max trace length is %d trace data length = %ld data = %s", maxTraceLength,
-                     str.length(), str.c_str());
-    }
-    rmr_set_trace(rmrMessageBuffer.sendMessage, (const unsigned char *) str.c_str(), str.length());
-#endif
+int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &message) {
     buildJsonMessage(message);
 
     rmrMessageBuffer.sendMessage = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMessageBuffer.sendMessage);
@@ -2987,9 +2537,6 @@ int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &m
     if (rmrMessageBuffer.sendMessage == nullptr) {
         rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
         mdclog_write(MDCLOG_ERR, "RMR failed send message returned with NULL pointer");
-#ifdef __TRACING__
-        lspan->Finish();
-#endif
         return -1;
     }
 
@@ -3005,9 +2552,6 @@ int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &m
             if (rmrMessageBuffer.sendMessage == nullptr) {
                 mdclog_write(MDCLOG_ERR, "RMR failed send message returned with NULL pointer");
                 rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
                 return -1;
             } else if (rmrMessageBuffer.sendMessage->state != 0) {
                 mdclog_write(MDCLOG_ERR,
@@ -3016,9 +2560,6 @@ int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &m
                              rmrMessageBuffer.sendMessage->mtype,
                              rmr_get_meid(rmrMessageBuffer.sendMessage, (unsigned char *)meid));
                 auto rc = rmrMessageBuffer.sendMessage->state;
-#ifdef __TRACING__
-                lspan->Finish();
-#endif
                 return rc;
             }
         } else {
@@ -3026,9 +2567,6 @@ int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &m
                          translateRmrErrorMessages(rmrMessageBuffer.sendMessage->state).c_str(),
                          rmrMessageBuffer.sendMessage->mtype,
                          rmr_get_meid(rmrMessageBuffer.sendMessage, (unsigned char *)meid));
-#ifdef __TRACING__
-            lspan->Finish();
-#endif
             return rmrMessageBuffer.sendMessage->state;
         }
     }

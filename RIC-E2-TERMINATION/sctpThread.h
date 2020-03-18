@@ -108,21 +108,18 @@ namespace expr = boost::log::expressions;
 
 #define MAXEVENTS 128
 
-#define RECEIVE_SCTP_BUFFER_SIZE (8*1024)
+#define RECEIVE_SCTP_BUFFER_SIZE (8 * 1024)
 #define RECEIVE_XAPP_BUFFER_SIZE RECEIVE_SCTP_BUFFER_SIZE 
 
 typedef mapWrapper Sctp_Map_t;
 
-#ifdef __TRACING__
-typedef const std::unique_ptr<opentracing::Span> otSpan;
-#else
-typedef const int otSpan;
-#endif
 
 #define VOLUME_URL_SIZE 256
+#define KA_MESSAGE_SIZE 2048
 
 typedef struct sctp_params {
     uint16_t rmrPort = 0;
+    uint16_t sctpPort = SRC_PORT;
     int      epoll_fd = 0;
     int      listenFD = 0;
     int      rmrListenFd = 0;
@@ -130,7 +127,7 @@ typedef struct sctp_params {
     int      inotifyWD = 0;
     void     *rmrCtx = nullptr;
     Sctp_Map_t *sctpMap = nullptr;
-    char      ka_message[4096] {};
+    char      ka_message[KA_MESSAGE_SIZE] {};
     int       ka_message_length = 0;
     char       rmrAddress[256] {}; // "tcp:portnumber" "tcp:5566" listen to all address on port 5566
     mdclog_severity_t logLevel = MDCLOG_INFO;
@@ -159,7 +156,7 @@ typedef struct ConnectedCU {
 
 #define MAX_RMR_BUFF_ARRY 32
 typedef struct RmrMessagesBuffer {
-    char ka_message[4096] {};
+    char ka_message[KA_MESSAGE_SIZE] {};
     int  ka_message_len = 0;
     void *rmrCtx = nullptr;
     rmr_mbuf_t *sendMessage= nullptr;
@@ -202,27 +199,24 @@ int setSocketNoBlocking(int socket);
 void handleEinprogressMessages(struct epoll_event &event,
                                ReportingMessages_t &message,
                                RmrMessagesBuffer_t &rmrMessageBuffer,
-                               sctp_params_t *params,
-                               otSpan *pSpan);
+                               sctp_params_t *params);
 
 void handlepoll_error(struct epoll_event &event,
                       ReportingMessages_t &message,
                       RmrMessagesBuffer_t &rmrMessageBuffer,
-                      sctp_params_t *params,
-                      otSpan *pSpan);
+                      sctp_params_t *params);
 
 
-void cleanHashEntry(ConnectedCU_t *peerInfo, Sctp_Map_t *m, otSpan *pSpan);
+void cleanHashEntry(ConnectedCU_t *peerInfo, Sctp_Map_t *m);
 
-int getSetupRequestMetaData(ReportingMessages_t &message, char *data, char *host, uint16_t &port, otSpan *pSpan);
+int getSetupRequestMetaData(ReportingMessages_t &message, char *data, char *host, uint16_t &port);
 
 /**
  *
  * @param message
  * @param rmrMessageBuffer
- * @param pSpan
  */
-void getRequestMetaData(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer, otSpan *pSpan);
+void getRequestMetaData(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer);
 
 /**
  *
@@ -230,23 +224,20 @@ void getRequestMetaData(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMe
  * @param messagBuffer
  * @param message
  * @param failedMesgId
- * @param pSpan
  * @return
  */
 int sendMessagetoCu(Sctp_Map_t *sctpMap,
                     RmrMessagesBuffer_t &messagBuffer,
                     ReportingMessages_t &message,
-                    int failedMesgId, otSpan *pSpan);
+                    int failedMesgId);
 
 void sendFailedSendingMessagetoXapp(RmrMessagesBuffer_t &rmrMessageBuffer,
                                     ReportingMessages_t &message,
-                                    int failedMesgId,
-                                    otSpan *pSpan);
+                                    int failedMesgId);
 
 int sendRequestToXapp(ReportingMessages_t &message,
                       int requestId,
-                      RmrMessagesBuffer_t &rmrMmessageBuffer,
-                      otSpan *pSpan);
+                      RmrMessagesBuffer_t &rmrMmessageBuffer);
 
 /**
  *
@@ -255,7 +246,6 @@ int sendRequestToXapp(ReportingMessages_t &message,
  * @param requestType
  * @param rmrMessageBuffer
  * @param sctpMap
- * @param pSpan
  * @return
  */
 /*
@@ -263,8 +253,7 @@ int sendResponseToXapp(ReportingMessages_t &message,
                        int msgType,
                        int requestType,
                        RmrMessagesBuffer_t &rmrMessageBuffer,
-                       Sctp_Map_t *sctpMap,
-                       otSpan *pSpan);
+                       Sctp_Map_t *sctpMap);
 */
 
 /**
@@ -272,13 +261,11 @@ int sendResponseToXapp(ReportingMessages_t &message,
  * @param peerInfo
  * @param message
  * @param m
- * @param pSpan
  * @return
  */
 int sendSctpMsg(ConnectedCU_t *peerInfo,
                 ReportingMessages_t &message,
-                Sctp_Map_t *m,
-                otSpan *pSpan);
+                Sctp_Map_t *m);
 
 /**
  *
@@ -287,23 +274,20 @@ int sendSctpMsg(ConnectedCU_t *peerInfo,
  * @param numOfMessages
  * @param rmrMessageBuffer
  * @param ts
- * @param pSpan
  * @return
  */
 int receiveDataFromSctp(struct epoll_event *events,
                         Sctp_Map_t *sctpMap,
                         int &numOfMessages,
                         RmrMessagesBuffer_t &rmrMessageBuffer,
-                        struct timespec &ts,
-                        otSpan *pSpan);
+                        struct timespec &ts);
 
 /**
  *
  * @param rmrAddress
- * @param pSpan
  * @return
  */
-void getRmrContext(sctp_params_t &pSctpParams, otSpan *pSpan);
+void getRmrContext(sctp_params_t &pSctpParams);
 
 /**
  *
@@ -311,14 +295,12 @@ void getRmrContext(sctp_params_t &pSctpParams, otSpan *pSpan);
  * @param rmrCtx
  * @param sctpMap
  * @param messagBuffer
- * @param pSpan
  * @return
  */
 int receiveXappMessages(int epoll_fd,
                         Sctp_Map_t *sctpMap,
                         RmrMessagesBuffer_t &rmrMessageBuffer,
-                        struct timespec &ts,
-                        otSpan *pSpan);
+                        struct timespec &ts);
 
 /**
  *
@@ -326,74 +308,63 @@ int receiveXappMessages(int epoll_fd,
  * @param message
  * @param epoll_fd
  * @param sctpMap
- * @param pSpan
  * @return
  */
 int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
                            ReportingMessages_t &message,
                            int epoll_fd,
-                           Sctp_Map_t *sctpMap,
-                           otSpan *pSpan);
+                           Sctp_Map_t *sctpMap);
 
 /**
  *
  * @param messagBuffer
  * @param failedMsgId
  * @param sctpMap
- * @param pSpan
  * @return
  */
 int sendDirectionalSctpMsg(RmrMessagesBuffer_t &messagBuffer,
                            ReportingMessages_t &message,
                            int failedMsgId,
-                           Sctp_Map_t *sctpMap,
-                           otSpan *pSpan);
+                           Sctp_Map_t *sctpMap);
 /**
  *
  * @param pdu
  * @param message
  * @param rmrMessageBuffer
- * @param pSpan
  */
 void asnInitiatingRequest(E2AP_PDU_t *pdu,
                           ReportingMessages_t &message,
-                          RmrMessagesBuffer_t &rmrMessageBuffer,
-                          otSpan *pSpan);
+                          RmrMessagesBuffer_t &rmrMessageBuffer);
 /**
  *
  * @param pdu
  * @param message
  * @param sctpMap
  * @param rmrMessageBuffer
- * @param pSpan
  */
 void asnSuccsesfulMsg(E2AP_PDU_t *pdu,
                       ReportingMessages_t &message,
                       Sctp_Map_t *sctpMap,
-                      RmrMessagesBuffer_t &rmrMessageBuffer,
-                      otSpan *pSpan);
+                      RmrMessagesBuffer_t &rmrMessageBuffer);
 /**
  *
  * @param pdu
  * @param message
  * @param sctpMap
  * @param rmrMessageBuffer
- * @param pSpan
  */
 void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
                         ReportingMessages_t &message,
                         Sctp_Map_t *sctpMap,
-                        RmrMessagesBuffer_t &rmrMessageBuffer,
-                        otSpan *pSpan);
+                        RmrMessagesBuffer_t &rmrMessageBuffer);
 
 /**
  *
  * @param rmrMessageBuffer
  * @param message
- * @param pSpan
  * @return
  */
-int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &message, otSpan *pSpan);
+int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &message);
 /**
  *
  * @param epoll_fd
@@ -402,10 +373,9 @@ int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &m
  * @param sctpMap
  * @param enodbName
  * @param msgType
- * @param pSpan
  * @returnsrc::logger_mt& lg = my_logger::get();
  */
-int addToEpoll(int epoll_fd, ConnectedCU_t *peerInfo, uint32_t events, Sctp_Map_t *sctpMap, char *enodbName, int msgType, otSpan *pSpan);
+int addToEpoll(int epoll_fd, ConnectedCU_t *peerInfo, uint32_t events, Sctp_Map_t *sctpMap, char *enodbName, int msgType);
 /**
  *
  * @param epoll_fd
@@ -414,10 +384,9 @@ int addToEpoll(int epoll_fd, ConnectedCU_t *peerInfo, uint32_t events, Sctp_Map_
  * @param sctpMap
  * @param enodbName
  * @param msgType
- * @param pSpan
  * @return
  */
-int modifyToEpoll(int epoll_fd, ConnectedCU_t *peerInfo, uint32_t events, Sctp_Map_t *sctpMap, char *enodbName, int msgType, otSpan *pSpan);
+int modifyToEpoll(int epoll_fd, ConnectedCU_t *peerInfo, uint32_t events, Sctp_Map_t *sctpMap, char *enodbName, int msgType);
 
 /**
  *
