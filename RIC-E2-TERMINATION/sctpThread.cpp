@@ -573,6 +573,9 @@ void listener(sctp_params_t *params) {
             } else if (events[i].events & EPOLLOUT) {
                 handleEinprogressMessages(events[i], message, rmrMessageBuffer, params);
             } else if (params->listenFD == events[i].data.fd) {
+                if (mdclog_level_get() >= MDCLOG_INFO) {
+                    mdclog_write(MDCLOG_INFO, "New connection request from sctp network\n");
+                }
                 // new connection is requested from RAN  start build connection
                 while (true) {
                     struct sockaddr in_addr {};
@@ -600,7 +603,7 @@ void listener(sctp_params_t *params) {
                     }
                     auto  ans = getnameinfo(&in_addr, in_len,
                             peerInfo->hostName, NI_MAXHOST,
-                            peerInfo->portNumber, NI_MAXSERV, (signed )((unsigned)NI_NUMERICHOST | NI_NUMERICSERV));
+                            peerInfo->portNumber, NI_MAXSERV, (unsigned )((unsigned int)NI_NUMERICHOST | (unsigned int)NI_NUMERICSERV));
                     if (ans < 0) {
                         mdclog_write(MDCLOG_ERR, "Failed to get info on connection request. %s\n", strerror(errno));
                         close(peerInfo->fileDescriptor);
@@ -618,6 +621,7 @@ void listener(sctp_params_t *params) {
                                    0) != 0) {
                         break;
                     }
+                    break;
                 }
             } else if (params->rmrListenFd == events[i].data.fd) {
                 // got message from XAPP
@@ -626,8 +630,7 @@ void listener(sctp_params_t *params) {
                 if (mdclog_level_get() >= MDCLOG_DEBUG) {
                     mdclog_write(MDCLOG_DEBUG, "new message from RMR");
                 }
-                if (receiveXappMessages(params->epoll_fd,
-                                        params->sctpMap,
+                if (receiveXappMessages(params->sctpMap,
                                         rmrMessageBuffer,
                                         message.message.time) != 0) {
                     mdclog_write(MDCLOG_ERR, "Error handling Xapp message");
@@ -1775,14 +1778,12 @@ void getRmrContext(sctp_params_t &pSctpParams) {
 
 /**
  *
- * @param epoll_fd
  * @param sctpMap
  * @param rmrMessageBuffer
  * @param ts
  * @return
  */
-int receiveXappMessages(int epoll_fd,
-                        Sctp_Map_t *sctpMap,
+int receiveXappMessages(Sctp_Map_t *sctpMap,
                         RmrMessagesBuffer_t &rmrMessageBuffer,
                         struct timespec &ts) {
     if (rmrMessageBuffer.rcvMessage == nullptr) {

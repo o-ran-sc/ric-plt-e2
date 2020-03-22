@@ -298,8 +298,7 @@ void getRmrContext(sctp_params_t &pSctpParams);
  * @param messagBuffer
  * @return
  */
-int receiveXappMessages(int epoll_fd,
-                        Sctp_Map_t *sctpMap,
+int receiveXappMessages(Sctp_Map_t *sctpMap,
                         RmrMessagesBuffer_t &rmrMessageBuffer,
                         struct timespec &ts);
 
