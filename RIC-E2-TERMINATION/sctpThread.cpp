@@ -184,13 +184,6 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     // define the file name in the tmp directory under the volume
     strcat(tmpLogFilespec,"/tmp/E2Term_%Y-%m-%d_%H-%M-%S.%N.tmpStr");
 
-//    std::string localIP = conf.getStringValue("local-ip");
-//    if (localIP.length() == 0) {
-//        mdclog_write(MDCLOG_ERR, "illigal local-ip. environment variable");
-//        exit(-1);
-//    }
-
-    //sctpParams.myIP.assign(getenv(localIP.c_str()));
     sctpParams.myIP = conf.getStringValue("local-ip");
     if (sctpParams.myIP.length() == 0) {
         mdclog_write(MDCLOG_ERR, "illigal local-ip.");
@@ -424,7 +417,7 @@ void sendTermInit(sctp_params_t &sctpParams) {
             return;
         } else {
             if (count % 100 == 0) {
-                mdclog_write(MDCLOG_ERR, "Error sending E2_TERM_INIT cause : %d ", msg->state);
+                mdclog_write(MDCLOG_ERR, "Error sending E2_TERM_INIT cause : %s ", translateRmrErrorMessages(msg->state).c_str());
             }
             sleep(1);
         }
@@ -607,7 +600,7 @@ void listener(sctp_params_t *params) {
                     }
                     auto  ans = getnameinfo(&in_addr, in_len,
                             peerInfo->hostName, NI_MAXHOST,
-                            peerInfo->portNumber, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV);
+                            peerInfo->portNumber, NI_MAXSERV, (signed )((unsigned)NI_NUMERICHOST | NI_NUMERICSERV));
                     if (ans < 0) {
                         mdclog_write(MDCLOG_ERR, "Failed to get info on connection request. %s\n", strerror(errno));
                         close(peerInfo->fileDescriptor);
@@ -967,6 +960,7 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
             m->erase(key);
             return -1;
         }
+        peerInfo->sentMesgs++;
         message.message.direction = 'D';
         // send report.buffer of size
         buildJsonMessage(message);
@@ -999,73 +993,6 @@ void getRequestMetaData(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMe
 }
 
 
-/**
- *
- * @param metaData all the data strip to structure
- * @param data the data recived from xAPP
- * @return 0 success all other values are fault
- */
-int getSetupRequestMetaData(ReportingMessages_t &message, char *data, char *host, uint16_t &port) {
-    auto loglevel = mdclog_level_get();
-
-    char delimiter[4] {};
-    memset(delimiter, 0, (size_t)4);
-    delimiter[0] = '|';
-    char *tmp;
-
-    char *val = strtok_r(data, delimiter, &tmp);
-    if (val != nullptr) {
-        if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "SCTP ADDRESS parameter from message = %s", val);
-        }
-        memcpy(host, val, tmp - val );
-    } else {
-        mdclog_write(MDCLOG_ERR, "wrong Host Name for setup request %s", data);
-        return -1;
-    }
-
-    val = strtok_r(nullptr, delimiter, &tmp);
-    if (val != nullptr) {
-        if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "PORT parameter from message = %s", val);
-        }
-        char *dummy;
-        port = (uint16_t)strtol(val, &dummy, 10);
-    } else {
-        mdclog_write(MDCLOG_ERR, "wrong Port for setup request %s", data);
-        return -2;
-    }
-
-    val = strtok_r(nullptr, delimiter, &tmp);
-    if (val != nullptr) {
-        if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "RAN NAME parameter from message = %s", val);
-        }
-        memcpy(message.message.enodbName, val, tmp - val);
-    } else {
-        mdclog_write(MDCLOG_ERR, "wrong gNb/Enodeb name for setup request %s", data);
-        return -3;
-    }
-    val = strtok_r(nullptr, delimiter, &tmp);
-    if (val != nullptr) {
-        if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "ASN length parameter from message = %s", val);
-        }
-        char *dummy;
-        message.message.asnLength = (uint16_t) strtol(val, &dummy, 10);
-    } else {
-        mdclog_write(MDCLOG_ERR, "wrong ASN length for setup request %s", data);
-        return -4;
-    }
-
-    message.message.asndata = (unsigned char *)tmp;  // tmp is local but point to the location in data
-
-    if (loglevel >= MDCLOG_INFO) {
-        mdclog_write(MDCLOG_INFO, "Message from Xapp RAN name = %s host address = %s port = %d",
-                     message.message.enodbName, host, port);
-    }
-    return 0;
-}
 
 /**
  *
@@ -1113,6 +1040,7 @@ int receiveDataFromSctp(struct epoll_event *events,
             mdclog_write(MDCLOG_DEBUG, "Finish Read from SCTP %d fd message length = %ld",
                     message.peerInfo->fileDescriptor, message.message.asnLength);
         }
+        message.peerInfo->rcvMsgs++;
         memcpy(message.message.enodbName, message.peerInfo->enodbName, sizeof(message.peerInfo->enodbName));
         message.message.direction = 'U';
         message.message.time.tv_nsec = ts.tv_nsec;
@@ -1184,11 +1112,11 @@ int receiveDataFromSctp(struct epoll_event *events,
                 break;
             }
             case E2AP_PDU_PR_successfulOutcome: { //successful outcome
-                asnSuccsesfulMsg(pdu, message, sctpMap, rmrMessageBuffer);
+                asnSuccsesfulMsg(pdu, message,  rmrMessageBuffer);
                 break;
             }
             case E2AP_PDU_PR_unsuccessfulOutcome: { //Unsuccessful Outcome
-                asnUnSuccsesfulMsg(pdu, message, sctpMap, rmrMessageBuffer);
+                asnUnSuccsesfulMsg(pdu, message, rmrMessageBuffer);
                 break;
             }
             default:
@@ -1282,7 +1210,7 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
         if (logLevel >= MDCLOG_DEBUG) {
             mdclog_write(MDCLOG_DEBUG, "Buffer of size %d, data = %s", (int) er.encoded, buffer);
         }
-        // TODO send to RMR
+        // send to RMR
         message.message.messageType = rmrMsg->mtype = RIC_E2_SETUP_REQ;
         rmrMsg->state = 0;
         rmr_bytes2meid(rmrMsg, (unsigned char *) message.message.enodbName, strlen(message.message.enodbName));
@@ -1462,11 +1390,9 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
  *
  * @param pdu
  * @param message
- * @param sctpMap
  * @param rmrMessageBuffer
  */
-void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t *sctpMap,
-                      RmrMessagesBuffer_t &rmrMessageBuffer) {
+void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer) {
     auto procedureCode = pdu->choice.successfulOutcome->procedureCode;
     auto logLevel = mdclog_level_get();
     if (logLevel >= MDCLOG_INFO) {
@@ -1624,12 +1550,10 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, Sctp_Map_t 
  *
  * @param pdu
  * @param message
- * @param sctpMap
  * @param rmrMessageBuffer
  */
 void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
                         ReportingMessages_t &message,
-                        Sctp_Map_t *sctpMap,
                         RmrMessagesBuffer_t &rmrMessageBuffer) {
     auto procedureCode = pdu->choice.unsuccessfulOutcome->procedureCode;
     auto logLevel = mdclog_level_get();
@@ -1888,102 +1812,6 @@ int receiveXappMessages(int epoll_fd,
         return -1;
     }
     switch (rmrMessageBuffer.rcvMessage->mtype) {
-//        case RIC_X2_SETUP_REQ: {
-//            if (connectToCUandSetUp(rmrMessageBuffer, message, epoll_fd, sctpMap) != 0) {
-//                mdclog_write(MDCLOG_ERR, "ERROR in connectToCUandSetUp on RIC_X2_SETUP_REQ");
-//                message.message.messageType = rmrMessageBuffer.sendMessage->mtype = RIC_SCTP_CONNECTION_FAILURE;
-//                message.message.direction = 'N';
-//                message.message.asnLength = rmrMessageBuffer.sendMessage->len =
-//                        snprintf((char *)rmrMessageBuffer.sendMessage->payload,
-//                                256,
-//                                "ERROR in connectToCUandSetUp on RIC_X2_SETUP_REQ");
-//                rmrMessageBuffer.sendMessage->state = 0;
-//                message.message.asndata = rmrMessageBuffer.sendMessage->payload;
-//
-//                if (mdclog_level_get() >= MDCLOG_DEBUG) {
-//                    mdclog_write(MDCLOG_DEBUG, "start writing to rmr buffer");
-//                }
-//                rmr_bytes2xact(rmrMessageBuffer.sendMessage, rmrMessageBuffer.rcvMessage->xaction, RMR_MAX_XID);
-//                rmr_str2meid(rmrMessageBuffer.sendMessage, (unsigned char *)message.message.enodbName);
-//
-//                sendRmrMessage(rmrMessageBuffer, message);
-//                return -3;
-//            }
-//            break;
-//        }
-//        case RIC_ENDC_X2_SETUP_REQ: {
-//            if (connectToCUandSetUp(rmrMessageBuffer, message, epoll_fd, sctpMap) != 0) {
-//                mdclog_write(MDCLOG_ERR, "ERROR in connectToCUandSetUp on RIC_ENDC_X2_SETUP_REQ");
-//                message.message.messageType = rmrMessageBuffer.sendMessage->mtype = RIC_SCTP_CONNECTION_FAILURE;
-//                message.message.direction = 'N';
-//                message.message.asnLength = rmrMessageBuffer.sendMessage->len =
-//                        snprintf((char *)rmrMessageBuffer.sendMessage->payload, 256,
-//                                 "ERROR in connectToCUandSetUp on RIC_ENDC_X2_SETUP_REQ");
-//                rmrMessageBuffer.sendMessage->state = 0;
-//                message.message.asndata = rmrMessageBuffer.sendMessage->payload;
-//
-//                if (mdclog_level_get() >= MDCLOG_DEBUG) {
-//                    mdclog_write(MDCLOG_DEBUG, "start writing to rmr buffer");
-//                }
-//
-//                rmr_bytes2xact(rmrMessageBuffer.sendMessage, rmrMessageBuffer.rcvMessage->xaction, RMR_MAX_XID);
-//                rmr_str2meid(rmrMessageBuffer.sendMessage, (unsigned char *) message.message.enodbName);
-//
-//                sendRmrMessage(rmrMessageBuffer, message);
-//                return -3;
-//            }
-//            break;
-//        }
-//        case RIC_ENDC_CONF_UPDATE: {
-//            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
-//                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENDC_CONF_UPDATE");
-//                return -4;
-//            }
-//            break;
-//        }
-//        case RIC_ENDC_CONF_UPDATE_ACK: {
-//            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
-//                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENDC_CONF_UPDATE_ACK");
-//                return -4;
-//            }
-//            break;
-//        }
-//        case RIC_ENDC_CONF_UPDATE_FAILURE: {
-//            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
-//                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENDC_CONF_UPDATE_FAILURE");
-//                return -4;
-//            }
-//            break;
-//        }
-//        case RIC_ENB_CONF_UPDATE: {
-//            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
-//                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENDC_CONF_UPDATE");
-//                return -4;
-//            }
-//            break;
-//        }
-//        case RIC_ENB_CONF_UPDATE_ACK: {
-//            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
-//                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENB_CONF_UPDATE_ACK");
-//                return -4;
-//            }
-//            break;
-//        }
-//        case RIC_ENB_CONF_UPDATE_FAILURE: {
-//            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
-//                mdclog_write(MDCLOG_ERR, "Failed to send RIC_ENB_CONF_UPDATE_FAILURE");
-//                return -4;
-//            }
-//            break;
-//        }
-//        case RIC_RES_STATUS_REQ: {
-//            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
-//                mdclog_write(MDCLOG_ERR, "Failed to send RIC_RES_STATUS_REQ");
-//                return -6;
-//            }
-//            break;
-//        }
-
         case RIC_E2_SETUP_RESP : {
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_SETUP_RESP");
@@ -2214,229 +2042,6 @@ sendFailedSendingMessagetoXapp(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingM
 }
 
 
-/**
- * build the SCTP connection to eNodB or gNb
- * @param rmrMessageBuffer
- * @param message
- * @param epoll_fd
- * @param sctpMap
- * @return
- */
-int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
-                        ReportingMessages_t &message,
-                        int epoll_fd,
-                        Sctp_Map_t *sctpMap) {
-    struct sockaddr_in6 servaddr{};
-    struct addrinfo hints{}, *result;
-    auto msgData = rmrMessageBuffer.rcvMessage->payload;
-    unsigned char meid[RMR_MAX_MEID]{};
-    char host[256]{};
-    uint16_t port = 0;
-
-    message.message.messageType = rmrMessageBuffer.rcvMessage->mtype;
-    rmr_mbuf_t *msg = rmrMessageBuffer.rcvMessage;
-    rmr_get_meid(msg, meid);
-
-    if (mdclog_level_get() >= MDCLOG_INFO) {
-        mdclog_write(MDCLOG_INFO, "message %d Received for MEID :%s. SETUP/EN-DC Setup Request from xApp, Message = %s",
-                     msg->mtype, meid, msgData);
-    }
-    if (getSetupRequestMetaData(message, (char *)msgData, host, port) < 0) {
-        if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "Error in setup parameters %s, %d", __func__, __LINE__);
-        }
-        return -1;
-    }
-
-    //// message asndata points to the start of the asndata of the message and not to start of payload
-    // search if the same host:port but not the same enodbname
-    char searchBuff[256]{};
-    snprintf(searchBuff, sizeof searchBuff, "host:%s:%d", host, port);
-    auto e = (char *)sctpMap->find(searchBuff);
-    if (e != nullptr) {
-        // found one compare if not the same
-        if (strcmp(message.message.enodbName, e) != 0) {
-            mdclog_write(MDCLOG_ERR,
-                         "Try to connect CU %s to Host %s but %s already connected",
-                         message.message.enodbName, host, e);
-            return -1;
-        }
-    }
-
-    // check if not connected. if connected send the request and return
-    auto *peerInfo = (ConnectedCU_t *)sctpMap->find(message.message.enodbName);
-    if (peerInfo != nullptr) {
-        if (mdclog_level_get() >= MDCLOG_INFO) {
-            mdclog_write(MDCLOG_INFO, "Device already connected to %s",
-                         message.message.enodbName);
-        }
-        message.message.messageType = msg->mtype;
-        auto rc = sendSctpMsg(peerInfo, message, sctpMap);
-        if (rc != 0) {
-            mdclog_write(MDCLOG_ERR, "failed write to SCTP %s, %d", __func__, __LINE__);
-            return -1;
-        }
-
-        char key[MAX_ENODB_NAME_SIZE * 2];
-        snprintf(key, MAX_ENODB_NAME_SIZE * 2, "msg:%s|%d", message.message.enodbName, msg->mtype);
-        int xaction_len = strlen((const char *) msg->xaction);
-        auto *xaction = (unsigned char *) calloc(1, xaction_len);
-        memcpy(xaction, msg->xaction, xaction_len);
-        sctpMap->setkey(key, xaction);
-        if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "set key = %s from %s at line %d", key, __FUNCTION__, __LINE__);
-        }
-        return 0;
-    }
-
-    peerInfo = (ConnectedCU_t *) calloc(1, sizeof(ConnectedCU_t));
-    memcpy(peerInfo->enodbName, message.message.enodbName, sizeof(message.message.enodbName));
-
-    // new connection
-    if ((peerInfo->fileDescriptor = socket(AF_INET6, SOCK_STREAM, IPPROTO_SCTP)) < 0) {
-        mdclog_write(MDCLOG_ERR, "Socket Error, %s %s, %d", strerror(errno), __func__, __LINE__);
-        return -1;
-    }
-
-    auto optval = 1;
-    if (setsockopt(peerInfo->fileDescriptor, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof optval) != 0) {
-        mdclog_write(MDCLOG_ERR, "setsockopt SO_REUSEPORT Error, %s %s, %d", strerror(errno), __func__, __LINE__);
-        return -1;
-    }
-    optval = 1;
-    if (setsockopt(peerInfo->fileDescriptor, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval) != 0) {
-        mdclog_write(MDCLOG_ERR, "setsockopt SO_REUSEADDR Error, %s %s, %d", strerror(errno), __func__, __LINE__);
-        return -1;
-    }
-    servaddr.sin6_family = AF_INET6;
-
-    struct sockaddr_in6 localAddr {};
-    localAddr.sin6_family = AF_INET6;
-    localAddr.sin6_addr = in6addr_any;
-    localAddr.sin6_port = htons(SRC_PORT);
-
-    if (bind(peerInfo->fileDescriptor, (struct sockaddr*)&localAddr , sizeof(struct sockaddr_in6)) < 0) {
-        mdclog_write(MDCLOG_ERR, "bind Socket Error, %s %s, %d", strerror(errno), __func__, __LINE__);
-        return -1;
-    }//Ends the binding.
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_flags = AI_NUMERICHOST;
-    if (getaddrinfo(host, nullptr, &hints, &result) < 0) {
-        close(peerInfo->fileDescriptor);
-        mdclog_write(MDCLOG_ERR, "getaddrinfo error for %s, Error = %s", host, strerror(errno));
-        return -1;
-    }
-    memcpy(&servaddr, result->ai_addr, sizeof(struct sockaddr_in6));
-    freeaddrinfo(result);
-
-    servaddr.sin6_port = htons(port);      /* daytime server */
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "Send Connect FD = %d host : %s port %d",
-                     peerInfo->fileDescriptor,
-                     host,
-                     port);
-    }
-
-    // Add to Epol
-    if (addToEpoll(epoll_fd, peerInfo, (EPOLLOUT | EPOLLIN | EPOLLET), sctpMap, message.message.enodbName,
-                   msg->mtype) != 0) {
-        return -1;
-    }
-
-    char hostBuff[NI_MAXHOST];
-    char portBuff[NI_MAXHOST];
-
-    if (getnameinfo((SA *) &servaddr, sizeof(servaddr),
-                    hostBuff, sizeof(hostBuff),
-                    portBuff, sizeof(portBuff),
-                    (uint) (NI_NUMERICHOST) | (uint) (NI_NUMERICSERV)) != 0) {
-        mdclog_write(MDCLOG_ERR, "getnameinfo() Error, %s  %s %d", strerror(errno), __func__, __LINE__);
-        return -1;
-    }
-
-    if (setSocketNoBlocking(peerInfo->fileDescriptor) != 0) {
-        mdclog_write(MDCLOG_ERR, "setSocketNoBlocking failed to set new connection %s on sctpPort %s", hostBuff,
-                     portBuff);
-        close(peerInfo->fileDescriptor);
-        return -1;
-    }
-
-    memcpy(peerInfo->hostName, hostBuff, strlen(hostBuff));
-    peerInfo->hostName[strlen(hostBuff)] = 0;
-    memcpy(peerInfo->portNumber, portBuff, strlen(portBuff));
-    peerInfo->portNumber[strlen(portBuff)] = 0;
-
-    // map by enoodb/gnb name
-    sctpMap->setkey(message.message.enodbName, peerInfo);
-    //map host and port to enodeb
-    sctpMap->setkey(searchBuff, message.message.enodbName);
-
-    // save message for the return values
-    char key[MAX_ENODB_NAME_SIZE * 2];
-    snprintf(key, MAX_ENODB_NAME_SIZE * 2, "msg:%s|%d", message.message.enodbName, msg->mtype);
-    int xaction_len = strlen((const char *) msg->xaction);
-    auto *xaction = (unsigned char *) calloc(1, xaction_len);
-    memcpy(xaction, msg->xaction, xaction_len);
-    sctpMap->setkey(key, xaction);
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "End building peerinfo: %s for CU %s", key, message.message.enodbName);
-    }
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "Send connect to FD %d, %s, %d",
-                     peerInfo->fileDescriptor, __func__, __LINE__);
-    }
-    if (connect(peerInfo->fileDescriptor, (SA *) &servaddr, sizeof(servaddr)) < 0) {
-        if (errno != EINPROGRESS) {
-            mdclog_write(MDCLOG_ERR, "connect FD %d to host : %s port %d, %s",
-                         peerInfo->fileDescriptor, host, port, strerror(errno));
-            close(peerInfo->fileDescriptor);
-            return -1;
-        }
-        if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG,
-                         "Connect to FD %d returned with EINPROGRESS : %s",
-                         peerInfo->fileDescriptor, strerror(errno));
-        }
-        // since message.message.asndata is pointing to the asndata in the rmr message payload we copy it like this
-        memcpy(peerInfo->asnData, message.message.asndata, message.message.asnLength);
-        peerInfo->asnLength = message.message.asnLength;
-        peerInfo->mtype = msg->mtype;
-        return 0;
-    }
-
-    if (mdclog_level_get() >= MDCLOG_INFO) {
-        mdclog_write(MDCLOG_INFO, "Connect to FD %d returned OK without EINPROGRESS", peerInfo->fileDescriptor);
-    }
-
-    peerInfo->isConnected = true;
-
-    if (modifyToEpoll(epoll_fd, peerInfo, (EPOLLIN | EPOLLET), sctpMap, message.message.enodbName, msg->mtype) != 0) {
-        return -1;
-    }
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "Connected to host : %s port %d", host, port);
-    }
-
-    message.message.messageType = msg->mtype;
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "Send SCTP message to FD %d", peerInfo->fileDescriptor);
-    }
-    if (sendSctpMsg(peerInfo, message, sctpMap) != 0) {
-        mdclog_write(MDCLOG_ERR, "Error write to SCTP  %s %d", __func__, __LINE__);
-        return -1;
-    }
-    memset(peerInfo->asnData, 0, message.message.asnLength);
-    peerInfo->asnLength = 0;
-    peerInfo->mtype = 0;
-
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "Sent message to SCTP for %s", message.message.enodbName);
-    }
-    return 0;
-}
 
 /**
  *

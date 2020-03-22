@@ -147,6 +147,8 @@ typedef struct ConnectedCU {
     char portNumber[NI_MAXSERV] {};
     char enodbName[MAX_ENODB_NAME_SIZE] {};
     char asnData[RECEIVE_SCTP_BUFFER_SIZE] {};
+    int rcvMsgs = 0;
+    int sentMesgs = 0;
     size_t asnLength = 0;
     int mtype = 0;
     bool isConnected = false;
@@ -209,7 +211,6 @@ void handlepoll_error(struct epoll_event &event,
 
 void cleanHashEntry(ConnectedCU_t *peerInfo, Sctp_Map_t *m);
 
-int getSetupRequestMetaData(ReportingMessages_t &message, char *data, char *host, uint16_t &port);
 
 /**
  *
@@ -304,19 +305,6 @@ int receiveXappMessages(int epoll_fd,
 
 /**
  *
- * @param rmrMessageBuffer
- * @param message
- * @param epoll_fd
- * @param sctpMap
- * @return
- */
-int connectToCUandSetUp(RmrMessagesBuffer_t &rmrMessageBuffer,
-                           ReportingMessages_t &message,
-                           int epoll_fd,
-                           Sctp_Map_t *sctpMap);
-
-/**
- *
  * @param messagBuffer
  * @param failedMsgId
  * @param sctpMap
@@ -344,7 +332,6 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
  */
 void asnSuccsesfulMsg(E2AP_PDU_t *pdu,
                       ReportingMessages_t &message,
-                      Sctp_Map_t *sctpMap,
                       RmrMessagesBuffer_t &rmrMessageBuffer);
 /**
  *
@@ -355,7 +342,6 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu,
  */
 void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
                         ReportingMessages_t &message,
-                        Sctp_Map_t *sctpMap,
                         RmrMessagesBuffer_t &rmrMessageBuffer);
 
 /**
