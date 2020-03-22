@@ -50,7 +50,7 @@ RUN apt-get install -y libcurl4-gnutls-dev gawk  \
     && cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DPISTACHE_BUILD_DOCS=false \
        -DPISTACHE_USE_SSL=false -DPISTACHE_BUILD_TESTS=false -DCMAKE_INSTALL_PREFIX=/usr/local ../ \
     && make -j && make install && ldconfig \
-    &&git clone http://gerrit.o-ran-sc.org/r/com/log \
+    && git clone http://gerrit.o-ran-sc.org/r/com/log \
     && cd log && ./autogen.sh && ./configure && make && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/jarro2783/cxxopts.git \
     && cd cxxopts && mkdir build && cd build && cmake .. && make install && ldconfig \
@@ -58,7 +58,9 @@ RUN apt-get install -y libcurl4-gnutls-dev gawk  \
     && cd rapidjson && mkdir build && cd build && cmake .. && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty \
     && cd /opt/e2/ && git clone https://github.com/bilke/cmake-modules.git \
-    && cd /opt/e2/ && /usr/local/bin/cmake -D CMAKE_BUILD_TYPE=$BUILD_TYPE . && make
+    && cd /opt/e2/ && /usr/local/bin/cmake -D CMAKE_BUILD_TYPE=$BUILD_TYPE . && make \
+    && echo "3" > /opt/e2/rmr.verbose
+
 
 
 RUN if [$BUILD_TYPE == "Debug"] ; then make e2_coverage ; fi
@@ -78,6 +80,7 @@ RUN mkdir -p /opt/e2/config
 #RUN apt-get install -y net-tools iputils-ping curl tcpdump && mkdir -p /opt/e2/config
 
 COPY --from=ubuntu /opt/e2/e2 /opt/e2/e2
+COPY --from=ubuntu /opt/e2/rmr.verbose /tmp/rmr.verbose
 COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/dockerRouter.txt /opt/e2/dockerRouter.txt
 COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/config/config.conf /opt/e2/config/config.conf
 COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/startup.sh /opt/e2/startup.sh
