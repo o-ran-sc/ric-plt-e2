@@ -67,8 +67,7 @@ link_libraries(nsl
         m
         dl
         mdclog
-        rmr_nng
-        nng
+        rmr_si
         asn1codec
         boost_system
         boost_log_setup
