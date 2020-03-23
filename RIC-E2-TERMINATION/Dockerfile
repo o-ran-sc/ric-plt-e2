@@ -20,7 +20,7 @@
 #   This source code is part of the near-RT RIC (RAN Intelligent Controller)
 #   platform project (RICP).
 #
-FROM nexus3.o-ran-sc.org:10004/bldr-ubuntu18-c-go:4-u18.04-nng as ubuntu
+FROM nexus3.o-ran-sc.org:10004/bldr-ubuntu18-c-go:5-u18.04-nng as ubuntu
 #FROM nexus3.o-ran-sc.org:10004/bldr-ubuntu16-c-go:3-u16.04-nng as ubuntu
 
 WORKDIR /opt/e2/
@@ -39,10 +39,10 @@ RUN cat /opt/e2/RIC-E2-TERMINATION/config/config.conf
 
 RUN wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
         && dpkg -i cgreen_1.2.0_amd64.deb \
-         && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr_3.5.1_amd64.deb/download.deb \
-         && dpkg -i rmr_3.5.1_amd64.deb \
-         && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr-dev_3.5.1_amd64.deb/download.deb \
-         && dpkg -i rmr-dev_3.5.1_amd64.deb
+         && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr_3.6.1_amd64.deb/download.deb \
+         && dpkg -i rmr_3.6.1_amd64.deb \
+         && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr-dev_3.6.1_amd64.deb/download.deb \
+         && dpkg -i rmr-dev_3.6.1_amd64.deb
 
 RUN apt-get install -y libcurl4-gnutls-dev gawk  \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/oktal/pistache.git && cd pistache \
@@ -93,8 +93,8 @@ COPY --from=ubuntu /usr/local/lib/libnng.so  /usr/local/lib/libnng.so
 COPY --from=ubuntu /usr/local/lib/libnng.so.1  /usr/local/lib/libnng.so.1
 COPY --from=ubuntu /usr/local/lib/libnng.so.1.1.0  /usr/local/lib/libnng.so.1.1.0
 #
-COPY --from=ubuntu /usr/local/lib/librmr_nng.so.3.5.1 /usr/local/lib/librmr_nng.so.3.5.1
-COPY --from=ubuntu /usr/local/lib/librmr_si.so.3.5.1 /usr/local/lib/librmr_si.so.3.5.1
+COPY --from=ubuntu /usr/local/lib/librmr_nng.so.3.6.1 /usr/local/lib/librmr_nng.so.3.6.1
+COPY --from=ubuntu /usr/local/lib/librmr_si.so.3.6.1 /usr/local/lib/librmr_si.so.3.6.1
 COPY --from=ubuntu /usr/local/lib/librmr_si.so.3  /usr/local/lib/librmr_si.so.3
 COPY --from=ubuntu /usr/local/lib/librmr_si.so /usr/local/lib/librmr_si.so
 COPY --from=ubuntu /usr/local/lib/librmr_nng.so.3 /usr/local/lib/librmr_nng.so.3
