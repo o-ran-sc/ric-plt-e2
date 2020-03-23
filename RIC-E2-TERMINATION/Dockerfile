@@ -39,10 +39,10 @@ RUN cat /opt/e2/RIC-E2-TERMINATION/config/config.conf
 
 RUN wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
         && dpkg -i cgreen_1.2.0_amd64.deb \
-         && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr_3.6.1_amd64.deb/download.deb \
-         && dpkg -i rmr_3.6.1_amd64.deb \
-         && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr-dev_3.6.1_amd64.deb/download.deb \
-         && dpkg -i rmr-dev_3.6.1_amd64.deb
+         && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr_3.6.2_amd64.deb/download.deb \
+         && dpkg -i rmr_3.6.2_amd64.deb \
+         && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr-dev_3.6.2_amd64.deb/download.deb \
+         && dpkg -i rmr-dev_3.6.2_amd64.deb
 
 RUN apt-get install -y libcurl4-gnutls-dev gawk  \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/oktal/pistache.git && cd pistache \
@@ -93,8 +93,8 @@ COPY --from=ubuntu /usr/local/lib/libnng.so  /usr/local/lib/libnng.so
 COPY --from=ubuntu /usr/local/lib/libnng.so.1  /usr/local/lib/libnng.so.1
 COPY --from=ubuntu /usr/local/lib/libnng.so.1.1.0  /usr/local/lib/libnng.so.1.1.0
 #
-COPY --from=ubuntu /usr/local/lib/librmr_nng.so.3.6.1 /usr/local/lib/librmr_nng.so.3.6.1
-COPY --from=ubuntu /usr/local/lib/librmr_si.so.3.6.1 /usr/local/lib/librmr_si.so.3.6.1
+COPY --from=ubuntu /usr/local/lib/librmr_nng.so.3.6.2 /usr/local/lib/librmr_nng.so.3.6.2
+COPY --from=ubuntu /usr/local/lib/librmr_si.so.3.6.2 /usr/local/lib/librmr_si.so.3.6.2
 COPY --from=ubuntu /usr/local/lib/librmr_si.so.3  /usr/local/lib/librmr_si.so.3
 COPY --from=ubuntu /usr/local/lib/librmr_si.so /usr/local/lib/librmr_si.so
 COPY --from=ubuntu /usr/local/lib/librmr_nng.so.3 /usr/local/lib/librmr_nng.so.3
