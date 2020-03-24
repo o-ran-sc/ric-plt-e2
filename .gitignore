@@ -56,3 +56,4 @@ RIC-E2-TERMINATION/3rdparty/log/
 RIC-E2-TERMINATION/3rdparty/rapidjson/
 /RIC-E2-TERMINATION/3rdparty/int/
 /RIC-E2-TERMINATION/3rdparty/int/autogen/licenses/codevbak.txt
+!/RIC-E2-TERMINATION/3rdparty/log/3rdparty/googletest/

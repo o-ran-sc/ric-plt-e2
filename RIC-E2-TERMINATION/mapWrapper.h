@@ -35,12 +35,10 @@
 #include <string>
 #include <iostream>
 
-using namespace std;
-
 class mapWrapper {
 public:
     void *find(char *key) {
-        shared_lock<shared_timed_mutex> read(fence);
+        std::shared_lock<std::shared_timed_mutex> read(fence);
         auto entry = keyMap.find(key);
         if (entry == keyMap.end()) {
             return nullptr;
@@ -49,32 +47,30 @@ public:
     }
 
     void setkey(char *key, void *val) {
-        unique_lock<shared_timed_mutex> write(fence);
+        std::unique_lock<std::shared_timed_mutex> write(fence);
         keyMap[key] = val;
     }
 
     void *erase(char *key) {
-        unique_lock<shared_timed_mutex> write(fence);
+        std::unique_lock<std::shared_timed_mutex> write(fence);
         return (void *)keyMap.erase(key);
     }
 
     void clear() {
-        unique_lock<shared_timed_mutex> write(fence);
+        std::unique_lock<std::shared_timed_mutex> write(fence);
         keyMap.clear();
     }
 
-    void getKeys(vector<char *> &v) {
-        shared_lock<shared_timed_mutex> read(fence);
+    void getKeys(std::vector<char *> &v) {
+        std::shared_lock<std::shared_timed_mutex> read(fence);
         for (auto const &e : keyMap) {
             v.emplace_back((char *)e.first.c_str());
         }
     }
 
-
-
 private:
-    std::unordered_map<string, void *> keyMap;
-    shared_timed_mutex fence;
+    std::unordered_map<std::string, void *> keyMap;
+    std::shared_timed_mutex fence;
 
 };
 #endif //E2_MAPWRAPPER_H

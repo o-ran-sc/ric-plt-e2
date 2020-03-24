@@ -84,11 +84,9 @@
 #include "cxxopts.hpp"
 //#include "config-cpp/include/config-cpp/config-cpp.h"
 
-#ifdef __TRACING__
-#include "openTracing.h"
-#endif
 
 #include "mapWrapper.h"
+#include "statCollector.h"
 
 #include "base64.h"
 
@@ -112,6 +110,7 @@ namespace expr = boost::log::expressions;
 #define RECEIVE_XAPP_BUFFER_SIZE RECEIVE_SCTP_BUFFER_SIZE 
 
 typedef mapWrapper Sctp_Map_t;
+
 
 
 #define VOLUME_URL_SIZE 256
@@ -147,8 +146,6 @@ typedef struct ConnectedCU {
     char portNumber[NI_MAXSERV] {};
     char enodbName[MAX_ENODB_NAME_SIZE] {};
     char asnData[RECEIVE_SCTP_BUFFER_SIZE] {};
-    int rcvMsgs = 0;
-    int sentMesgs = 0;
     size_t asnLength = 0;
     int mtype = 0;
     bool isConnected = false;
@@ -182,6 +179,7 @@ typedef struct ReportingMessages {
     long outLen = 0;
     unsigned char base64Data[RECEIVE_SCTP_BUFFER_SIZE * 2] {};
     char buffer[RECEIVE_SCTP_BUFFER_SIZE * 8] {};
+    StatCollector *statCollector = nullptr;
 } ReportingMessages_t;
 
 cxxopts::ParseResult parse(int argc, char *argv[], sctp_params_t &pSctpParams);

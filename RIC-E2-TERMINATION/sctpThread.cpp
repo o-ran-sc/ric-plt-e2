@@ -277,6 +277,8 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     return 0;
 }
 
+
+
 int main(const int argc, char **argv) {
     sctp_params_t sctpParams;
 
@@ -363,12 +365,18 @@ int main(const int argc, char **argv) {
         }
     }
 
+    auto statFlag = false;
+    auto statThread = std::thread(statColectorThread, (void *)&statFlag);
+
     //loop over term_init until first message from xApp
     handleTermInit(sctpParams);
 
     for (auto &t : threads) {
         t.join();
     }
+
+    statFlag = true;
+    statThread.join();
 
     return 0;
 }
@@ -543,6 +551,8 @@ void listener(sctp_params_t *params) {
         rmrMessageBuffer.rcvBufferedMessages[i] = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
         rmrMessageBuffer.sendBufferedMessages[i] = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
     }
+
+    message.statCollector = StatCollector::GetInstance();
 
     while (true) {
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
@@ -963,7 +973,7 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
             m->erase(key);
             return -1;
         }
-        peerInfo->sentMesgs++;
+        message.statCollector->incSentMessage(string(message.message.enodbName));
         message.message.direction = 'D';
         // send report.buffer of size
         buildJsonMessage(message);
@@ -1021,7 +1031,7 @@ int receiveDataFromSctp(struct epoll_event *events,
     // get the identity of the interface
     message.peerInfo = (ConnectedCU_t *)events->data.ptr;
 
-
+    message.statCollector = StatCollector::GetInstance();
     struct timespec start{0, 0};
     struct timespec decodestart{0, 0};
     struct timespec end{0, 0};
@@ -1043,8 +1053,9 @@ int receiveDataFromSctp(struct epoll_event *events,
             mdclog_write(MDCLOG_DEBUG, "Finish Read from SCTP %d fd message length = %ld",
                     message.peerInfo->fileDescriptor, message.message.asnLength);
         }
-        message.peerInfo->rcvMsgs++;
+
         memcpy(message.message.enodbName, message.peerInfo->enodbName, sizeof(message.peerInfo->enodbName));
+        message.statCollector->incRecvMessage(string(message.message.enodbName));
         message.message.direction = 'U';
         message.message.time.tv_nsec = ts.tv_nsec;
         message.message.time.tv_sec = ts.tv_sec;
