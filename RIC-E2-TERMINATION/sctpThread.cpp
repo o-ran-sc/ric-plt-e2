@@ -547,10 +547,10 @@ void listener(sctp_params_t *params) {
 
     ReportingMessages_t message {};
 
-    for (int i = 0; i < MAX_RMR_BUFF_ARRY; i++) {
-        rmrMessageBuffer.rcvBufferedMessages[i] = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
-        rmrMessageBuffer.sendBufferedMessages[i] = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
-    }
+//    for (int i = 0; i < MAX_RMR_BUFF_ARRY; i++) {
+//        rmrMessageBuffer.rcvBufferedMessages[i] = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
+//        rmrMessageBuffer.sendBufferedMessages[i] = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
+//    }
 
     message.statCollector = StatCollector::GetInstance();
 
