@@ -106,7 +106,7 @@ namespace expr = boost::log::expressions;
 
 #define MAXEVENTS 128
 
-#define RECEIVE_SCTP_BUFFER_SIZE (8 * 1024)
+#define RECEIVE_SCTP_BUFFER_SIZE (128 * 1024)
 #define RECEIVE_XAPP_BUFFER_SIZE RECEIVE_SCTP_BUFFER_SIZE 
 
 typedef mapWrapper Sctp_Map_t;
@@ -159,9 +159,9 @@ typedef struct RmrMessagesBuffer {
     int  ka_message_len = 0;
     void *rmrCtx = nullptr;
     rmr_mbuf_t *sendMessage= nullptr;
-    rmr_mbuf_t *sendBufferedMessages[MAX_RMR_BUFF_ARRY] {};
+    //rmr_mbuf_t *sendBufferedMessages[MAX_RMR_BUFF_ARRY] {};
     rmr_mbuf_t *rcvMessage= nullptr;
-    rmr_mbuf_t *rcvBufferedMessages[MAX_RMR_BUFF_ARRY] {};
+    //rmr_mbuf_t *rcvBufferedMessages[MAX_RMR_BUFF_ARRY] {};
 } RmrMessagesBuffer_t;
 
 typedef struct formatedMessage {
