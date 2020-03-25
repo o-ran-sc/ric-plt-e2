@@ -233,8 +233,8 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     jsonTrace = sctpParams.trace;
 
     sctpParams.ka_message_length = snprintf(sctpParams.ka_message, KA_MESSAGE_SIZE, "{\"address\": \"%s:%d\","
-                                                                         "\"fqdn\": \"%s\","
-                                                                         "\"pod_name\": \"%s\"}",
+                                                                                    "\"fqdn\": \"%s\","
+                                                                                    "\"pod_name\": \"%s\"}",
                                             (const char *)sctpParams.myIP.c_str(),
                                             sctpParams.rmrPort,
                                             sctpParams.fqdn.c_str(),
@@ -473,12 +473,12 @@ int buildInotify(sctp_params_t &sctpParams) {
     }
 
     sctpParams.inotifyWD = inotify_add_watch(sctpParams.inotifyFD,
-                                              (const char *)sctpParams.configFilePath.c_str(),
+                                             (const char *)sctpParams.configFilePath.c_str(),
                                              (unsigned)IN_OPEN | (unsigned)IN_CLOSE_WRITE | (unsigned)IN_CLOSE_NOWRITE); //IN_CLOSE = (IN_CLOSE_WRITE | IN_CLOSE_NOWRITE)
     if (sctpParams.inotifyWD == -1) {
         mdclog_write(MDCLOG_ERR, "Failed to add directory : %s to  inotify (inotify_add_watch) %s",
-                sctpParams.configFilePath.c_str(),
-                strerror(errno));
+                     sctpParams.configFilePath.c_str(),
+                     strerror(errno));
         close(sctpParams.inotifyFD);
         return -1;
     }
@@ -612,8 +612,8 @@ void listener(sctp_params_t *params) {
                         break;
                     }
                     auto  ans = getnameinfo(&in_addr, in_len,
-                            peerInfo->hostName, NI_MAXHOST,
-                            peerInfo->portNumber, NI_MAXSERV, (unsigned )((unsigned int)NI_NUMERICHOST | (unsigned int)NI_NUMERICSERV));
+                                            peerInfo->hostName, NI_MAXHOST,
+                                            peerInfo->portNumber, NI_MAXSERV, (unsigned )((unsigned int)NI_NUMERICHOST | (unsigned int)NI_NUMERICSERV));
                     if (ans < 0) {
                         mdclog_write(MDCLOG_ERR, "Failed to get info on connection request. %s\n", strerror(errno));
                         close(peerInfo->fileDescriptor);
@@ -966,7 +966,7 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "remove key = %s from %s at line %d", key, __FUNCTION__, __LINE__);
             }
-    	    auto tmp = m->find(key);
+            auto tmp = m->find(key);
             if (tmp) {
                 free(tmp);
             }
@@ -1051,7 +1051,7 @@ int receiveDataFromSctp(struct epoll_event *events,
 
         if (loglevel >= MDCLOG_DEBUG) {
             mdclog_write(MDCLOG_DEBUG, "Finish Read from SCTP %d fd message length = %ld",
-                    message.peerInfo->fileDescriptor, message.message.asnLength);
+                         message.peerInfo->fileDescriptor, message.message.asnLength);
         }
 
         memcpy(message.message.enodbName, message.peerInfo->enodbName, sizeof(message.peerInfo->enodbName));
@@ -1166,9 +1166,9 @@ int receiveDataFromSctp(struct epoll_event *events,
         }
         message.message.asnLength = rmrMessageBuffer.sendMessage->len =
                 snprintf((char *)rmrMessageBuffer.sendMessage->payload,
-                        256,
-                        "%s|CU disconnected unexpectedly",
-                        message.peerInfo->enodbName);
+                         256,
+                         "%s|CU disconnected unexpectedly",
+                         message.peerInfo->enodbName);
         message.message.asndata = rmrMessageBuffer.sendMessage->payload;
 
         if (sendRequestToXapp(message,
@@ -1203,14 +1203,14 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
         memcpy(message.message.enodbName, message.peerInfo->enodbName, strlen(message.peerInfo->enodbName));
     }
     // now we can send the data to e2Mgr
-    auto buffer_size = RECEIVE_SCTP_BUFFER_SIZE;
+    auto buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
 
     auto *rmrMsg = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, buffer_size);
     // add addrees to message
 
 
     // unsigned char *buffer = &rmrMsg->payload[j];
-    unsigned char buffer[RECEIVE_SCTP_BUFFER_SIZE];
+    unsigned char buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
     // encode to xml
     asn_enc_rval_t er;
     er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, buffer, buffer_size);
@@ -1221,12 +1221,12 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
                      (int) buffer_size,
                      asn_DEF_E2AP_PDU.name);
     } else {
-        rmrMsg->len = snprintf((char *)rmrMsg->payload, RECEIVE_SCTP_BUFFER_SIZE, "%s:%d|%s",
-                message.peerInfo->sctpParams->myIP.c_str(),
-                message.peerInfo->sctpParams->rmrPort,
-                buffer);
-        if (logLevel >= MDCLOG_INFO) {
-            mdclog_write(MDCLOG_INFO, "Setup request : %s\n", buffer);
+        rmrMsg->len = snprintf((char *)rmrMsg->payload, RECEIVE_SCTP_BUFFER_SIZE * 2, "%s:%d|%s",
+                               message.peerInfo->sctpParams->myIP.c_str(),
+                               message.peerInfo->sctpParams->rmrPort,
+                               buffer);
+        if (logLevel >= MDCLOG_DEBUG) {
+            mdclog_write(MDCLOG_DEBUG, "Setup request of size %d :\n %s\n", rmrMsg->len, rmrMsg->payload);
         }
         // send to RMR
         message.message.messageType = rmrMsg->mtype = RIC_E2_SETUP_REQ;
@@ -1927,9 +1927,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 
                     message.message.asnLength = rmrMessageBuffer.sendMessage->len =
                             snprintf((char *)rmrMessageBuffer.sendMessage->payload,
-                                                                   256,
-                                                                   "%s|RIC_SCTP_CLEAR_ALL",
-                                                                   peerInfo->enodbName);
+                                     256,
+                                     "%s|RIC_SCTP_CLEAR_ALL",
+                                     peerInfo->enodbName);
                     message.message.asndata = rmrMessageBuffer.sendMessage->payload;
                     mdclog_write(MDCLOG_INFO, "%s", message.message.asndata);
                     if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer) != 0) {
@@ -1946,8 +1946,8 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
         case E2_TERM_KEEP_ALIVE_REQ: {
             // send message back
             rmr_bytes2payload(rmrMessageBuffer.sendMessage,
-                    (unsigned char *)rmrMessageBuffer.ka_message,
-                    rmrMessageBuffer.ka_message_len);
+                              (unsigned char *)rmrMessageBuffer.ka_message,
+                              rmrMessageBuffer.ka_message_len);
             rmrMessageBuffer.sendMessage->mtype = E2_TERM_KEEP_ALIVE_RESP;
             rmrMessageBuffer.sendMessage->state = 0;
             static unsigned char tx[32];
@@ -1959,7 +1959,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
                 mdclog_write(MDCLOG_ERR, "Failed to send E2_TERM_KEEP_ALIVE_RESP RMR message returned NULL");
             } else if (rmrMessageBuffer.sendMessage->state != 0)  {
                 mdclog_write(MDCLOG_ERR, "Failed to send E2_TERM_KEEP_ALIVE_RESP, on RMR state = %d ( %s)",
-                        rmrMessageBuffer.sendMessage->state, translateRmrErrorMessages(rmrMessageBuffer.sendMessage->state).c_str());
+                             rmrMessageBuffer.sendMessage->state, translateRmrErrorMessages(rmrMessageBuffer.sendMessage->state).c_str());
             } else if (mdclog_level_get() >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got Keep Alive Request send : %s", rmrMessageBuffer.ka_message);
             }
@@ -2141,7 +2141,7 @@ int modifyToEpoll(int epoll_fd,
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
             mdclog_write(MDCLOG_DEBUG, "remove key = %s from %s at line %d", key, __FUNCTION__, __LINE__);
         }
-    	auto tmp = sctpMap->find(key);
+        auto tmp = sctpMap->find(key);
         if (tmp) {
             free(tmp);
         }
@@ -2211,19 +2211,19 @@ void buildJsonMessage(ReportingMessages_t &message) {
         }
 
         snprintf(message.buffer, sizeof(message.buffer),
-                                     "{\"header\": {\"ts\": \"%ld.%09ld\","
-                                     "\"ranName\": \"%s\","
-                                     "\"messageType\": %d,"
-                                     "\"direction\": \"%c\"},"
-                                     "\"base64Length\": %d,"
-                                     "\"asnBase64\": \"%s\"}",
-                                     message.message.time.tv_sec,
-                                     message.message.time.tv_nsec,
-                                     message.message.enodbName,
-                                     message.message.messageType,
-                                     message.message.direction,
-                                     (int) message.outLen,
-                                     message.base64Data);
+                 "{\"header\": {\"ts\": \"%ld.%09ld\","
+                 "\"ranName\": \"%s\","
+                 "\"messageType\": %d,"
+                 "\"direction\": \"%c\"},"
+                 "\"base64Length\": %d,"
+                 "\"asnBase64\": \"%s\"}",
+                 message.message.time.tv_sec,
+                 message.message.time.tv_nsec,
+                 message.message.enodbName,
+                 message.message.messageType,
+                 message.message.direction,
+                 (int) message.outLen,
+                 message.base64Data);
         static src::logger_mt &lg = my_logger::get();
 
         BOOST_LOG(lg) << message.buffer;

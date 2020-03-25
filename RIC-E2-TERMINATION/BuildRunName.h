@@ -27,17 +27,19 @@
 #include "oranE2/GlobalE2node-ng-eNB-ID.h"
 #include "oranE2/GlobalE2node-eNB-ID.h"
 
-/**
- * return the size of the string
+/**    02 F8 29
+ * return the size of the string //
  */
 static int translatePlmnId(char * plmnId, const unsigned char *data, const char* type) {
     auto mcc1 = (unsigned char)((unsigned char)data[0] & (unsigned char)0x0F);
     auto mcc2 = (unsigned char)(((unsigned char)((unsigned char)data[0] & (unsigned char)0xF0)) >> (unsigned char)4);
-    auto mcc3 = (unsigned char)((data[1] & (unsigned char)0xF0) >> (unsigned char)4);
+    ///auto mcc3 = (unsigned char)((data[1] & (unsigned char)0xF0) >> (unsigned char)4);
+    auto mcc3 = (unsigned char)((unsigned char)(data[1] & (unsigned char)0x0F));
 
     auto mnc1 = (unsigned char)(data[2] & (unsigned char)0x0F);
     auto mnc2 =  (unsigned char)(((unsigned char)(data[2] & (unsigned char)0xF0) >> (unsigned char)4));
-    auto mnc3 = (unsigned char)(((unsigned char)(data[1] & (unsigned char)0x0F) >> (unsigned char)4) );
+    //auto mnc3 = (unsigned char)(((unsigned char)(data[1] & (unsigned char)0x0F) >> (unsigned char)4) );
+    auto mnc3 = (unsigned char)((data[1] & (unsigned char)0xF0) >> (unsigned char)4);
 
     int j = 0;
     if (mnc3 != 15) {
