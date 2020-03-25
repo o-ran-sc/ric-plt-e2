@@ -1207,13 +1207,13 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
 
     auto *rmrMsg = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, buffer_size);
     // add addrees to message
-    auto j = snprintf((char *)rmrMsg->payload, 256, "%s:%d|", message.peerInfo->sctpParams->myIP.c_str(), message.peerInfo->sctpParams->rmrPort);
 
 
-    unsigned char *buffer = &rmrMsg->payload[j];
+    // unsigned char *buffer = &rmrMsg->payload[j];
+    unsigned char buffer[RECEIVE_SCTP_BUFFER_SIZE];
     // encode to xml
     asn_enc_rval_t er;
-    er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, buffer, buffer_size - j);
+    er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, buffer, buffer_size);
     if (er.encoded == -1) {
         mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
     } else if (er.encoded > (ssize_t) buffer_size) {
@@ -1221,8 +1221,12 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
                      (int) buffer_size,
                      asn_DEF_E2AP_PDU.name);
     } else {
-        if (logLevel >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "Buffer of size %d, data = %s", (int) er.encoded, buffer);
+        rmrMsg->len = snprintf((char *)rmrMsg->payload, RECEIVE_SCTP_BUFFER_SIZE, "%s:%d|%s",
+                message.peerInfo->sctpParams->myIP.c_str(),
+                message.peerInfo->sctpParams->rmrPort,
+                buffer);
+        if (logLevel >= MDCLOG_INFO) {
+            mdclog_write(MDCLOG_INFO, "Setup request : %s\n", buffer);
         }
         // send to RMR
         message.message.messageType = rmrMsg->mtype = RIC_E2_SETUP_REQ;
@@ -1262,6 +1266,9 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
         }
         message.peerInfo->gotSetup = true;
         buildJsonMessage(message);
+        if (rmrMsg != nullptr) {
+            rmr_free_msg(rmrMsg);
+        }
     }
 
 }
@@ -1953,8 +1960,8 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             } else if (rmrMessageBuffer.sendMessage->state != 0)  {
                 mdclog_write(MDCLOG_ERR, "Failed to send E2_TERM_KEEP_ALIVE_RESP, on RMR state = %d ( %s)",
                         rmrMessageBuffer.sendMessage->state, translateRmrErrorMessages(rmrMessageBuffer.sendMessage->state).c_str());
-            } else if (mdclog_level_get() >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got Keep Alive Request send : %s", rmrMessageBuffer.ka_message);
+            } else if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got Keep Alive Request send : %s", rmrMessageBuffer.ka_message);
             }
 
             break;
