@@ -1148,15 +1148,16 @@ int receiveDataFromSctp(struct epoll_event *events,
         //break;
         if (pdu != nullptr) {
             //TODO need to test ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu); to get better performance
-            //ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
-            ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
+            ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
+            //ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
             pdu = nullptr;
         }
         //clock_gettime(CLOCK_MONOTONIC, &start);
     }
     // in case of break to avoid memory leak
     if (pdu != nullptr) {
-        ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
+        //ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
+        ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
         pdu = nullptr;
     }
 
@@ -1212,8 +1213,7 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
     // unsigned char *buffer = &rmrMsg->payload[j];
     unsigned char buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
     // encode to xml
-    asn_enc_rval_t er;
-    er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, buffer, buffer_size);
+    auto er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, buffer, buffer_size);
     if (er.encoded == -1) {
         mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
     } else if (er.encoded > (ssize_t) buffer_size) {
@@ -1794,6 +1794,31 @@ void getRmrContext(sctp_params_t &pSctpParams) {
     }
 }
 
+int BuildPERSetupResponseMessaeFromXML(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer) {
+    E2AP_PDU_t *pdu;
+    auto rval = asn_decode(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, (void **) &pdu,
+                           rmrMessageBuffer.rcvMessage->payload, rmrMessageBuffer.rcvMessage->len);
+    if (rval.code != RC_OK) {
+        mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) E2AP PDU from E2MGR : %s",
+                     rval.code,
+                     message.message.enodbName);
+        return -1;
+    }
+
+    auto er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu,
+                                   rmrMessageBuffer.rcvMessage->payload, rmrMessageBuffer.rcvMessage->len);
+    if (er.encoded == -1) {
+        mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
+        return -1;
+    } else if (er.encoded > (ssize_t)rmrMessageBuffer.rcvMessage->len) {
+        mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s",
+                     (int)rmrMessageBuffer.rcvMessage->len,
+                     asn_DEF_E2AP_PDU.name);
+        return -1;
+    }
+    return 0;
+}
+
 /**
  *
  * @param sctpMap
@@ -1830,8 +1855,13 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
         mdclog_write(MDCLOG_ERR, "RMR Receving message with stat = %d", rmrMessageBuffer.rcvMessage->state);
         return -1;
     }
+    rmr_get_meid(rmrMessageBuffer.rcvMessage, (unsigned char *)message.message.enodbName);
     switch (rmrMessageBuffer.rcvMessage->mtype) {
         case RIC_E2_SETUP_RESP : {
+            if (BuildPERSetupResponseMessaeFromXML(message, rmrMessageBuffer) != 0) {
+                break;
+            }
+
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_SETUP_RESP");
                 return -6;
@@ -1839,6 +1869,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_E2_SETUP_FAILURE : {
+            if (BuildPERSetupResponseMessaeFromXML(message, rmrMessageBuffer) != 0) {
+                break;
+            }
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_SETUP_FAILURE");
                 return -6;
