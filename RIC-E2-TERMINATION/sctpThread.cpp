@@ -1105,6 +1105,7 @@ int receiveDataFromSctp(struct epoll_event *events,
         if (rval.code != RC_OK) {
             mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) E2AP PDU from RAN : %s", rval.code,
                          message.peerInfo->enodbName);
+            //todo may need reset to pdu
             break;
         }
 
@@ -1150,16 +1151,16 @@ int receiveDataFromSctp(struct epoll_event *events,
             //TODO need to test ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu); to get better performance
             ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
             //ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
-            pdu = nullptr;
+            //pdu = nullptr;
         }
         //clock_gettime(CLOCK_MONOTONIC, &start);
     }
     // in case of break to avoid memory leak
-    if (pdu != nullptr) {
-        //ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
-        ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
-        pdu = nullptr;
-    }
+//    if (pdu != nullptr) {
+//        //ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
+//        ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
+//        //pdu = nullptr;
+//    }
 
     if (done) {
         if (loglevel >= MDCLOG_INFO) {
