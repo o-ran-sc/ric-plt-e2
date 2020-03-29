@@ -154,3 +154,4 @@ ENV E2TERM_POD_NAME=e2term
 RUN chmod +x /opt/e2/startup.sh
 EXPOSE 38000
 CMD ["sh", "-c", "./startup.sh"]
+
