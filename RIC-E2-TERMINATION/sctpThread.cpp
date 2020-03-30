@@ -1336,18 +1336,17 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                     if (ie->value.present == E2setupRequestIEs__value_PR_RANfunctions_List) {
                         for (auto j = 0; i < ie->value.choice.RANfunctions_List.list.count; i++) {
                             auto *raNfunctionItemIEs = (RANfunction_ItemIEs_t *)ie->value.choice.RANfunctions_List.list.array[j];
-                            if (raNfunctionItemIEs->id == ProtocolIE_ID_id_RANfunction_Item) {
-                                auto buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
-                                unsigned char buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
+                            if (raNfunctionItemIEs->id == ProtocolIE_ID_id_RANfunction_Item &&
+                                    (raNfunctionItemIEs->value.present == RANfunction_ItemIEs__value_PR_RANfunction_Item)) {
                                 // encode to xml
                                 E2SM_gNB_NRT_RANfunction_Definition_t *ranFunDef = nullptr;
                                 auto rval = asn_decode(nullptr, ATS_ALIGNED_BASIC_PER,
                                         &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition,
                                         (void **)&ranFunDef,
-                                        buffer,
-                                        buffer_size);
+                                        raNfunctionItemIEs->value.choice.RANfunction_Item.ranFunctionDefinition.buf,
+                                        raNfunctionItemIEs->value.choice.RANfunction_Item.ranFunctionDefinition.size);
                                 if (rval.code != RC_OK) {
-                                    mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) E2AP PDU from E2MGR : %s",
+                                    mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) E2SM message from : %s",
                                                  rval.code,
                                                  asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name);
                                     failed = true;
@@ -1358,7 +1357,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                                     char *printBuffer;
                                     size_t size;
                                     FILE *stream = open_memstream(&printBuffer, &size);
-                                    asn_fprint(stream, &asn_DEF_E2AP_PDU, pdu);
+                                    asn_fprint(stream, &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition, pdu);
                                     mdclog_write(MDCLOG_DEBUG, "Encoding E2AP PDU past : %s", printBuffer);
                                 }
                                 auto xml_buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
@@ -1374,7 +1373,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                                     mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s",
                                                  asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
                                                  strerror(errno));
-                                } else if (er.encoded > (ssize_t) buffer_size) {
+                                } else if (er.encoded > (ssize_t)xml_buffer_size) {
                                     mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s",
                                                  (int) xml_buffer_size,
                                                  asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name);
@@ -1895,10 +1894,14 @@ void getRmrContext(sctp_params_t &pSctpParams) {
 
 int BuildPERSetupResponseMessaeFromXML(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer) {
     E2AP_PDU_t *pdu;
+
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_DEBUG, "got xml setup response \n %s\n", rmrMessageBuffer.rcvMessage->payload);
+    }
     auto rval = asn_decode(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, (void **) &pdu,
                            rmrMessageBuffer.rcvMessage->payload, rmrMessageBuffer.rcvMessage->len);
     if (rval.code != RC_OK) {
-        mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) E2AP PDU from E2MGR : %s",
+        mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) setup response  from E2MGR : %s",
                      rval.code,
                      message.message.enodbName);
         return -1;
