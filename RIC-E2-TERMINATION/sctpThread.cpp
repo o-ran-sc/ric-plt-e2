@@ -20,8 +20,21 @@
 
 
 
+#include <3rdparty/oranE2/RANfunctions-List.h>
 #include "sctpThread.h"
 #include "BuildRunName.h"
+
+//#define asn_DEF_E2SM_gNB_NRT_RANfunction_Definition e2sm_asn_DEF_E2SM_gNB_NRT_RANfunction_Definition
+//#define __gcov_init e2sm___gcov_init
+//#define __gcov_merge_add e2sm___gcov_merge_add
+//#define calloc e2sm_calloc
+
+#include "3rdparty/oranE2SM/E2SM-gNB-NRT-RANfunction-Definition.h"
+
+//#undef calloc
+//#undef __gcov_merge_add
+//#undef __gcov_init
+//#undef asn_DEF_E2SM_gNB_NRT_RANfunction_Definition
 
 using namespace std;
 //using namespace std::placeholders;
@@ -882,6 +895,7 @@ void handlepoll_error(struct epoll_event &event,
         }
 
         close(peerInfo->fileDescriptor);
+        params->sctpMap->erase(peerInfo->enodbName);
         cleanHashEntry((ConnectedCU_t *) event.data.ptr, params->sctpMap);
     } else {
         mdclog_write(MDCLOG_ERR, "epoll error, events %0x on RMR FD", event.events);
@@ -1083,7 +1097,6 @@ int receiveDataFromSctp(struct epoll_event *events,
             break;
         }
 
-        asn_dec_rval_t rval;
         if (loglevel >= MDCLOG_DEBUG) {
             char printBuffer[4096]{};
             char *tmp = printBuffer;
@@ -1100,7 +1113,7 @@ int receiveDataFromSctp(struct epoll_event *events,
             clock_gettime(CLOCK_MONOTONIC, &decodestart);
         }
 
-        rval = asn_decode(nullptr, ATS_ALIGNED_BASIC_PER, &asn_DEF_E2AP_PDU, (void **) &pdu,
+        auto rval = asn_decode(nullptr, ATS_ALIGNED_BASIC_PER, &asn_DEF_E2AP_PDU, (void **) &pdu,
                           message.message.asndata, message.message.asnLength);
         if (rval.code != RC_OK) {
             mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) E2AP PDU from RAN : %s", rval.code,
@@ -1123,15 +1136,15 @@ int receiveDataFromSctp(struct epoll_event *events,
 
         switch (pdu->present) {
             case E2AP_PDU_PR_initiatingMessage: {//initiating message
-                asnInitiatingRequest(pdu, message, rmrMessageBuffer);
+                asnInitiatingRequest(pdu, sctpMap,message, rmrMessageBuffer);
                 break;
             }
             case E2AP_PDU_PR_successfulOutcome: { //successful outcome
-                asnSuccsesfulMsg(pdu, message,  rmrMessageBuffer);
+                asnSuccsesfulMsg(pdu, sctpMap, message,  rmrMessageBuffer);
                 break;
             }
             case E2AP_PDU_PR_unsuccessfulOutcome: { //Unsuccessful Outcome
-                asnUnSuccsesfulMsg(pdu, message, rmrMessageBuffer);
+                asnUnSuccsesfulMsg(pdu, sctpMap, message, rmrMessageBuffer);
                 break;
             }
             default:
@@ -1193,17 +1206,10 @@ int receiveDataFromSctp(struct epoll_event *events,
 }
 
 static void buildAndsendSetupRequest(ReportingMessages_t &message,
-                                     E2setupRequestIEs_t *ie,
                                      RmrMessagesBuffer_t &rmrMessageBuffer,
                                      E2AP_PDU_t *pdu) {
     auto logLevel = mdclog_level_get();
 
-
-    if (buildRanName(message.peerInfo->enodbName, ie) < 0) {
-        mdclog_write(MDCLOG_ERR, "Bad param in E2setupRequestIEs GlobalE2node_ID.\n");
-    } else {
-        memcpy(message.message.enodbName, message.peerInfo->enodbName, strlen(message.peerInfo->enodbName));
-    }
     // now we can send the data to e2Mgr
     auto buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
 
@@ -1280,6 +1286,7 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
  * @param rmrMessageBuffer
  */
 void asnInitiatingRequest(E2AP_PDU_t *pdu,
+                          Sctp_Map_t *sctpMap,
                           ReportingMessages_t &message,
                           RmrMessagesBuffer_t &rmrMessageBuffer) {
     auto logLevel = mdclog_level_get();
@@ -1293,16 +1300,103 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                 mdclog_write(MDCLOG_DEBUG, "Got E2setup\n");
             }
 
+            // first get the message as XML buffer
+            auto setup_xml_buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
+            unsigned char setup_xml_buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
+            //unsigned char *tmp_buff_cursor = setup_xml_buffer;
+
+            auto er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, setup_xml_buffer, setup_xml_buffer_size);
+            if (er.encoded == -1) {
+                mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
+            } else if (er.encoded > (ssize_t) setup_xml_buffer_size) {
+                mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s",
+                             (int)setup_xml_buffer_size,
+                             asn_DEF_E2AP_PDU.name);
+            }
+            std::string xmlString(setup_xml_buffer_size,  setup_xml_buffer_size + er.encoded);
+
+            auto failed = false;
             memset(message.peerInfo->enodbName, 0 , MAX_ENODB_NAME_SIZE);
             for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.count; i++) {
                 auto *ie = pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.array[i];
                 if (ie->id == ProtocolIE_ID_id_GlobalE2node_ID) {
+                    // get the ran name for meid
                     if (ie->value.present == E2setupRequestIEs__value_PR_GlobalE2node_ID) {
-                        buildAndsendSetupRequest(message, ie, rmrMessageBuffer, pdu);
-                        break;
+                        if (buildRanName(message.peerInfo->enodbName, ie) < 0) {
+                            mdclog_write(MDCLOG_ERR, "Bad param in E2setupRequestIEs GlobalE2node_ID.\n");
+                            // no mesage will be sent
+                            break;
+                        }
+                        memcpy(message.message.enodbName, message.peerInfo->enodbName, strlen(message.peerInfo->enodbName));
+                        sctpMap->setkey(message.message.enodbName, message.peerInfo);
+                    }
+                }
+                // reformat RANFUNCTION Definition to XML
+                if (ie->id == ProtocolIE_ID_id_RANfunctionsAdded) {
+                    if (ie->value.present == E2setupRequestIEs__value_PR_RANfunctions_List) {
+                        for (auto j = 0; i < ie->value.choice.RANfunctions_List.list.count; i++) {
+                            auto *raNfunctionItemIEs = (RANfunction_ItemIEs_t *)ie->value.choice.RANfunctions_List.list.array[j];
+                            if (raNfunctionItemIEs->id == ProtocolIE_ID_id_RANfunction_Item) {
+                                auto buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
+                                unsigned char buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
+                                // encode to xml
+                                E2SM_gNB_NRT_RANfunction_Definition_t *ranFunDef = nullptr;
+                                auto rval = asn_decode(nullptr, ATS_ALIGNED_BASIC_PER,
+                                        &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition,
+                                        (void **)&ranFunDef,
+                                        buffer,
+                                        buffer_size);
+                                if (rval.code != RC_OK) {
+                                    mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) E2AP PDU from E2MGR : %s",
+                                                 rval.code,
+                                                 asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name);
+                                    failed = true;
+                                    break;
+                                }
+
+                                if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                                    char *printBuffer;
+                                    size_t size;
+                                    FILE *stream = open_memstream(&printBuffer, &size);
+                                    asn_fprint(stream, &asn_DEF_E2AP_PDU, pdu);
+                                    mdclog_write(MDCLOG_DEBUG, "Encoding E2AP PDU past : %s", printBuffer);
+                                }
+                                auto xml_buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
+                                unsigned char xml_buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
+                                // encode to xml
+                                er = asn_encode_to_buffer(nullptr,
+                                                          ATS_BASIC_XER,
+                                                          &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition,
+                                                          ranFunDef,
+                                                          xml_buffer,
+                                                          xml_buffer_size);
+                                if (er.encoded == -1) {
+                                    mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s",
+                                                 asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
+                                                 strerror(errno));
+                                } else if (er.encoded > (ssize_t) buffer_size) {
+                                    mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s",
+                                                 (int) xml_buffer_size,
+                                                 asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name);
+                                } else {
+                                    // we have the xml
+                                }
+
+                            }
+                        }
+                        if (failed) {
+                            break;
+                        }
                     }
                 }
             }
+            if (failed) {
+                break;
+            }
+
+            //build all parts and send the XML (need to copy the XML with the header to the rmrMessageBuffer payload
+            //TODO replace with new function
+            buildAndsendSetupRequest(message, rmrMessageBuffer, pdu);
             break;
         }
         case ProcedureCode_id_ErrorIndication: {
@@ -1414,7 +1508,10 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
  * @param message
  * @param rmrMessageBuffer
  */
-void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer) {
+void asnSuccsesfulMsg(E2AP_PDU_t *pdu,
+                      Sctp_Map_t *sctpMap,
+                      ReportingMessages_t &message,
+                      RmrMessagesBuffer_t &rmrMessageBuffer) {
     auto procedureCode = pdu->choice.successfulOutcome->procedureCode;
     auto logLevel = mdclog_level_get();
     if (logLevel >= MDCLOG_INFO) {
@@ -1575,6 +1672,7 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu, ReportingMessages_t &message, RmrMessages
  * @param rmrMessageBuffer
  */
 void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
+                        Sctp_Map_t *sctpMap,
                         ReportingMessages_t &message,
                         RmrMessagesBuffer_t &rmrMessageBuffer) {
     auto procedureCode = pdu->choice.unsuccessfulOutcome->procedureCode;

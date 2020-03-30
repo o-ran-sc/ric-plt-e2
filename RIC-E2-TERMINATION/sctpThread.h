@@ -318,6 +318,7 @@ int sendDirectionalSctpMsg(RmrMessagesBuffer_t &messagBuffer,
  * @param rmrMessageBuffer
  */
 void asnInitiatingRequest(E2AP_PDU_t *pdu,
+                          Sctp_Map_t *sctpMap,
                           ReportingMessages_t &message,
                           RmrMessagesBuffer_t &rmrMessageBuffer);
 /**
@@ -328,6 +329,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
  * @param rmrMessageBuffer
  */
 void asnSuccsesfulMsg(E2AP_PDU_t *pdu,
+                      Sctp_Map_t *sctpMap,
                       ReportingMessages_t &message,
                       RmrMessagesBuffer_t &rmrMessageBuffer);
 /**
@@ -338,6 +340,7 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu,
  * @param rmrMessageBuffer
  */
 void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
+                        Sctp_Map_t *sctpMap,
                         ReportingMessages_t &message,
                         RmrMessagesBuffer_t &rmrMessageBuffer);
 
