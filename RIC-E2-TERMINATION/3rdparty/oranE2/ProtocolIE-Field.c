@@ -3312,14 +3312,14 @@ select_RICserviceUpdate_IEs_value_type(const asn_TYPE_descriptor_t *parent_type,
 	size_t for_column = 2; /* &Value */
 	size_t row, presence_index = 0;
 	const long *constraining_value = (const long *)((const char *)parent_sptr + offsetof(struct RICserviceUpdate_IEs, id));
-	
-        static const int indexToPresent[] = { RICserviceUpdate_IEs__value_PR_NOTHING,
+
+	static const int indexToPresent[] = { RICserviceUpdate_IEs__value_PR_NOTHING,
                                           RICserviceUpdate_IEs__value_PR_RANfunctions_List,
                                           RICserviceUpdate_IEs__value_PR_RANfunctions_List,
                                           RICserviceUpdate_IEs__value_PR_RANfunctionsID_List
-        };
+    };
 
-	for(row=0; row < itable->rows_count; row++) {
+    for(row=0; row < itable->rows_count; row++) {
 	    const asn_ioc_cell_t *constraining_cell = &itable->rows[row * itable->columns_count + constraining_column];
 	    const asn_ioc_cell_t *type_cell = &itable->rows[row * itable->columns_count + for_column];
 	
@@ -3328,9 +3328,9 @@ select_RICserviceUpdate_IEs_value_type(const asn_TYPE_descriptor_t *parent_type,
 	
 	    presence_index++;
 	    if(constraining_cell->type_descriptor->op->compare_struct(constraining_cell->type_descriptor, constraining_value, constraining_cell->value_sptr) == 0) {
-                result.type_descriptor = type_cell->type_descriptor;
-                result.presence_index = indexToPresent[presence_index];
-	        break;
+            result.type_descriptor = type_cell->type_descriptor;
+            result.presence_index = indexToPresent[presence_index];
+            break;
 	    }
 	}
 	

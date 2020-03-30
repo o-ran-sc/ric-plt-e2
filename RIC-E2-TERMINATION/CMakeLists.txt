@@ -39,18 +39,36 @@ else ()
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DASN_DISABLE_OER_SUPPORT -DASN_PDU_COLLECTION -L. -ggdb3 -L/usr/lib  -L/usr/local/lib -Wall -W -Wpedantic")
 
 endif ()
+
 include_directories(RIC-E2-TERMINATION
         RIC-E2-TERMINATION/3rdparty/oranE2
+        RIC-E2-TERMINATION/3rdparty/oranE2SM
         RIC-E2-TERMINATION/3rdparty
         cmake-modules)
 
-file(GLOB ASN_MODULE_SRCS "RIC-E2-TERMINATION/3rdparty/oranE2/*.c")
-file(GLOB ASN_MODULE_HDRS "RIC-E2-TERMINATION/3rdparty/oranE2/*.h")
+#E2AP library
+file(GLOB E2AP_ASN_MODULE_SRCS "RIC-E2-TERMINATION/3rdparty/oranE2/*.c")
+file(GLOB E2AP_ASN_MODULE_HDRS "RIC-E2-TERMINATION/3rdparty/oranE2/*.h")
 
-add_library(asn1codec ${ASN_MODULE_SRCS} ${ASN_MODULE_HDRS})
-
+add_library(asn1codec ${E2AP_ASN_MODULE_SRCS} ${E2AP_ASN_MODULE_HDRS})
 install(TARGETS asn1codec DESTINATION /usr/lib)
-install(FILES ${ASN_MODULE_HDRS} DESTINATION /usr/include/asn1c)
+install(FILES ${E2AP_E2AP_ASN_MODULE_HDRS} DESTINATION /usr/include/asn1c)
+
+
+#E2SM library
+file(GLOB E2SM_ASN_MODULE_SRCS "RIC-E2-TERMINATION/3rdparty/oranE2SM/*.c")
+file(GLOB E2SM_ASN_MODULE_HDRS "RIC-E2-TERMINATION/3rdparty/oranE2SM/*.h")
+
+add_library(asn1ce2smcodec ${E2SM_ASN_MODULE_SRCS} ${E2SM_ASN_MODULE_HDRS})
+#add_custom_command(
+#        TARGET asn1ce2smcodec
+#        POST_BUILD
+#        COMMAND objcopy
+#        ARGS --prefix-symbols=e2sm_ libasn1ce2smcodec.a
+#)
+
+install(TARGETS asn1ce2smcodec DESTINATION /usr/lib)
+install(FILES ${E2SM_ASN_MODULE_HDRS} DESTINATION /usr/include/asn1c)
 
 include_directories(RIC-E2-TERMINATION/TEST)
 include_directories(RIC-E2-TERMINATION/TEST/e2smTest)
@@ -69,6 +87,7 @@ link_libraries(nsl
         mdclog
         rmr_si
         asn1codec
+        asn1ce2smcodec
         boost_system
         boost_log_setup
         boost_log
@@ -87,8 +106,9 @@ add_executable(e2 RIC-E2-TERMINATION/sctpThread.cpp
         RIC-E2-TERMINATION/base64.h
         RIC-E2-TERMINATION/base64.cpp
         RIC-E2-TERMINATION/ReadConfigFile.h
-        RIC-E2-TERMINATION/BuildRunName.h)
-
+        RIC-E2-TERMINATION/BuildRunName.h
+        RIC-E2-TERMINATION/statCollector.h)
+target_link_libraries(e2 libasn1ce2smcodec.a)
 target_link_libraries(e2 librmr_nng.a)
 target_link_libraries(e2 librmr_si.a)
 target_link_libraries(e2 libicui18n.a)
