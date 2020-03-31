@@ -29,6 +29,9 @@
 #include <sys/types.h>
 #include <error.h>
 #include <algorithm>
+#include <3rdparty/oranE2SM/E2SM-gNB-NRT-RANfunction-Definition.h>
+#include <3rdparty/oranE2SM/RIC-InsertStyle-List.h>
+#include <3rdparty/oranE2SM/RANparameterDef-Item.h>
 
 
 //#include <mdclog/mdclog.h>
@@ -527,16 +530,80 @@ void buildSetupRequestWithFunc(E2AP_PDU_t *pdu, int mcc, int mnc) {
     auto *itemIes = (RANfunction_ItemIEs_t *)calloc(1, sizeof(RANfunction_ItemIEs_t));
     ASN_STRUCT_RESET(asn_DEF_RANfunction_ItemIEs, itemIes);
 
-    uint8_t buf[3] = {0x33, 0x44, 0x55};
+
+    E2SM_gNB_NRT_RANfunction_Definition_t ranFunDef;
+    uint8_t funcDes[] = "asdfghjklpoiuytrewq\0";
+    ranFunDef.ranFunction_Name.ranFunction_Description.buf = (uint8_t *)calloc(1, strlen((char *)funcDes));
+    ranFunDef.ranFunction_Name.ranFunction_Description.size = strlen((char *)funcDes);
+    memcpy(ranFunDef.ranFunction_Name.ranFunction_Description.buf, funcDes, strlen((char *)funcDes));
+
+    uint8_t funcOID[] = "ABCDEFGHIJ1234567890\0";
+    ranFunDef.ranFunction_Name.ranFunction_E2SM_OID.buf = (uint8_t *)calloc(1, strlen((char *)funcOID));
+    ranFunDef.ranFunction_Name.ranFunction_E2SM_OID.size = strlen((char *)funcOID);
+    memcpy(ranFunDef.ranFunction_Name.ranFunction_E2SM_OID.buf, funcOID, strlen((char *)funcOID));
+
+    uint8_t shortName[] = "Nothing to declare\0";
+    ranFunDef.ranFunction_Name.ranFunction_ShortName.buf = (uint8_t *)calloc(1, strlen((char *)shortName));
+    ranFunDef.ranFunction_Name.ranFunction_ShortName.size = strlen((char *)shortName);
+    memcpy(ranFunDef.ranFunction_Name.ranFunction_ShortName.buf, shortName, strlen((char *)shortName));
+
+
+    RIC_InsertStyle_List_t insertStyleList;
+    insertStyleList.ric_CallProcessIDFormat_Type = 28l;
+    insertStyleList.ric_IndicationHeaderFormat_Type = 29;
+    insertStyleList.ric_IndicationMessageFormat_Type = 30;
+    insertStyleList.ric_InsertActionFormat_Type = 31l;
+
+    uint8_t styleName[] = "What a style\0";
+
+    insertStyleList.ric_InsertStyle_Name.buf = (uint8_t *)calloc(1, strlen((char *)styleName));
+    insertStyleList.ric_InsertStyle_Name.size = strlen((char *)styleName);
+    memcpy(insertStyleList.ric_InsertStyle_Name.buf, styleName, strlen((char *)styleName));
+
+
+    insertStyleList.ric_InsertStyle_Type = 23;
+
+    RANparameterDef_Item_t raNparameterDefItem;
+    raNparameterDefItem.ranParameter_ID = 8;
+    raNparameterDefItem.ranParameter_Type = 12;
+
+    uint8_t ItemName[] = "What a style\0";
+    raNparameterDefItem.ranParameter_Name.buf = (uint8_t *)calloc(1, strlen((char *)ItemName));
+    raNparameterDefItem.ranParameter_Name.size = strlen((char *)ItemName);
+    memcpy(raNparameterDefItem.ranParameter_Name.buf, ItemName, strlen((char *)ItemName));
+
+    ASN_SEQUENCE_ADD(&insertStyleList.ric_InsertRanParameterDef_List.list, &raNparameterDefItem);
+
+    ASN_SEQUENCE_ADD(&ranFunDef.ric_InsertStyle_List->list, &insertStyleList);
+    //ranFunDef.ric_InsertStyle_List.
+
+    uint8_t buffer[8192];
+    size_t buffer_size = 8192;
+    auto *ranDef = &itemIes->value.choice.RANfunction_Item.ranFunctionDefinition;
+
+    auto er = asn_encode_to_buffer(nullptr, ATS_ALIGNED_BASIC_PER, &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition, &ranFunDef, buffer, buffer_size);
+    if (er.encoded == -1) {
+        cerr << "encoding of " << asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name << " failed, " << strerror(errno) << endl;
+        exit(-1);
+    } else if (er.encoded > (ssize_t) buffer_size) {
+        cerr << "Buffer of size " << buffer_size << " is to small for " << asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name << endl;
+        exit(-1);
+    } else {
+        ranDef->buf = (uint8_t *)calloc(1, er.encoded);
+        ranDef->size = er.encoded;
+        memcpy(ranDef->buf, buffer, ranDef->size);
+    }
+
+
 
     itemIes->id = ProtocolIE_ID_id_RANfunction_Item;
     itemIes->criticality = Criticality_reject;
     itemIes->value.present = RANfunction_ItemIEs__value_PR_RANfunction_Item;
     itemIes->value.choice.RANfunction_Item.ranFunctionID = 1;
-    auto *ranDef = &itemIes->value.choice.RANfunction_Item.ranFunctionDefinition;
-    ranDef->size = 3;
-    ranDef->buf = (uint8_t *)calloc(1, ranDef->size);
-    memcpy(ranDef->buf, buf, ranDef->size);
+//    auto *ranDef = &itemIes->value.choice.RANfunction_Item.ranFunctionDefinition;
+//    ranDef->size = 3;
+//    ranDef->buf = (uint8_t *)calloc(1, ranDef->size);
+//    memcpy(ranDef->buf, buf, ranDef->size);
 
     ASN_SEQUENCE_ADD(&ranFlistIEs->value.choice.RANfunctions_List.list, itemIes);
 
@@ -547,9 +614,11 @@ void buildSetupRequestWithFunc(E2AP_PDU_t *pdu, int mcc, int mnc) {
     itemIes1->value.present = RANfunction_ItemIEs__value_PR_RANfunction_Item;
     itemIes1->value.choice.RANfunction_Item.ranFunctionID = 7;
     ranDef = &itemIes1->value.choice.RANfunction_Item.ranFunctionDefinition;
-    ranDef->size = 3;
-    ranDef->buf = (uint8_t *)calloc(1, ranDef->size);
-    memcpy(ranDef->buf, buf, ranDef->size);
+
+    ranDef->buf = (uint8_t *)calloc(1, er.encoded);
+    ranDef->size = er.encoded;
+    memcpy(ranDef->buf, buffer, ranDef->size);
+
     ASN_SEQUENCE_ADD(&ranFlistIEs->value.choice.RANfunctions_List.list, itemIes1);
 
 

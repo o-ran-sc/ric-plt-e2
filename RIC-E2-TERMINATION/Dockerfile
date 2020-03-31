@@ -76,14 +76,7 @@ RUN if [$BUILD_TYPE == "Debug"] ; then make e2_coverage ; fi
 #    && find / -type f -name "libopentracing.a" -exec cp {} libopentracing.a \; && cd /opt/e2/RIC-E2-TERMINATION && ls nlohmann  \
 
 FROM ubuntu:18.04
-
-RUN apt-get update && apt-get install -y \
-  net-tools \
-  iputils-ping \
-  curl \
-  tcpdump
-  
-RUN mkdir -p /opt/e2/config
+RUN apt-get update && apt-get install -y net-tools iputils-ping curl tcpdump && mkdir -p /opt/e2/config
 
 COPY --from=ubuntu /opt/e2/e2 /opt/e2/e2
 COPY --from=ubuntu /opt/e2/rmr.verbose /tmp/rmr.verbose
@@ -154,4 +147,3 @@ ENV E2TERM_POD_NAME=e2term
 RUN chmod +x /opt/e2/startup.sh
 EXPOSE 38000
 CMD ["sh", "-c", "./startup.sh"]
-

@@ -68,41 +68,76 @@ void extractPdu(E2AP_PDU_t *pdu, unsigned char *buffer, int buffer_size) {
     } else {
         cout << "XML result = " << buffer << endl;
     }
-
 }
 
-unsigned char setupBuffer[309] = {
-        0x00, 0x01, 0x00, 0x82, 0x64, 0x00, 0x00, 0x02, 0x00, 0x03,
-        0x00, 0x08, 0x00, 0x02, 0xf8, 0x21, 0x03, 0x03, 0x03, 0x00,
-        0x00, 0xa0, 0x08, 0x25, 0x00, 0x00, 0x30, 0x00, 0x84, 0x08,
-        0x0d, 0xf0, 0x00, 0x00, 0x18, 0x0d, 0x87, 0x90, 0x28, 0x06,
-        0x74, 0xe4, 0x22, 0xd5, 0x83, 0x20, 0x00, 0x02, 0x03, 0x12,
-        0xe3, 0x32, 0xe3, 0x62, 0xe3, 0x12, 0xe3, 0x42, 0xe3, 0x12,
-        0xe3, 0x23, 0x83, 0x43, 0x53, 0x82, 0xe3, 0x93, 0x92, 0xe3,
-        0x02, 0xe3, 0x23, 0x12, 0xe3, 0x32, 0xe3, 0x32, 0xe3, 0x12,
-        0xe3, 0x20, 0xb8, 0x06, 0x74, 0xe4, 0x22, 0x05, 0x83, 0x22,
-        0x04, 0xe6, 0x57, 0x47, 0x76, 0xf7, 0x26, 0xb2, 0x04, 0x96,
-        0xe7, 0x46, 0x57, 0x26, 0x66, 0x16, 0x36, 0x50, 0x10, 0x00,
-        0x00, 0x10, 0x10, 0x80, 0x04, 0xd6, 0x57, 0x37, 0x36, 0x16,
-        0x76, 0x52, 0x05, 0x47, 0x97, 0x06, 0x52, 0x06, 0xf6, 0xe6,
-        0xc7, 0x90, 0x10, 0x10, 0x00, 0x10, 0x10, 0x78, 0x04, 0x36,
-        0xf6, 0xd7, 0x06, 0xc6, 0x57, 0x46, 0x52, 0x06, 0xd6, 0x57,
-        0x37, 0x36, 0x16, 0x76, 0x50, 0x10, 0x10, 0x00, 0x00, 0x10,
-        0x58, 0x04, 0x16, 0x46, 0x45, 0x46, 0x96, 0xd6, 0x57, 0x37,
-        0x46, 0x16, 0xd7, 0x02, 0x00, 0x10, 0x10, 0x10, 0x10, 0x00,
-        0x10, 0x10, 0x78, 0x04, 0x36, 0xf6, 0xd7, 0x06, 0xc6, 0x57,
-        0x46, 0x52, 0x06, 0xd6, 0x57, 0x37, 0x36, 0x16, 0x76, 0x50,
-        0x10, 0x10, 0x00, 0x00, 0x10, 0x58, 0x04, 0x16, 0x46, 0x45,
-        0x46, 0x96, 0xd6, 0x57, 0x37, 0x46, 0x16, 0xd7, 0x02, 0x00,
-        0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x00, 0x10, 0x10, 0x78,
-        0x04, 0x36, 0xf6, 0xd7, 0x06, 0xc6, 0x57, 0x46, 0x52, 0x06,
-        0xd6, 0x57, 0x37, 0x36, 0x16, 0x76, 0x50, 0x10, 0x10, 0x10,
-        0x10, 0x10, 0x10, 0x00, 0x10, 0x00, 0x84, 0x08, 0x0a, 0xc0,
-        0x00, 0x00, 0x28, 0x0a, 0x56, 0x80, 0x30, 0x06, 0x74, 0xe4,
-        0x22, 0xd4, 0xe5, 0x25, 0x40, 0x00, 0x02, 0x03, 0x12, 0xe3,
-        0x32, 0xe3, 0x62, 0xe3, 0x12, 0xe3, 0x42, 0xe3, 0x12, 0xe3,
-        0x23, 0x83, 0x43, 0x53, 0x82, 0xe3, 0x93, 0x92, 0xe3, 0x02,
-        0xe3, 0x23, 0x12, 0xe3, 0x32, 0xe3, 0x32, 0xe3, 0};
+
+std::string otherXml = "<E2AP-PDU>\n"
+                       "    <successfulOutcome>\n"
+                       "        <procedureCode>1</procedureCode>\n"
+                       "        <criticality><reject/></criticality>\n"
+                       "        <value>\n"
+                       "            <E2setupResponse>\n"
+                       "                <protocolIEs>\n"
+                       "                    <E2setupResponseIEs>\n"
+                       "                        <id>4</id>\n"
+                       "                        <criticality><reject/></criticality>\n"
+                       "                        <value>\n"
+                       "                            <GlobalRIC-ID>\n"
+                       "                                <pLMN-Identity>13 10 14</pLMN-Identity>\n"
+                       "                                <ric-ID>\n"
+                       "                                    10011001101010101011"
+                       "                                </ric-ID>\n"
+                       "                            </GlobalRIC-ID>\n"
+                       "                        </value>\n"
+                       "                    </E2setupResponseIEs>\n"
+                       "                    <E2setupResponseIEs>\n"
+                       "                        <id>9</id>\n"
+                       "                        <criticality><reject/></criticality>\n"
+                       "                        <value>\n"
+                       "                            <RANfunctionsID-List>\n"
+                       "                                <ProtocolIE-SingleContainer>\n"
+                       "                                    <id>6</id>\n"
+                       "                                    <criticality><ignore/></criticality>\n"
+                       "                                    <value>\n"
+                       "                                        <RANfunctionID-Item>\n"
+                       "                                            <ranFunctionID>1</ranFunctionID>\n"
+                       "                                            <ranFunctionRevision>1</ranFunctionRevision>\n"
+                       "                                        </RANfunctionID-Item>\n"
+                       "                                    </value>\n"
+                       "                                </ProtocolIE-SingleContainer>\n"
+                       "                                <ProtocolIE-SingleContainer>\n"
+                       "                                    <id>6</id>\n"
+                       "                                    <criticality><ignore/></criticality>\n"
+                       "                                    <value>\n"
+                       "                                        <RANfunctionID-Item>\n"
+                       "                                            <ranFunctionID>2</ranFunctionID>\n"
+                       "                                            <ranFunctionRevision>1</ranFunctionRevision>\n"
+                       "                                        </RANfunctionID-Item>\n"
+                       "                                    </value>\n"
+                       "                                </ProtocolIE-SingleContainer>\n"
+                       "                                <ProtocolIE-SingleContainer>\n"
+                       "                                    <id>6</id>\n"
+                       "                                    <criticality><ignore/></criticality>\n"
+                       "                                    <value>\n"
+                       "                                        <RANfunctionID-Item>\n"
+                       "                                            <ranFunctionID>3</ranFunctionID>\n"
+                       "                                            <ranFunctionRevision>1</ranFunctionRevision>\n"
+                       "                                        </RANfunctionID-Item>\n"
+                       "                                    </value>\n"
+                       "                                </ProtocolIE-SingleContainer>\n"
+                       "                            </RANfunctionsID-List>\n"
+                       "                        </value>\n"
+                       "                    </E2setupResponseIEs>\n"
+                       "                </protocolIEs>\n"
+                       "            </E2setupResponse>\n"
+                       "        </value>\n"
+                       "    </successfulOutcome>\n"
+                       "</E2AP-PDU>\n";
+
+
+
+std::string newXml =
+        "<E2AP-PDU><successfulOutcome><procedureCode>1</procedureCode><criticality><reject/></criticality><value><E2setupResponse><protocolIEs><E2setupResponseIEs><id>4</id><criticality><reject/></criticality><value><GlobalRIC-ID><pLMN-Identity>13 10 14</pLMN-Identity><ric-ID>10101010110011001110</ric-ID></GlobalRIC-ID></value></E2setupResponseIEs><E2setupResponseIEs><id>9</id><criticality><reject/></criticality><value><RANfunctionsID-List><ProtocolIE-SingleContainer><id>6</id><criticality><ignore/></criticality><value><RANfunctionID-Item><ranFunctionID>1</ranFunctionID><ranFunctionRevision>1</ranFunctionRevision></RANfunctionID-Item></value></ProtocolIE-SingleContainer><ProtocolIE-SingleContainer><id>6</id><criticality><ignore/></criticality><value><RANfunctionID-Item><ranFunctionID>2</ranFunctionID><ranFunctionRevision>1</ranFunctionRevision></RANfunctionID-Item></value></ProtocolIE-SingleContainer><ProtocolIE-SingleContainer><id>6</id><criticality><ignore/></criticality><value><RANfunctionID-Item><ranFunctionID>3</ranFunctionID><ranFunctionRevision>1</ranFunctionRevision></RANfunctionID-Item></value></ProtocolIE-SingleContainer></RANfunctionsID-List></value></E2setupResponseIEs></protocolIEs></E2setupResponse></value></successfulOutcome></E2AP-PDU>";
 
 auto main(const int argc, char **argv) -> int {
     E2AP_PDU_t pdu;
@@ -112,6 +147,19 @@ auto main(const int argc, char **argv) -> int {
     auto buffer_size =  8192;
     unsigned char buffer[8192] = {};
 
+    E2AP_PDU_t *XERpdu  = nullptr;
+    auto rval = asn_decode(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, (void **) &XERpdu,
+                           newXml.c_str(), newXml.length());
+    if (rval.code != RC_OK) {
+        cout <<  "Error " << rval.code << " (unpack) setup response " << endl;
+        //return -1;
+    }
+
+    asn_fprint(stream, &asn_DEF_E2AP_PDU, XERpdu);
+    cout << "Encoding E2AP PDU of size  " << size << endl << printBuffer << endl;
+    fseek(stream,0,SEEK_SET);
+
+//    cout << "=========================" << endl << otherXml << endl << "========================" << endl;
 
     buildSetupRequest(&pdu, 311, 410);
     asn_fprint(stream, &asn_DEF_E2AP_PDU, &pdu);
@@ -143,6 +191,7 @@ auto main(const int argc, char **argv) -> int {
     fseek(stream,0,SEEK_SET);
 
     extractPdu(&pdu, buffer, buffer_size);
+
 
     cout << "Failure outcome" << endl;
     ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, &pdu);
