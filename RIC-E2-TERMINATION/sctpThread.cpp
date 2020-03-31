@@ -1361,7 +1361,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                                     char *printBuffer;
                                     size_t size;
                                     FILE *stream = open_memstream(&printBuffer, &size);
-                                    asn_fprint(stream, &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition, pdu);
+                                    asn_fprint(stream, &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition, ranFunDef);
                                     mdclog_write(MDCLOG_DEBUG, "Encoding E2AP PDU past : %s", printBuffer);
                                 }
                                 auto xml_buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
