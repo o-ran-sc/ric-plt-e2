@@ -726,12 +726,16 @@ void handleConfigChange(sctp_params_t *sctpParams) {
                 // not the directory
             }
             if (event->len) {
-                if (!(sctpParams->configFileName.compare(event->name))) {
+                auto  retVal = strcmp(sctpParams->configFileName.c_str(), event->name);
+                if (retVal != 0) {
                     continue;
                 }
             }
             // only the file we want
             if (event->mask & (uint32_t)IN_CLOSE_WRITE) {
+                if (mdclog_level_get() >= MDCLOG_INFO) {
+                    mdclog_write(MDCLOG_INFO, "Configuration file changed");
+                }
                 if (exists(p)) {
                     const int size = 2048;
                     auto fileSize = file_size(p);
