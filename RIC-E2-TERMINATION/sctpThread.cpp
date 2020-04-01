@@ -1228,9 +1228,9 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
     if (er.encoded == -1) {
         mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
     } else if (er.encoded > (ssize_t) buffer_size) {
-        mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s",
+        mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s, at %s line %d",
                      (int) buffer_size,
-                     asn_DEF_E2AP_PDU.name);
+                     asn_DEF_E2AP_PDU.name, __func__, __LINE__);
     } else {
         rmrMsg->len = snprintf((char *)rmrMsg->payload, RECEIVE_SCTP_BUFFER_SIZE * 2, "%s:%d|%s",
                                message.peerInfo->sctpParams->myIP.c_str(),
@@ -1313,9 +1313,9 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             if (er.encoded == -1) {
                 mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
             } else if (er.encoded > (ssize_t) setup_xml_buffer_size) {
-                mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s",
+                mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s, at %s line %d",
                              (int)setup_xml_buffer_size,
-                             asn_DEF_E2AP_PDU.name);
+                             asn_DEF_E2AP_PDU.name, __func__, __LINE__);
             }
             std::string xmlString(setup_xml_buffer_size,  setup_xml_buffer_size + er.encoded);
 
@@ -1362,7 +1362,9 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                                     size_t size;
                                     FILE *stream = open_memstream(&printBuffer, &size);
                                     asn_fprint(stream, &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition, ranFunDef);
-                                    mdclog_write(MDCLOG_DEBUG, "Encoding E2AP PDU past : %s", printBuffer);
+                                    mdclog_write(MDCLOG_DEBUG, "Encoding E2SM %s PDU past : %s",
+                                                 asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
+                                                 printBuffer);
                                 }
                                 auto xml_buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
                                 unsigned char xml_buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
@@ -1378,11 +1380,16 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                                                  asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
                                                  strerror(errno));
                                 } else if (er.encoded > (ssize_t)xml_buffer_size) {
-                                    mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s",
+                                    mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s, at %s line %d",
                                                  (int) xml_buffer_size,
-                                                 asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name);
+                                                 asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name, __func__, __LINE__);
                                 } else {
-                                    // we have the xml
+                                    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                                        mdclog_write(MDCLOG_DEBUG, "Encoding E2SM %s PDU past : %s",
+                                                     asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
+                                                     xml_buffer);
+                                    }
+                                    //TODO replace the ranFunctionDefinition with the XML data
                                 }
 
                             }
@@ -1911,17 +1918,21 @@ int BuildPERSetupResponseMessaeFromXML(ReportingMessages_t &message, RmrMessages
         return -1;
     }
 
-    auto er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu,
-                                   rmrMessageBuffer.rcvMessage->payload, rmrMessageBuffer.rcvMessage->len);
+    int buff_size = RECEIVE_XAPP_BUFFER_SIZE;
+    auto er = asn_encode_to_buffer(nullptr, ATS_ALIGNED_BASIC_PER, &asn_DEF_E2AP_PDU, pdu,
+                                   rmrMessageBuffer.rcvMessage->payload, buff_size);
     if (er.encoded == -1) {
         mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
         return -1;
-    } else if (er.encoded > (ssize_t)rmrMessageBuffer.rcvMessage->len) {
-        mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s",
+    } else if (er.encoded > (ssize_t)buff_size) {
+        mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s, at %s line %d",
                      (int)rmrMessageBuffer.rcvMessage->len,
-                     asn_DEF_E2AP_PDU.name);
+                     asn_DEF_E2AP_PDU.name,
+                     __func__,
+                     __LINE__);
         return -1;
     }
+    rmrMessageBuffer.rcvMessage->len = er.encoded;
     return 0;
 }
 
