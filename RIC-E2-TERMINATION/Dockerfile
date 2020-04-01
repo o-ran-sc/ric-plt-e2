@@ -44,7 +44,7 @@ RUN wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/do
          && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr-dev_3.6.2_amd64.deb/download.deb \
          && dpkg -i rmr-dev_3.6.2_amd64.deb
 
-RUN apt-get install -y libcurl4-gnutls-dev gawk  \
+RUN apt-get install -y libcurl4-gnutls-dev gawk libtbb-dev  libtbb-doc libtbb2 libtbb2-dbg \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/oktal/pistache.git && cd pistache \
     && git submodule update --init && mkdir build && cd build \
     && cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DPISTACHE_BUILD_DOCS=false \
@@ -53,10 +53,10 @@ RUN apt-get install -y libcurl4-gnutls-dev gawk  \
     && git clone http://gerrit.o-ran-sc.org/r/com/log \
     && cd log && ./autogen.sh && ./configure && make && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/jarro2783/cxxopts.git \
-    && cd cxxopts && mkdir build && cd build && cmake .. && make install && ldconfig \
+#    && cd cxxopts && mkdir build && cd build && cmake .. && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/Tencent/rapidjson.git \
-    && cd rapidjson && mkdir build && cd build && cmake .. && make install && ldconfig \
-    && cd /opt/e2/RIC-E2-TERMINATION/3rdparty \
+#    && cd rapidjson && mkdir build && cd build && cmake .. && make install && ldconfig \
+    && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/zeux/pugixml.git \
     && cd /opt/e2/ && git clone https://github.com/bilke/cmake-modules.git \
     && cd /opt/e2/ && /usr/local/bin/cmake -D CMAKE_BUILD_TYPE=$BUILD_TYPE . && make \
     && echo "3" > /opt/e2/rmr.verbose
@@ -103,8 +103,17 @@ COPY --from=ubuntu /usr/local/lib/librmr_nng.so  /usr/local/lib/librmr_nng.so
 COPY --from=ubuntu /usr/local/lib/libmdclog.so.0 /usr/local/lib/libmdclog.so.0
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcgreen.so /usr/local/libcgreen.so
-COPY --from=ubuntu //usr/lib/x86_64-linux-gnu/libcgreen.so.1 /usr/local/libcgreen.so.1
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcgreen.so.1 /usr/local/libcgreen.so.1
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcgreen.so.1.2.0 /usr/local/libcgreen.so.1.2.0
+
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libtbb.so /usr/local/libtbb.so
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libtbb.so.2 /usr/local/libtbb.so.2
+
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libtbbmalloc.so /usr/local/libtbbmalloc.so
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libtbbmalloc.so.2 /usr/local/libtbbmalloc.so.2
+
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libtbbmalloc_proxy.so /usr/local/libtbbmalloc_proxy.so
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libtbbmalloc_proxy.so.2 /usr/local/libtbbmalloc_proxy.so.2
 
 COPY --from=ubuntu /usr/lib/libboost_log_setup.so /usr/lib/libboost_log_setup.so
 COPY --from=ubuntu /usr/lib/libboost_log_setup.so.1.69.0 /usr/lib/libboost_log_setup.so.1.69.0

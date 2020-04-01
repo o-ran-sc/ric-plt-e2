@@ -33,6 +33,9 @@
 #include <ctime>
 #include <iomanip>
 #include <mdclog/mdclog.h>
+#include <tbb/concurrent_unordered_map.h>
+
+using namespace tbb;
 
 typedef struct statResult {
     std::string ranName;
@@ -72,10 +75,10 @@ public:
         for (auto const &e : recvMessages) {
             statResult_t result {};
             result.ranName = e.first;
-            result.receivedMessages = e.second.load(std::memory_order_acquire);
+            result.receivedMessages = e.second;
             auto found = sentMessages.find(result.ranName);
             if (found != sentMessages.end()) {
-                result.sentMessages = found->second.load(std::memory_order_acquire);
+                result.sentMessages = found->second;
             } else {
               result.sentMessages = 0;
             }
@@ -89,29 +92,68 @@ public:
     StatCollector& operator=(const StatCollector&)= delete;
 
 private:
-    std::unordered_map<std::string, std::atomic<int>> sentMessages;
-    std::unordered_map<std::string, std::atomic<int>> recvMessages;
+    tbb::concurrent_unordered_map<std::string, int> sentMessages;
+    //std::unordered_map<std::string, int> sentMessages;
+    //std::unordered_map<std::string, int> recvMessages;
+    tbb::concurrent_unordered_map<std::string, int> recvMessages;
     std::vector<statResult_t> results;
 
 
-    StatCollector() = default;
+//    StatCollector() = default;
+    StatCollector() {
+        sentMessages.clear();
+        recvMessages.clear();
+    }
     ~StatCollector() = default;
 
 
-    void inline static increment(std::unordered_map<std::string, std::atomic<int>> &map, const std::string &key) {
-        auto found = map.find(key);
-        if (found != map.end()) { //inc
-            map[key].fetch_add(1, std::memory_order_release);
-        } else { //add
-            //sentMessages.emplace(std::make_pair(std::string(key), std::atomic<int>(0)));
-            map.emplace(std::piecewise_construct,
-                                 std::forward_as_tuple(key),
-                                 std::forward_as_tuple(0));
-        }
-
-    }
+    void increment(tbb::concurrent_unordered_map<std::string, int> &map, const std::string &key);
 
 };
+
+void StatCollector::increment(tbb::concurrent_unordered_map<std::string, int> &map, const std::string &key) {
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_INFO, "in file %s at  finction %s in line %d", __FILE__, __func__, __LINE__);
+    }
+    if (map.empty()) {
+        if (mdclog_level_get() >= MDCLOG_DEBUG) {
+            mdclog_write(MDCLOG_INFO, "in file %s at  finction %s in line %d", __FILE__, __func__, __LINE__);
+        }
+        map.emplace(std::piecewise_construct,
+                    std::forward_as_tuple(key),
+                    std::forward_as_tuple(1));
+        if (mdclog_level_get() >= MDCLOG_DEBUG) {
+            mdclog_write(MDCLOG_INFO, "in file %s at  finction %s in line %d", __FILE__, __func__, __LINE__);
+        }
+        return;
+    }
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_INFO, "in file %s at  finction %s in line %d", __FILE__, __func__, __LINE__);
+    }
+    auto found = map.find(key);
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_INFO, "in file %s at  finction %s in line %d", __FILE__, __func__, __LINE__);
+    }
+    if (found != map.end()) { //inc
+        if (mdclog_level_get() >= MDCLOG_DEBUG) {
+            mdclog_write(MDCLOG_INFO, "in file %s at  finction %s in line %d", __FILE__, __func__, __LINE__);
+        }
+        map[key]++;
+    } else { //add
+        //sentMessages.emplace(std::make_pair(std::string(key), std::atomic<int>(0)));
+        if (mdclog_level_get() >= MDCLOG_DEBUG) {
+            mdclog_write(MDCLOG_INFO, "in file %s at  finction %s in line %d", __FILE__, __func__, __LINE__);
+        }
+
+        map.emplace(std::piecewise_construct,
+                    std::forward_as_tuple(key),
+                    std::forward_as_tuple(1));
+        if (mdclog_level_get() >= MDCLOG_DEBUG) {
+            mdclog_write(MDCLOG_INFO, "in file %s at  finction %s in line %d", __FILE__, __func__, __LINE__);
+        }
+    }
+
+}
 
 
 // must define this to allow StatCollector private variables to be known to compiler linker

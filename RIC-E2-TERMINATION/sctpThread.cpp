@@ -24,17 +24,9 @@
 #include "sctpThread.h"
 #include "BuildRunName.h"
 
-//#define asn_DEF_E2SM_gNB_NRT_RANfunction_Definition e2sm_asn_DEF_E2SM_gNB_NRT_RANfunction_Definition
-//#define __gcov_init e2sm___gcov_init
-//#define __gcov_merge_add e2sm___gcov_merge_add
-//#define calloc e2sm_calloc
-
 #include "3rdparty/oranE2SM/E2SM-gNB-NRT-RANfunction-Definition.h"
 
-//#undef calloc
-//#undef __gcov_merge_add
-//#undef __gcov_init
-//#undef asn_DEF_E2SM_gNB_NRT_RANfunction_Definition
+#include "pugixml/src/pugixml.hpp"
 
 using namespace std;
 //using namespace std::placeholders;
@@ -1211,7 +1203,8 @@ int receiveDataFromSctp(struct epoll_event *events,
 
 static void buildAndsendSetupRequest(ReportingMessages_t &message,
                                      RmrMessagesBuffer_t &rmrMessageBuffer,
-                                     E2AP_PDU_t *pdu) {
+                                     E2AP_PDU_t *pdu,
+                                     vector<string> repValues) {
     auto logLevel = mdclog_level_get();
 
     // now we can send the data to e2Mgr
@@ -1232,6 +1225,60 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
                      (int) buffer_size,
                      asn_DEF_E2AP_PDU.name, __func__, __LINE__);
     } else {
+        // we have the XML
+        pugi::xml_document doc;
+        pugi::xml_parse_result result = doc.load_string((const char *)buffer);
+        if (result) {
+            unsigned int index = 0;
+            for (auto tool : doc.child("E2AP-PDU")
+                    .child("initiatingMessage")
+                    .child("value")
+                    .child("E2setupRequest")
+                    .child("protocolIEs")
+                    .children("E2setupRequestIEs")) {
+                for (auto n : tool.child("value").child("RANfunctions-List").child(
+                        "ProtocolIE-SingleContainer").children()) {
+                    //ProtocolIE-SingleContainer
+                    //cout << "\t1 " << n.name() << endl;
+                    if (strcmp(n.name(), "value") == 0) {
+                        for (auto l : tool.child("value").children()) {
+                            //cout << "\t\t2 " << l.name() << endl;
+                            for (auto f : l.children()) {
+                                //cout << "\t\t\t3 " << f.name() << endl;
+                                for (auto g : f.child("value").children()) {
+                                    //cout << "\t\t\t\t4 " << g.name() << endl;
+                                    for (auto a : g.children()) {
+                                        if (strcmp(a.name(), "ranFunctionDefinition") == 0) {
+                                            if (repValues.size() > index) {
+                                                a.remove_children();
+                                                string val = repValues.at(index++);
+                                                // here we get vector with counter
+                                                a.append_child(pugi::node_pcdata).set_value(val.c_str());
+
+                                            }
+                                        }
+                                        //cout << "\t\t\t\t\t5 " << a.name() << " " << a.child_value() << endl;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+//            memstream strinBuf(buffer, RECEIVE_SCTP_BUFFER_SIZE * 2);
+//
+//            strinBuf.read(, RECEIVE_SCTP_BUFFER_SIZE * 2);
+
+            streambuf *oldCout = cout.rdbuf();
+            ostringstream memCout;
+            // create new cout
+            cout.rdbuf(memCout.rdbuf());
+            doc.save(std::cout);
+            //return to the normal cout
+            cout.rdbuf(oldCout);
+            memcpy(buffer, memCout.str().c_str(), memCout.str().length());
+        }
         rmrMsg->len = snprintf((char *)rmrMsg->payload, RECEIVE_SCTP_BUFFER_SIZE * 2, "%s:%d|%s",
                                message.peerInfo->sctpParams->myIP.c_str(),
                                message.peerInfo->sctpParams->rmrPort,
@@ -1319,6 +1366,9 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             }
             std::string xmlString(setup_xml_buffer_size,  setup_xml_buffer_size + er.encoded);
 
+            vector <string> runFunDEFXML_v;
+            runFunDEFXML_v.clear();
+            string runFuncStr = {};
             auto failed = false;
             memset(message.peerInfo->enodbName, 0 , MAX_ENODB_NAME_SIZE);
             for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.count; i++) {
@@ -1389,7 +1439,9 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                                                      asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
                                                      xml_buffer);
                                     }
-                                    //TODO replace the ranFunctionDefinition with the XML data
+                                    //TODO replace the ranFunctionDefinition with the XML
+                                    string runFuncs = (char *)(xml_buffer);
+                                    runFunDEFXML_v.emplace_back(runFuncs);
                                 }
 
                             }
@@ -1406,7 +1458,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
 
             //build all parts and send the XML (need to copy the XML with the header to the rmrMessageBuffer payload
             //TODO replace with new function
-            buildAndsendSetupRequest(message, rmrMessageBuffer, pdu);
+            buildAndsendSetupRequest(message, rmrMessageBuffer, pdu, runFunDEFXML_v);
             break;
         }
         case ProcedureCode_id_ErrorIndication: {
