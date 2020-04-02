@@ -48,26 +48,21 @@ public:
         std::string line;
         std::string section;
 
-        while (std::getline(file,line)) {
+        while (std::getline(file,line, '\n')) {
             if (!line.length() || line[0] == '#' || line[0] == ';' || line[0] == '{') {
+                line.clear();
                 continue;
             }
-//            else if (line[0] == '#') {
-//                continue;
-//            } else if (line[0] == ';') {
-//                continue;
-//            }
-
-
             if (line[0] =='[') { //section
                 auto sectionEnd = line.find(']');
                 if (sectionEnd == std::string::npos) {
                     mdclog_write(MDCLOG_ERR, "Error section definition: %s  ", line.c_str());
                     section.clear();
                     return -1;
-//                    continue;
                 }
                 section = line.substr(1, sectionEnd - 1) + ".";
+                section = trim(section);
+                line.clear();
                 continue;
             }
             if (mdclog_level_get() >= MDCLOG_INFO) {
@@ -77,19 +72,20 @@ public:
             auto leftHand = line.find('=');
             if (leftHand == std::string::npos) {
                 mdclog_write(MDCLOG_ERR, "problematic entry: %s  no equal sign", line.c_str());
+                line.clear();
                 continue;
             }
-//            auto name = line.substr(0,leftHand);
-//            trim(name);
             auto name = section + trim(line.substr(0, leftHand));
 
             auto value = line.substr(leftHand + 1);
             if (value.length() == 0) {
                 mdclog_write(MDCLOG_ERR, "problematic entry: %s no value ", line.c_str());
+                line.clear();
                 continue;
-
             }
-            trim(value);
+            line.clear();
+
+            value = trim(value);
             if (mdclog_level_get() >= MDCLOG_INFO) {
                 mdclog_write(MDCLOG_INFO, "entry = %s value = %s", name.c_str(), value.c_str());
             }
