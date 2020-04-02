@@ -421,7 +421,8 @@ void sendTermInit(sctp_params_t &sctpParams) {
         rmr_bytes2xact(msg, tx, txLen);
         msg = rmr_send_msg(sctpParams.rmrCtx, msg);
         if (msg == nullptr) {
-            msg = rmr_alloc_msg(sctpParams.rmrCtx, sctpParams.myIP.length());
+            //TODO fix it
+            msg = rmr_alloc_msg(sctpParams.rmrCtx, sctpParams.ka_message_length);
         } else if (msg->state == 0) {
             rmr_free_msg(msg);
             if (mdclog_level_get() >=  MDCLOG_INFO) {
@@ -983,7 +984,7 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
             m->erase(key);
             return -1;
         }
-        message.statCollector->incSentMessage(string(message.message.enodbName));
+        //message.statCollector->incSentMessage(string(message.message.enodbName));
         message.message.direction = 'D';
         // send report.buffer of size
         buildJsonMessage(message);
