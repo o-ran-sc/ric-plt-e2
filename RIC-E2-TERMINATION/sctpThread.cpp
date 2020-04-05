@@ -1302,7 +1302,7 @@ int collectSetupRequestData(E2AP_PDU_t *pdu,
                                  ie->value.choice.RANfunctions_List.list.count,
                                  ie->value.choice.RANfunctions_List.list.size);
                 }
-                for (auto j = 0; i < ie->value.choice.RANfunctions_List.list.count; i++) {
+                for (auto j = 0; j < ie->value.choice.RANfunctions_List.list.count; j++) {
                     auto *raNfunctionItemIEs = (RANfunction_ItemIEs_t *)ie->value.choice.RANfunctions_List.list.array[j];
                     if (raNfunctionItemIEs->id == ProtocolIE_ID_id_RANfunction_Item &&
                         (raNfunctionItemIEs->value.present == RANfunction_ItemIEs__value_PR_RANfunction_Item)) {
