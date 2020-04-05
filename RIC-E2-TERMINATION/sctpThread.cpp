@@ -25,7 +25,7 @@
 #include "BuildRunName.h"
 
 #include "3rdparty/oranE2SM/E2SM-gNB-NRT-RANfunction-Definition.h"
-
+#include "BuildXml.h"
 #include "pugixml/src/pugixml.hpp"
 
 using namespace std;
@@ -1155,22 +1155,12 @@ int receiveDataFromSctp(struct epoll_event *events,
                          message.peerInfo->enodbName, end.tv_sec - decodestart.tv_sec, end.tv_nsec - decodestart.tv_nsec);
         }
         numOfMessages++;
-        // remove the break for EAGAIN
-        //break;
         if (pdu != nullptr) {
-            //TODO need to test ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu); to get better performance
             ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
             //ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
             //pdu = nullptr;
         }
-        //clock_gettime(CLOCK_MONOTONIC, &start);
     }
-    // in case of break to avoid memory leak
-//    if (pdu != nullptr) {
-//        //ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
-//        ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
-//        //pdu = nullptr;
-//    }
 
     if (done) {
         if (loglevel >= MDCLOG_INFO) {
@@ -1205,7 +1195,7 @@ int receiveDataFromSctp(struct epoll_event *events,
 static void buildAndsendSetupRequest(ReportingMessages_t &message,
                                      RmrMessagesBuffer_t &rmrMessageBuffer,
                                      E2AP_PDU_t *pdu,
-                                     vector<string> repValues) {
+                                     vector<string> &repValues) {
     auto logLevel = mdclog_level_get();
 
     // now we can send the data to e2Mgr
@@ -1226,60 +1216,9 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
                      (int) buffer_size,
                      asn_DEF_E2AP_PDU.name, __func__, __LINE__);
     } else {
+
+        buildXmlData(repValues, buffer);
         // we have the XML
-        pugi::xml_document doc;
-        pugi::xml_parse_result result = doc.load_string((const char *)buffer);
-        if (result) {
-            unsigned int index = 0;
-            for (auto tool : doc.child("E2AP-PDU")
-                    .child("initiatingMessage")
-                    .child("value")
-                    .child("E2setupRequest")
-                    .child("protocolIEs")
-                    .children("E2setupRequestIEs")) {
-                for (auto n : tool.child("value").child("RANfunctions-List").child(
-                        "ProtocolIE-SingleContainer").children()) {
-                    //ProtocolIE-SingleContainer
-                    //cout << "\t1 " << n.name() << endl;
-                    if (strcmp(n.name(), "value") == 0) {
-                        for (auto l : tool.child("value").children()) {
-                            //cout << "\t\t2 " << l.name() << endl;
-                            for (auto f : l.children()) {
-                                //cout << "\t\t\t3 " << f.name() << endl;
-                                for (auto g : f.child("value").children()) {
-                                    //cout << "\t\t\t\t4 " << g.name() << endl;
-                                    for (auto a : g.children()) {
-                                        if (strcmp(a.name(), "ranFunctionDefinition") == 0) {
-                                            if (repValues.size() > index) {
-                                                a.remove_children();
-                                                string val = repValues.at(index++);
-                                                // here we get vector with counter
-                                                a.append_child(pugi::node_pcdata).set_value(val.c_str());
-
-                                            }
-                                        }
-                                        //cout << "\t\t\t\t\t5 " << a.name() << " " << a.child_value() << endl;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-//            memstream strinBuf(buffer, RECEIVE_SCTP_BUFFER_SIZE * 2);
-//
-//            strinBuf.read(, RECEIVE_SCTP_BUFFER_SIZE * 2);
-
-            streambuf *oldCout = cout.rdbuf();
-            ostringstream memCout;
-            // create new cout
-            cout.rdbuf(memCout.rdbuf());
-            doc.save(std::cout);
-            //return to the normal cout
-            cout.rdbuf(oldCout);
-            memcpy(buffer, memCout.str().c_str(), memCout.str().length());
-        }
         rmrMsg->len = snprintf((char *)rmrMsg->payload, RECEIVE_SCTP_BUFFER_SIZE * 2, "%s:%d|%s",
                                message.peerInfo->sctpParams->myIP.c_str(),
                                message.peerInfo->sctpParams->rmrPort,
@@ -1331,6 +1270,104 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
     }
 
 }
+
+
+
+
+int collectSetupRequestData(E2AP_PDU_t *pdu,
+                            Sctp_Map_t *sctpMap,
+                            ReportingMessages_t &message,
+                            vector <string> &runFunDEFXML_v) {
+    auto index = 0;
+    memset(message.peerInfo->enodbName, 0 , MAX_ENODB_NAME_SIZE);
+    for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.count; i++) {
+        auto *ie = pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.array[i];
+        if (ie->id == ProtocolIE_ID_id_GlobalE2node_ID) {
+            // get the ran name for meid
+            if (ie->value.present == E2setupRequestIEs__value_PR_GlobalE2node_ID) {
+                if (buildRanName(message.peerInfo->enodbName, ie) < 0) {
+                    mdclog_write(MDCLOG_ERR, "Bad param in E2setupRequestIEs GlobalE2node_ID.\n");
+                    // no mesage will be sent
+                    return -1;
+                }
+                memcpy(message.message.enodbName, message.peerInfo->enodbName, strlen(message.peerInfo->enodbName));
+                sctpMap->setkey(message.message.enodbName, message.peerInfo);
+            }
+        }
+        // reformat RANFUNCTION Definition to XML
+        if (ie->id == ProtocolIE_ID_id_RANfunctionsAdded) {
+            if (ie->value.present == E2setupRequestIEs__value_PR_RANfunctions_List) {
+                if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                    mdclog_write(MDCLOG_DEBUG, "Run function list have %d entries and size %d",
+                                 ie->value.choice.RANfunctions_List.list.count,
+                                 ie->value.choice.RANfunctions_List.list.size);
+                }
+                for (auto j = 0; i < ie->value.choice.RANfunctions_List.list.count; i++) {
+                    auto *raNfunctionItemIEs = (RANfunction_ItemIEs_t *)ie->value.choice.RANfunctions_List.list.array[j];
+                    if (raNfunctionItemIEs->id == ProtocolIE_ID_id_RANfunction_Item &&
+                        (raNfunctionItemIEs->value.present == RANfunction_ItemIEs__value_PR_RANfunction_Item)) {
+                        // encode to xml
+                        E2SM_gNB_NRT_RANfunction_Definition_t *ranFunDef = nullptr;
+                        auto rval = asn_decode(nullptr, ATS_ALIGNED_BASIC_PER,
+                                               &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition,
+                                               (void **)&ranFunDef,
+                                               raNfunctionItemIEs->value.choice.RANfunction_Item.ranFunctionDefinition.buf,
+                                               raNfunctionItemIEs->value.choice.RANfunction_Item.ranFunctionDefinition.size);
+                        if (rval.code != RC_OK) {
+                            mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) E2SM message from : %s",
+                                         rval.code,
+                                         asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name);
+                            return -1;
+                        }
+
+//                        if (mdclog_level_get() >= MDCLOG_DEBUG) {
+//                            char *printBuffer;
+//                            size_t size;
+//                            FILE *stream = open_memstream(&printBuffer, &size);
+//                            asn_fprint(stream, &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition, ranFunDef);
+//                            mdclog_write(MDCLOG_DEBUG, "Encoding E2SM %s PDU past : %s",
+//                                         asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
+//                                         printBuffer);
+//                        }
+                        auto xml_buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
+                        unsigned char xml_buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
+                        // encode to xml
+                        auto er = asn_encode_to_buffer(nullptr,
+                                                  ATS_BASIC_XER,
+                                                  &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition,
+                                                  ranFunDef,
+                                                  xml_buffer,
+                                                  xml_buffer_size);
+                        if (er.encoded == -1) {
+                            mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s",
+                                         asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
+                                         strerror(errno));
+                        } else if (er.encoded > (ssize_t)xml_buffer_size) {
+                            mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s, at %s line %d",
+                                         (int) xml_buffer_size,
+                                         asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name, __func__, __LINE__);
+                        } else {
+                            if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                                mdclog_write(MDCLOG_DEBUG, "Encoding E2SM %s PDU number %d : %s",
+                                             asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
+                                             index++,
+                                             xml_buffer);
+                            }
+                            string runFuncs = (char *)(xml_buffer);
+                            runFunDEFXML_v.emplace_back(runFuncs);
+                        }
+
+                    }
+                }
+            }
+        }
+    }
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_DEBUG, "Run function vector have %ld entries",
+                     runFunDEFXML_v.size());
+    }
+    return 0;
+}
 /**
  *
  * @param pdu
@@ -1369,91 +1406,9 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
 
             vector <string> runFunDEFXML_v;
             runFunDEFXML_v.clear();
-            string runFuncStr = {};
-            auto failed = false;
-            memset(message.peerInfo->enodbName, 0 , MAX_ENODB_NAME_SIZE);
-            for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.count; i++) {
-                auto *ie = pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.array[i];
-                if (ie->id == ProtocolIE_ID_id_GlobalE2node_ID) {
-                    // get the ran name for meid
-                    if (ie->value.present == E2setupRequestIEs__value_PR_GlobalE2node_ID) {
-                        if (buildRanName(message.peerInfo->enodbName, ie) < 0) {
-                            mdclog_write(MDCLOG_ERR, "Bad param in E2setupRequestIEs GlobalE2node_ID.\n");
-                            // no mesage will be sent
-                            break;
-                        }
-                        memcpy(message.message.enodbName, message.peerInfo->enodbName, strlen(message.peerInfo->enodbName));
-                        sctpMap->setkey(message.message.enodbName, message.peerInfo);
-                    }
-                }
-                // reformat RANFUNCTION Definition to XML
-                if (ie->id == ProtocolIE_ID_id_RANfunctionsAdded) {
-                    if (ie->value.present == E2setupRequestIEs__value_PR_RANfunctions_List) {
-                        for (auto j = 0; i < ie->value.choice.RANfunctions_List.list.count; i++) {
-                            auto *raNfunctionItemIEs = (RANfunction_ItemIEs_t *)ie->value.choice.RANfunctions_List.list.array[j];
-                            if (raNfunctionItemIEs->id == ProtocolIE_ID_id_RANfunction_Item &&
-                                    (raNfunctionItemIEs->value.present == RANfunction_ItemIEs__value_PR_RANfunction_Item)) {
-                                // encode to xml
-                                E2SM_gNB_NRT_RANfunction_Definition_t *ranFunDef = nullptr;
-                                auto rval = asn_decode(nullptr, ATS_ALIGNED_BASIC_PER,
-                                        &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition,
-                                        (void **)&ranFunDef,
-                                        raNfunctionItemIEs->value.choice.RANfunction_Item.ranFunctionDefinition.buf,
-                                        raNfunctionItemIEs->value.choice.RANfunction_Item.ranFunctionDefinition.size);
-                                if (rval.code != RC_OK) {
-                                    mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) E2SM message from : %s",
-                                                 rval.code,
-                                                 asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name);
-                                    failed = true;
-                                    break;
-                                }
 
-                                if (mdclog_level_get() >= MDCLOG_DEBUG) {
-                                    char *printBuffer;
-                                    size_t size;
-                                    FILE *stream = open_memstream(&printBuffer, &size);
-                                    asn_fprint(stream, &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition, ranFunDef);
-                                    mdclog_write(MDCLOG_DEBUG, "Encoding E2SM %s PDU past : %s",
-                                                 asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
-                                                 printBuffer);
-                                }
-                                auto xml_buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
-                                unsigned char xml_buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
-                                // encode to xml
-                                er = asn_encode_to_buffer(nullptr,
-                                                          ATS_BASIC_XER,
-                                                          &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition,
-                                                          ranFunDef,
-                                                          xml_buffer,
-                                                          xml_buffer_size);
-                                if (er.encoded == -1) {
-                                    mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s",
-                                                 asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
-                                                 strerror(errno));
-                                } else if (er.encoded > (ssize_t)xml_buffer_size) {
-                                    mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s, at %s line %d",
-                                                 (int) xml_buffer_size,
-                                                 asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name, __func__, __LINE__);
-                                } else {
-                                    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-                                        mdclog_write(MDCLOG_DEBUG, "Encoding E2SM %s PDU past : %s",
-                                                     asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
-                                                     xml_buffer);
-                                    }
-                                    //TODO replace the ranFunctionDefinition with the XML
-                                    string runFuncs = (char *)(xml_buffer);
-                                    runFunDEFXML_v.emplace_back(runFuncs);
-                                }
-
-                            }
-                        }
-                        if (failed) {
-                            break;
-                        }
-                    }
-                }
-            }
-            if (failed) {
+            auto ret = collectSetupRequestData(pdu, sctpMap,  message, runFunDEFXML_v);
+            if (ret != 0) {
                 break;
             }
 
@@ -1509,14 +1464,21 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                                        (unsigned char *)message.message.enodbName,
                                        strlen(message.message.enodbName));
                         rmrMessageBuffer.sendMessage->state = 0;
-                        rmrMessageBuffer.sendMessage->sub_id = (int) ie->value.choice.RICrequestID.ricRequestorID;
+                        rmrMessageBuffer.sendMessage->sub_id = (int)ie->value.choice.RICrequestID.ricInstanceID;
+
+                        //ie->value.choice.RICrequestID.ricInstanceID;
                         if (mdclog_level_get() >= MDCLOG_DEBUG) {
-                            mdclog_write(MDCLOG_DEBUG, "RIC sub id = %d, message type = %d",
+                            mdclog_write(MDCLOG_DEBUG, "sub id = %d, mtype = %d, ric instance id %ld, requestor id = %ld",
                                          rmrMessageBuffer.sendMessage->sub_id,
-                                         rmrMessageBuffer.sendMessage->mtype);
+                                         rmrMessageBuffer.sendMessage->mtype,
+                                         ie->value.choice.RICrequestID.ricInstanceID,
+                                         ie->value.choice.RICrequestID.ricRequestorID);
                         }
                         sendRmrMessage(rmrMessageBuffer, message);
                         messageSent = true;
+                    } else if (ie->value.present == RICindication_IEs__value_PR_RICindicationSN) {
+                        rmrMessageBuffer.sendMessage->sub_id = (int)ie->value.choice.RICindicationSN;
+
                     } else {
                         mdclog_write(MDCLOG_ERR, "RIC request id missing illigal request");
                     }
@@ -2408,7 +2370,7 @@ void buildJsonMessage(ReportingMessages_t &message) {
                        message.base64Data,
                        message.outLen);
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "asn data length = %d, base64 message length = %d ",
+            mdclog_write(MDCLOG_DEBUG, "Tracing: ASN length = %d, base64 message length = %d ",
                          (int) message.message.asnLength,
                          (int) message.outLen);
         }

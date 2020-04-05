@@ -112,7 +112,8 @@ add_executable(e2 RIC-E2-TERMINATION/sctpThread.cpp
         RIC-E2-TERMINATION/statCollector.h
         RIC-E2-TERMINATION/3rdparty/pugixml/src/pugiconfig.hpp
         RIC-E2-TERMINATION/3rdparty/pugixml/src/pugixml.cpp
-        RIC-E2-TERMINATION/3rdparty/pugixml/src/pugixml.hpp)
+        RIC-E2-TERMINATION/3rdparty/pugixml/src/pugixml.hpp
+        RIC-E2-TERMINATION/BuildXml.h)
 target_link_libraries(e2 libasn1ce2smcodec.a)
 target_link_libraries(e2 librmr_nng.a)
 target_link_libraries(e2 librmr_si.a)
