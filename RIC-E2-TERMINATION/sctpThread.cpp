@@ -1874,7 +1874,7 @@ int sendRequestToXapp(ReportingMessages_t &message,
 
 void getRmrContext(sctp_params_t &pSctpParams) {
     pSctpParams.rmrCtx = nullptr;
-    pSctpParams.rmrCtx = rmr_init(pSctpParams.rmrAddress, RMR_MAX_RCV_BYTES, RMRFL_NONE);
+    pSctpParams.rmrCtx = rmr_init(pSctpParams.rmrAddress, RECEIVE_XAPP_BUFFER_SIZE, RMRFL_NONE);
     if (pSctpParams.rmrCtx == nullptr) {
         mdclog_write(MDCLOG_ERR, "Failed to initialize RMR");
         return;
