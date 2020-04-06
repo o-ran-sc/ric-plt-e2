@@ -1476,9 +1476,6 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                         }
                         sendRmrMessage(rmrMessageBuffer, message);
                         messageSent = true;
-                    } else if (ie->value.present == RICindication_IEs__value_PR_RICindicationSN) {
-                        rmrMessageBuffer.sendMessage->sub_id = (int)ie->value.choice.RICindicationSN;
-
                     } else {
                         mdclog_write(MDCLOG_ERR, "RIC request id missing illigal request");
                     }
