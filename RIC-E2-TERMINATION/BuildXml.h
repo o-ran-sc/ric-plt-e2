@@ -28,21 +28,65 @@
 #include <string.h>
 #include <sstream>
 
-
 using namespace std;
 
-void buildXmlData(vector<string> &repValues, unsigned char *buffer) {
+/*
+ * Copied from pugixml samples
+ */
+struct xml_string_writer : pugi::xml_writer {
+    std::string result;
+
+    virtual void write(const void *data, size_t size) {
+        result.append(static_cast<const char *>(data), size);
+    }
+};
+// end::code[]
+
+struct xml_memory_writer : pugi::xml_writer {
+    char *buffer;
+    size_t capacity;
+    size_t result;
+
+    xml_memory_writer() : buffer(0), capacity(0), result(0) {
+    }
+
+    xml_memory_writer(char *buffer, size_t capacity) : buffer(buffer), capacity(capacity), result(0) {
+    }
+
+    size_t written_size() const {
+        return result < capacity ? result : capacity;
+    }
+
+    virtual void write(const void *data, size_t size) {
+        if (result < capacity) {
+            size_t chunk = (capacity - result < size) ? capacity - result : size;
+
+            memcpy(buffer + result, data, chunk);
+        }
+        result += size;
+    }
+};
+
+std::string node_to_string(pugi::xml_node node) {
+    xml_string_writer writer;
+    node.print(writer);
+
+    return writer.result;
+}
+
+
+void buildXmlData(const string &messageName, const string &ieName, vector<string> &repValues, unsigned char *buffer) {
     pugi::xml_document doc;
 
-    pugi::xml_parse_result result = doc.load_string((const char *) buffer);
+    pugi::xml_parse_result result = doc.load_string((const char *)buffer);
     if (result) {
         unsigned int index = 0;
         for (auto tool : doc.child("E2AP-PDU")
                 .child("initiatingMessage")
                 .child("value")
-                .child("E2setupRequest")
+                .child(messageName.c_str())
                 .child("protocolIEs")
-                .children("E2setupRequestIEs")) {
+                .children(ieName.c_str())) {
             for (auto n : tool.child("value").child("RANfunctions-List").child(
                     "ProtocolIE-SingleContainer").children()) {
 //ProtocolIE-SingleContainer
@@ -73,14 +117,17 @@ void buildXmlData(vector<string> &repValues, unsigned char *buffer) {
             }
         }
 
-        streambuf *oldCout = cout.rdbuf();
-        ostringstream memCout;
-// create new cout
-        cout.rdbuf(memCout.rdbuf());
-        doc.save(std::cout);
-//return to the normal cout
-        cout.rdbuf(oldCout);
-        memcpy(buffer, memCout.str().c_str(), memCout.str().length());
+        auto res = node_to_string(doc);
+        memcpy(buffer, res.c_str(), res.length());
+
+//        streambuf *oldCout = cout.rdbuf();
+//        ostringstream memCout;
+//// create new cout
+//        cout.rdbuf(memCout.rdbuf());
+//        doc.save(std::cout);
+////return to the normal cout
+//        cout.rdbuf(oldCout);
+//        memcpy(buffer, memCout.str().c_str(), memCout.str().length());
     }
 }
 

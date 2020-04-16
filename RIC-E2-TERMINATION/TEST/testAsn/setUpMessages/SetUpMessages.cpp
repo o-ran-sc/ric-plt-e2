@@ -138,6 +138,31 @@ std::string otherXml = "<E2AP-PDU>\n"
 
 std::string newXml =
         "<E2AP-PDU><successfulOutcome><procedureCode>1</procedureCode><criticality><reject/></criticality><value><E2setupResponse><protocolIEs><E2setupResponseIEs><id>4</id><criticality><reject/></criticality><value><GlobalRIC-ID><pLMN-Identity>13 10 14</pLMN-Identity><ric-ID>10101010110011001110</ric-ID></GlobalRIC-ID></value></E2setupResponseIEs><E2setupResponseIEs><id>9</id><criticality><reject/></criticality><value><RANfunctionsID-List><ProtocolIE-SingleContainer><id>6</id><criticality><ignore/></criticality><value><RANfunctionID-Item><ranFunctionID>1</ranFunctionID><ranFunctionRevision>1</ranFunctionRevision></RANfunctionID-Item></value></ProtocolIE-SingleContainer><ProtocolIE-SingleContainer><id>6</id><criticality><ignore/></criticality><value><RANfunctionID-Item><ranFunctionID>2</ranFunctionID><ranFunctionRevision>1</ranFunctionRevision></RANfunctionID-Item></value></ProtocolIE-SingleContainer><ProtocolIE-SingleContainer><id>6</id><criticality><ignore/></criticality><value><RANfunctionID-Item><ranFunctionID>3</ranFunctionID><ranFunctionRevision>1</ranFunctionRevision></RANfunctionID-Item></value></ProtocolIE-SingleContainer></RANfunctionsID-List></value></E2setupResponseIEs></protocolIEs></E2setupResponse></value></successfulOutcome></E2AP-PDU>";
+std::string setupFailure = "<E2AP-PDU>"
+                             "<unsuccessfulOutcome>"
+                               "<procedureCode>1</procedureCode>"
+                               "<criticality><reject/></criticality>"
+                               "<value>"
+                                 "<E2setupFailure>"
+                                   "<protocolIEs>"
+                                     "<E2setupFailureIEs>"
+                                       "<id>1</id>"
+                                       "<criticality><reject/></criticality>"
+                                       "<value>"
+                                         "<Cause>"
+                                           "<transport>"
+                                             "<transport-resource-unavailable/>"
+                                           "</transport>"
+                                         "</Cause>"
+                                       "</value>"
+                                     "</E2setupFailureIEs>"
+                                   "</protocolIEs>"
+                                 "</E2setupFailure>"
+                               "</value>"
+                             "</unsuccessfulOutcome>"
+                           "</E2AP-PDU>";
+
+
 
 auto main(const int argc, char **argv) -> int {
     E2AP_PDU_t pdu;
@@ -149,7 +174,7 @@ auto main(const int argc, char **argv) -> int {
 
     E2AP_PDU_t *XERpdu  = nullptr;
     auto rval = asn_decode(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, (void **) &XERpdu,
-                           newXml.c_str(), newXml.length());
+                           setupFailure.c_str(), setupFailure.length());
     if (rval.code != RC_OK) {
         cout <<  "Error " << rval.code << " (unpack) setup response " << endl;
         //return -1;

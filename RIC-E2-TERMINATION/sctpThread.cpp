@@ -1216,9 +1216,22 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
                      (int) buffer_size,
                      asn_DEF_E2AP_PDU.name, __func__, __LINE__);
     } else {
-
-        buildXmlData(repValues, buffer);
-        // we have the XML
+        string messageType("E2setupRequest");
+        string ieName("E2setupRequestIEs");
+        buildXmlData(messageType, ieName, repValues, buffer);
+//        string xmlStr = (char *)buffer;
+//        auto removeSpaces = [] (string str) -> string {
+//            str.erase(remove(str.begin(), str.end(), ' '), str.end());
+//            str.erase(remove(str.begin(), str.end(), '\t'), str.end());
+//            return str;
+//        };
+//
+//        xmlStr = removeSpaces(xmlStr);
+//        // we have the XML
+//        rmrMsg->len = snprintf((char *)rmrMsg->payload, RECEIVE_SCTP_BUFFER_SIZE * 2, "%s:%d|%s",
+//                               message.peerInfo->sctpParams->myIP.c_str(),
+//                               message.peerInfo->sctpParams->rmrPort,
+//                               xmlStr.c_str());
         rmrMsg->len = snprintf((char *)rmrMsg->payload, RECEIVE_SCTP_BUFFER_SIZE * 2, "%s:%d|%s",
                                message.peerInfo->sctpParams->myIP.c_str(),
                                message.peerInfo->sctpParams->rmrPort,
@@ -1271,6 +1284,67 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
 
 }
 
+int RAN_Function_list_To_Vector(RANfunctions_List_t& list, vector <string> &runFunXML_v) {
+    auto index = 0;
+    runFunXML_v.clear();
+    for (auto j = 0; j < list.list.count; j++) {
+        auto *raNfunctionItemIEs = (RANfunction_ItemIEs_t *)list.list.array[j];
+        if (raNfunctionItemIEs->id == ProtocolIE_ID_id_RANfunction_Item &&
+            (raNfunctionItemIEs->value.present == RANfunction_ItemIEs__value_PR_RANfunction_Item)) {
+            // encode to xml
+            E2SM_gNB_NRT_RANfunction_Definition_t *ranFunDef = nullptr;
+            auto rval = asn_decode(nullptr, ATS_ALIGNED_BASIC_PER,
+                                   &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition,
+                                   (void **)&ranFunDef,
+                                   raNfunctionItemIEs->value.choice.RANfunction_Item.ranFunctionDefinition.buf,
+                                   raNfunctionItemIEs->value.choice.RANfunction_Item.ranFunctionDefinition.size);
+            if (rval.code != RC_OK) {
+                mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) E2SM message from : %s",
+                             rval.code,
+                             asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name);
+                return -1;
+            }
+
+//                        if (mdclog_level_get() >= MDCLOG_DEBUG) {
+//                            char *printBuffer;
+//                            size_t size;
+//                            FILE *stream = open_memstream(&printBuffer, &size);
+//                            asn_fprint(stream, &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition, ranFunDef);
+//                            mdclog_write(MDCLOG_DEBUG, "Encoding E2SM %s PDU past : %s",
+//                                         asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
+//                                         printBuffer);
+//                        }
+            auto xml_buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
+            unsigned char xml_buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
+            // encode to xml
+            auto er = asn_encode_to_buffer(nullptr,
+                                           ATS_BASIC_XER,
+                                           &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition,
+                                           ranFunDef,
+                                           xml_buffer,
+                                           xml_buffer_size);
+            if (er.encoded == -1) {
+                mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s",
+                             asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
+                             strerror(errno));
+            } else if (er.encoded > (ssize_t)xml_buffer_size) {
+                mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s, at %s line %d",
+                             (int) xml_buffer_size,
+                             asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name, __func__, __LINE__);
+            } else {
+                if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                    mdclog_write(MDCLOG_DEBUG, "Encoding E2SM %s PDU number %d : %s",
+                                 asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
+                                 index++,
+                                 xml_buffer);
+                }
+                string runFuncs = (char *)(xml_buffer);
+                runFunXML_v.emplace_back(runFuncs);
+            }
+        }
+    }
+    return 0;
+}
 
 
 
@@ -1278,7 +1352,6 @@ int collectSetupRequestData(E2AP_PDU_t *pdu,
                             Sctp_Map_t *sctpMap,
                             ReportingMessages_t &message,
                             vector <string> &runFunDEFXML_v) {
-    auto index = 0;
     memset(message.peerInfo->enodbName, 0 , MAX_ENODB_NAME_SIZE);
     for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.count; i++) {
         auto *ie = pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.array[i];
@@ -1298,66 +1371,11 @@ int collectSetupRequestData(E2AP_PDU_t *pdu,
         if (ie->id == ProtocolIE_ID_id_RANfunctionsAdded) {
             if (ie->value.present == E2setupRequestIEs__value_PR_RANfunctions_List) {
                 if (mdclog_level_get() >= MDCLOG_DEBUG) {
-                    mdclog_write(MDCLOG_DEBUG, "Run function list have %d entries and size %d",
-                                 ie->value.choice.RANfunctions_List.list.count,
-                                 ie->value.choice.RANfunctions_List.list.size);
+                    mdclog_write(MDCLOG_DEBUG, "Run function list have %d entries",
+                                 ie->value.choice.RANfunctions_List.list.count);
                 }
-                for (auto j = 0; j < ie->value.choice.RANfunctions_List.list.count; j++) {
-                    auto *raNfunctionItemIEs = (RANfunction_ItemIEs_t *)ie->value.choice.RANfunctions_List.list.array[j];
-                    if (raNfunctionItemIEs->id == ProtocolIE_ID_id_RANfunction_Item &&
-                        (raNfunctionItemIEs->value.present == RANfunction_ItemIEs__value_PR_RANfunction_Item)) {
-                        // encode to xml
-                        E2SM_gNB_NRT_RANfunction_Definition_t *ranFunDef = nullptr;
-                        auto rval = asn_decode(nullptr, ATS_ALIGNED_BASIC_PER,
-                                               &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition,
-                                               (void **)&ranFunDef,
-                                               raNfunctionItemIEs->value.choice.RANfunction_Item.ranFunctionDefinition.buf,
-                                               raNfunctionItemIEs->value.choice.RANfunction_Item.ranFunctionDefinition.size);
-                        if (rval.code != RC_OK) {
-                            mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) E2SM message from : %s",
-                                         rval.code,
-                                         asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name);
-                            return -1;
-                        }
-
-//                        if (mdclog_level_get() >= MDCLOG_DEBUG) {
-//                            char *printBuffer;
-//                            size_t size;
-//                            FILE *stream = open_memstream(&printBuffer, &size);
-//                            asn_fprint(stream, &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition, ranFunDef);
-//                            mdclog_write(MDCLOG_DEBUG, "Encoding E2SM %s PDU past : %s",
-//                                         asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
-//                                         printBuffer);
-//                        }
-                        auto xml_buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
-                        unsigned char xml_buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
-                        // encode to xml
-                        auto er = asn_encode_to_buffer(nullptr,
-                                                  ATS_BASIC_XER,
-                                                  &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition,
-                                                  ranFunDef,
-                                                  xml_buffer,
-                                                  xml_buffer_size);
-                        if (er.encoded == -1) {
-                            mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s",
-                                         asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
-                                         strerror(errno));
-                        } else if (er.encoded > (ssize_t)xml_buffer_size) {
-                            mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s, at %s line %d",
-                                         (int) xml_buffer_size,
-                                         asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name, __func__, __LINE__);
-                        } else {
-                            if (mdclog_level_get() >= MDCLOG_DEBUG) {
-                                mdclog_write(MDCLOG_DEBUG, "Encoding E2SM %s PDU number %d : %s",
-                                             asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
-                                             index++,
-                                             xml_buffer);
-                            }
-                            string runFuncs = (char *)(xml_buffer);
-                            runFunDEFXML_v.emplace_back(runFuncs);
-                        }
-
-                    }
+                if (RAN_Function_list_To_Vector(ie->value.choice.RANfunctions_List, runFunDEFXML_v) != 0 ) {
+                    return -1;
                 }
             }
         }
@@ -1386,35 +1404,41 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
     switch (procedureCode) {
         case ProcedureCode_id_E2setup: {
             if (logLevel >= MDCLOG_DEBUG) {
-                mdclog_write(MDCLOG_DEBUG, "Got E2setup\n");
+                mdclog_write(MDCLOG_DEBUG, "Got E2setup");
             }
 
             // first get the message as XML buffer
             auto setup_xml_buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
             unsigned char setup_xml_buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
-            //unsigned char *tmp_buff_cursor = setup_xml_buffer;
 
             auto er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, setup_xml_buffer, setup_xml_buffer_size);
             if (er.encoded == -1) {
                 mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
+                break;
             } else if (er.encoded > (ssize_t) setup_xml_buffer_size) {
                 mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s, at %s line %d",
                              (int)setup_xml_buffer_size,
                              asn_DEF_E2AP_PDU.name, __func__, __LINE__);
+                break;
             }
             std::string xmlString(setup_xml_buffer_size,  setup_xml_buffer_size + er.encoded);
 
             vector <string> runFunDEFXML_v;
             runFunDEFXML_v.clear();
-
-            auto ret = collectSetupRequestData(pdu, sctpMap,  message, runFunDEFXML_v);
-            if (ret != 0) {
+            if (collectSetupRequestData(pdu, sctpMap,  message, runFunDEFXML_v) != 0) {
                 break;
             }
 
-            //build all parts and send the XML (need to copy the XML with the header to the rmrMessageBuffer payload
-            //TODO replace with new function
             buildAndsendSetupRequest(message, rmrMessageBuffer, pdu, runFunDEFXML_v);
+            break;
+        }
+        case ProcedureCode_id_RICserviceUpdate: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICserviceUpdate %s", message.message.enodbName);
+            }
+            if (sendRequestToXapp(message, RIC_SERVICE_UPDATE, rmrMessageBuffer) != 0) {
+                mdclog_write(MDCLOG_ERR, "RIC_SERVICE_UPDATE message failed to send to xAPP");
+            }
             break;
         }
         case ProcedureCode_id_ErrorIndication: {
@@ -1489,15 +1513,6 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
         case ProcedureCode_id_RICserviceQuery: {
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICserviceQuery %s", message.message.enodbName);
-            }
-            break;
-        }
-        case ProcedureCode_id_RICserviceUpdate: {
-            if (logLevel >= MDCLOG_DEBUG) {
-                mdclog_write(MDCLOG_DEBUG, "Got RICserviceUpdate %s", message.message.enodbName);
-            }
-            if (sendRequestToXapp(message, RIC_SERVICE_UPDATE, rmrMessageBuffer) != 0) {
-                mdclog_write(MDCLOG_ERR, "RIC_SERVICE_UPDATE message failed to send to xAPP");
             }
             break;
         }
@@ -1582,7 +1597,9 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu,
                     if (ie->value.present == RICcontrolAcknowledge_IEs__value_PR_RICrequestID) {
                         message.message.messageType = rmrMessageBuffer.sendMessage->mtype = RIC_CONTROL_ACK;
                         rmrMessageBuffer.sendMessage->state = 0;
-                        rmrMessageBuffer.sendMessage->sub_id = (int) ie->value.choice.RICrequestID.ricRequestorID;
+//                        rmrMessageBuffer.sendMessage->sub_id = (int) ie->value.choice.RICrequestID.ricRequestorID;
+                        rmrMessageBuffer.sendMessage->sub_id = (int)ie->value.choice.RICrequestID.ricInstanceID;
+
                         static unsigned char tx[32];
                         snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
                         rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, strlen((const char *) tx));
@@ -1626,7 +1643,8 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu,
                                        (unsigned char *)message.message.enodbName,
                                        strlen(message.message.enodbName));
                         rmrMessageBuffer.sendMessage->state = 0;
-                        rmrMessageBuffer.sendMessage->sub_id = (int) ie->value.choice.RICrequestID.ricRequestorID;
+//                        rmrMessageBuffer.sendMessage->sub_id = (int)ie->value.choice.RICrequestID.ricRequestorID;
+                        rmrMessageBuffer.sendMessage->sub_id = (int)ie->value.choice.RICrequestID.ricInstanceID;
                         if (mdclog_level_get() >= MDCLOG_DEBUG) {
                             mdclog_write(MDCLOG_DEBUG, "RIC sub id = %d, message type = %d",
                                          rmrMessageBuffer.sendMessage->sub_id,
@@ -1745,7 +1763,8 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
                     if (ie->value.present == RICcontrolFailure_IEs__value_PR_RICrequestID) {
                         message.message.messageType = rmrMessageBuffer.sendMessage->mtype = RIC_CONTROL_FAILURE;
                         rmrMessageBuffer.sendMessage->state = 0;
-                        rmrMessageBuffer.sendMessage->sub_id = (int) ie->value.choice.RICrequestID.ricRequestorID;
+//                        rmrMessageBuffer.sendMessage->sub_id = (int)ie->value.choice.RICrequestID.ricRequestorID;
+                        rmrMessageBuffer.sendMessage->sub_id = (int)ie->value.choice.RICrequestID.ricInstanceID;
                         static unsigned char tx[32];
                         snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
                         rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, strlen((const char *) tx));
@@ -1786,7 +1805,8 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
                                        (unsigned char *)message.message.enodbName,
                                        strlen(message.message.enodbName));
                         rmrMessageBuffer.sendMessage->state = 0;
-                        rmrMessageBuffer.sendMessage->sub_id = (int) ie->value.choice.RICrequestID.ricRequestorID;
+//                        rmrMessageBuffer.sendMessage->sub_id = (int)ie->value.choice.RICrequestID.ricRequestorID;
+                        rmrMessageBuffer.sendMessage->sub_id = (int)ie->value.choice.RICrequestID.ricInstanceID;
                         if (mdclog_level_get() >= MDCLOG_DEBUG) {
                             mdclog_write(MDCLOG_DEBUG, "RIC sub id = %d, message type = %d",
                                          rmrMessageBuffer.sendMessage->sub_id,
@@ -1915,7 +1935,7 @@ void getRmrContext(sctp_params_t &pSctpParams) {
     }
 }
 
-int BuildPERSetupResponseMessaeFromXML(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer) {
+int PER_FromXML(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer) {
     E2AP_PDU_t *pdu;
 
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
@@ -1987,7 +2007,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
     rmr_get_meid(rmrMessageBuffer.rcvMessage, (unsigned char *)message.message.enodbName);
     switch (rmrMessageBuffer.rcvMessage->mtype) {
         case RIC_E2_SETUP_RESP : {
-            if (BuildPERSetupResponseMessaeFromXML(message, rmrMessageBuffer) != 0) {
+            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
 
@@ -1998,7 +2018,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_E2_SETUP_FAILURE : {
-            if (BuildPERSetupResponseMessaeFromXML(message, rmrMessageBuffer) != 0) {
+            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
@@ -2036,6 +2056,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_SERVICE_QUERY: {
+            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+                break;
+            }
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SERVICE_QUERY");
                 return -6;
@@ -2043,6 +2066,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_SERVICE_UPDATE_ACK: {
+            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+                break;
+            }
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SERVICE_UPDATE_ACK");
                 return -6;
@@ -2050,6 +2076,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_SERVICE_UPDATE_FAILURE: {
+            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+                break;
+            }
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SERVICE_UPDATE_FAILURE");
                 return -6;
