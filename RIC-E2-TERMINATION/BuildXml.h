@@ -25,8 +25,10 @@
 #include <iosfwd>
 #include <vector>
 #include "pugixml/src/pugixml.hpp"
-#include <string.h>
+#include <string>
 #include <sstream>
+#include <mdclog/mdclog.h>
+#include <cstdlib>
 
 using namespace std;
 
@@ -36,36 +38,36 @@ using namespace std;
 struct xml_string_writer : pugi::xml_writer {
     std::string result;
 
-    virtual void write(const void *data, size_t size) {
+    void write(const void *data, size_t size) override {
         result.append(static_cast<const char *>(data), size);
     }
 };
 // end::code[]
 
-struct xml_memory_writer : pugi::xml_writer {
-    char *buffer;
-    size_t capacity;
-    size_t result;
-
-    xml_memory_writer() : buffer(0), capacity(0), result(0) {
-    }
-
-    xml_memory_writer(char *buffer, size_t capacity) : buffer(buffer), capacity(capacity), result(0) {
-    }
-
-    size_t written_size() const {
-        return result < capacity ? result : capacity;
-    }
-
-    virtual void write(const void *data, size_t size) {
-        if (result < capacity) {
-            size_t chunk = (capacity - result < size) ? capacity - result : size;
-
-            memcpy(buffer + result, data, chunk);
-        }
-        result += size;
-    }
-};
+//struct xml_memory_writer : pugi::xml_writer {
+//    char *buffer;
+//    size_t capacity;
+//    size_t result;
+//
+//    xml_memory_writer() : buffer(nullptr), capacity(0), result(0) {
+//    }
+//
+//    xml_memory_writer(char *buffer, size_t capacity) : buffer(buffer), capacity(capacity), result(0) {
+//    }
+//
+//    [[nodiscard]] size_t written_size() const {
+//        return result < capacity ? result : capacity;
+//    }
+//
+//    void write(const void *data, size_t size) override {
+//        if (result < capacity) {
+//            size_t chunk = (capacity - result < size) ? capacity - result : size;
+//
+//            memcpy(buffer + result, data, chunk);
+//        }
+//        result += size;
+//    }
+//};
 
 std::string node_to_string(pugi::xml_node node) {
     xml_string_writer writer;
@@ -75,10 +77,11 @@ std::string node_to_string(pugi::xml_node node) {
 }
 
 
-void buildXmlData(const string &messageName, const string &ieName, vector<string> &repValues, unsigned char *buffer) {
+int buildXmlData(const string &messageName, const string &ieName, vector<string> &RANfunctionsAdded, unsigned char *buffer, size_t size) {
     pugi::xml_document doc;
 
-    pugi::xml_parse_result result = doc.load_string((const char *)buffer);
+    doc.reset();
+    pugi::xml_parse_result result = doc.load_buffer((const char *)buffer, size);
     if (result) {
         unsigned int index = 0;
         for (auto tool : doc.child("E2AP-PDU")
@@ -87,48 +90,38 @@ void buildXmlData(const string &messageName, const string &ieName, vector<string
                 .child(messageName.c_str())
                 .child("protocolIEs")
                 .children(ieName.c_str())) {
-            for (auto n : tool.child("value").child("RANfunctions-List").child(
-                    "ProtocolIE-SingleContainer").children()) {
-//ProtocolIE-SingleContainer
-//cout << "\t1 " << n.name() << endl;
-                if (strcmp(n.name(), "value") == 0) {
-                    for (auto l : tool.child("value").children()) {
-//cout << "\t\t2 " << l.name() << endl;
-                        for (auto f : l.children()) {
-//cout << "\t\t\t3 " << f.name() << endl;
-                            for (auto g : f.child("value").children()) {
-//cout << "\t\t\t\t4 " << g.name() << endl;
-                                for (auto a : g.children()) {
-                                    if (strcmp(a.name(), "ranFunctionDefinition") == 0) {
-                                        if (repValues.size() > index) {
-                                            a.remove_children();
-                                            string val = repValues.at(index++);
-// here we get vector with counter
-                                            a.append_child(pugi::node_pcdata).set_value(val.c_str());
-
-                                        }
-                                    }
-//cout << "\t\t\t\t\t5 " << a.name() << " " << a.child_value() << endl;
-                                }
-                            }
-                        }
+            auto node = tool.child("id");
+            if (strcmp(node.name(), "id") == 0 && strcmp(node.child_value(), "10") == 0) {
+                auto nodea = tool.child("value").
+                        child("RANfunctions-List").
+                        children("ProtocolIE-SingleContainer");
+                for (auto n1 : nodea) {
+                    auto n2 = n1.child("value").child("RANfunction-Item").child("ranFunctionDefinition");
+                    n2.remove_children();
+                    string val = RANfunctionsAdded.at(index++);
+                    // here we get vector with counter
+                    n2.append_child(pugi::node_pcdata).set_value(val.c_str());
+                    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                        mdclog_write(MDCLOG_DEBUG, "entry %s Replaced with : %s", n2.name(), n2.child_value());
                     }
                 }
+            } else {
+                if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                    mdclog_write(MDCLOG_DEBUG, "Entry %s = value %s skipped", node.name(), node.child_value());
+                }
+                continue;
             }
         }
 
         auto res = node_to_string(doc);
         memcpy(buffer, res.c_str(), res.length());
-
-//        streambuf *oldCout = cout.rdbuf();
-//        ostringstream memCout;
-//// create new cout
-//        cout.rdbuf(memCout.rdbuf());
-//        doc.save(std::cout);
-////return to the normal cout
-//        cout.rdbuf(oldCout);
-//        memcpy(buffer, memCout.str().c_str(), memCout.str().length());
+        doc.reset();
+    } else {
+        mdclog_write(MDCLOG_ERR, "Error loading xml string");
+        return -1;
     }
+    return 0;
+
 }
 
 #endif //E2_BUILDXML_H

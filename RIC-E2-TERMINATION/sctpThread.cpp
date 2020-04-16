@@ -1197,16 +1197,10 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
                                      E2AP_PDU_t *pdu,
                                      vector<string> &repValues) {
     auto logLevel = mdclog_level_get();
-
     // now we can send the data to e2Mgr
     auto buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
-
-    auto *rmrMsg = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, buffer_size);
-    // add addrees to message
-
-
-    // unsigned char *buffer = &rmrMsg->payload[j];
     unsigned char buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
+    auto *rmrMsg = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, buffer_size);
     // encode to xml
     auto er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, buffer, buffer_size);
     if (er.encoded == -1) {
@@ -1218,7 +1212,9 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
     } else {
         string messageType("E2setupRequest");
         string ieName("E2setupRequestIEs");
-        buildXmlData(messageType, ieName, repValues, buffer);
+        buffer[er.encoded] = '\0';
+        buildXmlData(messageType, ieName, repValues, buffer, (size_t)er.encoded);
+
 //        string xmlStr = (char *)buffer;
 //        auto removeSpaces = [] (string str) -> string {
 //            str.erase(remove(str.begin(), str.end(), ' '), str.end());
@@ -1348,10 +1344,11 @@ int RAN_Function_list_To_Vector(RANfunctions_List_t& list, vector <string> &runF
 
 
 
-int collectSetupRequestData(E2AP_PDU_t *pdu,
-                            Sctp_Map_t *sctpMap,
-                            ReportingMessages_t &message,
-                            vector <string> &runFunDEFXML_v) {
+int collectSetupAndServiceUpdate_RequestData(E2AP_PDU_t *pdu,
+                                             Sctp_Map_t *sctpMap,
+                                             ReportingMessages_t &message,
+                                             vector <string> &RANfunctionsAdded_v,
+                                             vector <string> &RANfunctionsModified_v) {
     memset(message.peerInfo->enodbName, 0 , MAX_ENODB_NAME_SIZE);
     for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.count; i++) {
         auto *ie = pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.array[i];
@@ -1366,15 +1363,23 @@ int collectSetupRequestData(E2AP_PDU_t *pdu,
                 memcpy(message.message.enodbName, message.peerInfo->enodbName, strlen(message.peerInfo->enodbName));
                 sctpMap->setkey(message.message.enodbName, message.peerInfo);
             }
-        }
-        // reformat RANFUNCTION Definition to XML
-        if (ie->id == ProtocolIE_ID_id_RANfunctionsAdded) {
+        } else if (ie->id == ProtocolIE_ID_id_RANfunctionsAdded) {
             if (ie->value.present == E2setupRequestIEs__value_PR_RANfunctions_List) {
                 if (mdclog_level_get() >= MDCLOG_DEBUG) {
                     mdclog_write(MDCLOG_DEBUG, "Run function list have %d entries",
                                  ie->value.choice.RANfunctions_List.list.count);
                 }
-                if (RAN_Function_list_To_Vector(ie->value.choice.RANfunctions_List, runFunDEFXML_v) != 0 ) {
+                if (RAN_Function_list_To_Vector(ie->value.choice.RANfunctions_List, RANfunctionsAdded_v) != 0 ) {
+                    return -1;
+                }
+            }
+        } else if (ie->id == ProtocolIE_ID_id_RANfunctionsModified) {
+            if (ie->value.present == E2setupRequestIEs__value_PR_RANfunctions_List) {
+                if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                    mdclog_write(MDCLOG_DEBUG, "Run function list have %d entries",
+                                 ie->value.choice.RANfunctions_List.list.count);
+                }
+                if (RAN_Function_list_To_Vector(ie->value.choice.RANfunctions_List, RANfunctionsModified_v) != 0 ) {
                     return -1;
                 }
             }
@@ -1382,7 +1387,7 @@ int collectSetupRequestData(E2AP_PDU_t *pdu,
     }
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
         mdclog_write(MDCLOG_DEBUG, "Run function vector have %ld entries",
-                     runFunDEFXML_v.size());
+                     RANfunctionsAdded_v.size());
     }
     return 0;
 }
@@ -1423,13 +1428,16 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             }
             std::string xmlString(setup_xml_buffer_size,  setup_xml_buffer_size + er.encoded);
 
-            vector <string> runFunDEFXML_v;
-            runFunDEFXML_v.clear();
-            if (collectSetupRequestData(pdu, sctpMap,  message, runFunDEFXML_v) != 0) {
+            vector <string> RANfunctionsAdded_v;
+            vector <string> RANfunctionsModified_v;
+            RANfunctionsAdded_v.clear();
+            RANfunctionsModified_v.clear();
+            if (collectSetupAndServiceUpdate_RequestData(pdu, sctpMap, message,
+                    RANfunctionsAdded_v, RANfunctionsModified_v) != 0) {
                 break;
             }
 
-            buildAndsendSetupRequest(message, rmrMessageBuffer, pdu, runFunDEFXML_v);
+            buildAndsendSetupRequest(message, rmrMessageBuffer, pdu, RANfunctionsAdded_v);
             break;
         }
         case ProcedureCode_id_RICserviceUpdate: {
@@ -1643,7 +1651,6 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu,
                                        (unsigned char *)message.message.enodbName,
                                        strlen(message.message.enodbName));
                         rmrMessageBuffer.sendMessage->state = 0;
-//                        rmrMessageBuffer.sendMessage->sub_id = (int)ie->value.choice.RICrequestID.ricRequestorID;
                         rmrMessageBuffer.sendMessage->sub_id = (int)ie->value.choice.RICrequestID.ricInstanceID;
                         if (mdclog_level_get() >= MDCLOG_DEBUG) {
                             mdclog_write(MDCLOG_DEBUG, "RIC sub id = %d, message type = %d",
