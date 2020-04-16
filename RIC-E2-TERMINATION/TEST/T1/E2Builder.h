@@ -693,18 +693,49 @@ void buildSetupUnSuccsessfulResponse(E2AP_PDU_t *pdu) {
     uns->criticality = Criticality_reject;
     uns->value.present = UnsuccessfulOutcome__value_PR_E2setupFailure;
 
-    auto *e2SetupFIE = (E2setupFailureIEs_t *)calloc(1, sizeof(E2setupFailureIEs_t));
-    ASN_STRUCT_RESET(asn_DEF_E2setupFailureIEs, e2SetupFIE);
-
-    e2SetupFIE->criticality = Criticality_reject;
-    e2SetupFIE->id = ProtocolIE_ID_id_GlobalRIC_ID;
-    e2SetupFIE->value.present = E2setupFailureIEs__value_PR_Cause;
-    e2SetupFIE->value.choice.Cause.present = Cause_PR_transport;
-    e2SetupFIE->value.choice.Cause.choice.transport = CauseTransport_transport_resource_unavailable;
-
-
     ASN_STRUCT_RESET(asn_DEF_E2setupFailure, &uns->value.choice.E2setupFailure);
-    ASN_SEQUENCE_ADD(&uns->value.choice.E2setupFailure.protocolIEs.list, e2SetupFIE);
+
+
+    {
+        auto *e2SetupFIE = (E2setupFailureIEs_t *) calloc(1, sizeof(E2setupFailureIEs_t));
+        ASN_STRUCT_RESET(asn_DEF_E2setupFailureIEs, e2SetupFIE);
+
+        e2SetupFIE->criticality = Criticality_ignore;
+        e2SetupFIE->id = ProtocolIE_ID_id_Cause;
+        e2SetupFIE->value.present = E2setupFailureIEs__value_PR_Cause;
+        e2SetupFIE->value.choice.Cause.present = Cause_PR_transport;
+        e2SetupFIE->value.choice.Cause.choice.transport = CauseTransport_transport_resource_unavailable;
+
+
+        ASN_SEQUENCE_ADD(&uns->value.choice.E2setupFailure.protocolIEs.list, e2SetupFIE);
+    }
+
+    {
+        auto *e2SetupFIE = (E2setupFailureIEs_t *) calloc(1, sizeof(E2setupFailureIEs_t));
+        ASN_STRUCT_RESET(asn_DEF_E2setupFailureIEs, e2SetupFIE);
+
+        e2SetupFIE->criticality = Criticality_ignore;
+        e2SetupFIE->id = ProtocolIE_ID_id_TimeToWait;
+        e2SetupFIE->value.present = E2setupFailureIEs__value_PR_TimeToWait;
+        e2SetupFIE->value.choice.TimeToWait = TimeToWait_v60s;
+
+        ASN_SEQUENCE_ADD(&uns->value.choice.E2setupFailure.protocolIEs.list, e2SetupFIE);
+    }
+    {
+        auto *e2SetupFIE = (E2setupFailureIEs_t *) calloc(1, sizeof(E2setupFailureIEs_t));
+        ASN_STRUCT_RESET(asn_DEF_E2setupFailureIEs, e2SetupFIE);
+
+        e2SetupFIE->criticality = Criticality_ignore;
+        e2SetupFIE->id = ProtocolIE_ID_id_CriticalityDiagnostics;
+        e2SetupFIE->value.present = E2setupFailureIEs__value_PR_CriticalityDiagnostics;
+        e2SetupFIE->value.choice.CriticalityDiagnostics.procedureCode = (ProcedureCode_t *)calloc(1,sizeof(ProcedureCode_t));
+        *e2SetupFIE->value.choice.CriticalityDiagnostics.procedureCode = ProcedureCode_id_E2setup;
+        e2SetupFIE->value.choice.CriticalityDiagnostics.triggeringMessage = (TriggeringMessage_t *)calloc(1,sizeof(TriggeringMessage_t));
+        *e2SetupFIE->value.choice.CriticalityDiagnostics.triggeringMessage = TriggeringMessage_initiating_message;
+        e2SetupFIE->value.choice.CriticalityDiagnostics.procedureCriticality = (Criticality_t *)calloc(1, sizeof(Criticality_t));
+        *e2SetupFIE->value.choice.CriticalityDiagnostics.procedureCriticality = Criticality_reject;
+        ASN_SEQUENCE_ADD(&uns->value.choice.E2setupFailure.protocolIEs.list, e2SetupFIE);
+    }
 
     pdu->present = E2AP_PDU_PR_unsuccessfulOutcome;
 }
