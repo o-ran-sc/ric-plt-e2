@@ -90,11 +90,18 @@ int buildXmlData(const string &messageName, const string &ieName, vector<string>
                 .child(messageName.c_str())
                 .child("protocolIEs")
                 .children(ieName.c_str())) {
-            auto node = tool.child("id");
+            // there can be many ieName entries in the messageName so we need only the ones that containes E2SM continers
+            auto node = tool.child("id");  // get the id to identify the type of the contained message
+            if (node.empty()) {
+                mdclog_write(MDCLOG_ERR, "Failed to find ID node in the XML. File %s, line %d",
+                        __FILE__, __LINE__);
+                continue;
+            }
             if (strcmp(node.name(), "id") == 0 && strcmp(node.child_value(), "10") == 0) {
                 auto nodea = tool.child("value").
                         child("RANfunctions-List").
                         children("ProtocolIE-SingleContainer");
+
                 for (auto n1 : nodea) {
                     auto n2 = n1.child("value").child("RANfunction-Item").child("ranFunctionDefinition");
                     n2.remove_children();
