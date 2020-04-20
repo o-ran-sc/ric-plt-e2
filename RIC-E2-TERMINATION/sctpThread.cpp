@@ -1943,10 +1943,11 @@ void getRmrContext(sctp_params_t &pSctpParams) {
 }
 
 int PER_FromXML(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer) {
-    E2AP_PDU_t *pdu;
+    E2AP_PDU_t *pdu = nullptr;
 
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "got xml setup response \n %s\n", rmrMessageBuffer.rcvMessage->payload);
+        mdclog_write(MDCLOG_DEBUG, "got xml setup response of size %d is:%s",
+                rmrMessageBuffer.rcvMessage->len, rmrMessageBuffer.rcvMessage->payload);
     }
     auto rval = asn_decode(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, (void **) &pdu,
                            rmrMessageBuffer.rcvMessage->payload, rmrMessageBuffer.rcvMessage->len);
