@@ -86,18 +86,18 @@ COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/startup.sh /opt/e2/startup.sh
 #COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/tracelibcpp/build/libtracelibcpp.so /usr/local/lib/libtracelibcpp.so
 #COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/tracelibcpp/build/libtracelibcpp.so.0 /usr/local/lib/libtracelibcpp.so.0
 #COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/tracelibcpp/build/libtracelibcpp.so.0.0.2 /usr/local/lib/libtracelibcpp.so.0.0.2
-#COPY --from=ubuntu /usr/local/lib/librmr_nng.a /usr/local/lib/librmr_nng.a
 
-COPY --from=ubuntu /usr/local/lib/libnng.so  /usr/local/lib/libnng.so
-COPY --from=ubuntu /usr/local/lib/libnng.so.1  /usr/local/lib/libnng.so.1
-COPY --from=ubuntu /usr/local/lib/libnng.so.1.1.0  /usr/local/lib/libnng.so.1.1.0
+#COPY --from=ubuntu /usr/local/lib/libnng.so  /usr/local/lib/libnng.so
+#COPY --from=ubuntu /usr/local/lib/libnng.so.1  /usr/local/lib/libnng.so.1
+#COPY --from=ubuntu /usr/local/lib/libnng.so.1.1.0  /usr/local/lib/libnng.so.1.1.0
 #
-COPY --from=ubuntu /usr/local/lib/librmr_nng.so.3.8.2 /usr/local/lib/librmr_nng.so.3.8.2
+#COPY --from=ubuntu /usr/local/lib/librmr_nng.so.3.8.2 /usr/local/lib/librmr_nng.so.3.8.2
+
 COPY --from=ubuntu /usr/local/lib/librmr_si.so.3.8.2 /usr/local/lib/librmr_si.so.3.8.2
 COPY --from=ubuntu /usr/local/lib/librmr_si.so.3  /usr/local/lib/librmr_si.so.3
 COPY --from=ubuntu /usr/local/lib/librmr_si.so /usr/local/lib/librmr_si.so
-COPY --from=ubuntu /usr/local/lib/librmr_nng.so.3 /usr/local/lib/librmr_nng.so.3
-COPY --from=ubuntu /usr/local/lib/librmr_nng.so  /usr/local/lib/librmr_nng.so
+#COPY --from=ubuntu /usr/local/lib/librmr_nng.so.3 /usr/local/lib/librmr_nng.so.3
+#COPY --from=ubuntu /usr/local/lib/librmr_nng.so  /usr/local/lib/librmr_nng.so
 
 
 COPY --from=ubuntu /usr/local/lib/libmdclog.so.0 /usr/local/lib/libmdclog.so.0
