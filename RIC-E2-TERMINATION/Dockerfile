@@ -20,7 +20,8 @@
 #   This source code is part of the near-RT RIC (RAN Intelligent Controller)
 #   platform project (RICP).
 #
-FROM nexus3.o-ran-sc.org:10004/bldr-ubuntu18-c-go:8-u18.04 as ubuntu
+FROM nexus3.o-ran-sc.org:10004/o-ran-sc/bldr-ubuntu18-c-go:8-u18.04 as ubuntu
+
 
 WORKDIR /opt/e2/
 
