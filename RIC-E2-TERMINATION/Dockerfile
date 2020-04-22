@@ -21,7 +21,6 @@
 #   platform project (RICP).
 #
 FROM nexus3.o-ran-sc.org:10004/bldr-ubuntu18-c-go:7-u18.04 as ubuntu
-#FROM nexus3.o-ran-sc.org:10004/bldr-ubuntu16-c-go:3-u16.04-nng as ubuntu
 
 WORKDIR /opt/e2/
 
@@ -33,29 +32,28 @@ RUN mkdir -p /opt/e2/RIC-E2-TERMINATION/ \
     && mkdir -p /opt/e2/RIC-E2-TERMINATION/3rdparty
 
 COPY . /opt/e2/RIC-E2-TERMINATION/
-RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/
 
-RUN cat /opt/e2/RIC-E2-TERMINATION/config/config.conf
-
-RUN wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
-        && dpkg -i cgreen_1.2.0_amd64.deb \
-         && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr_3.8.2_amd64.deb/download.deb \
-         && dpkg -i rmr_3.8.2_amd64.deb \
-         && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr-dev_3.8.2_amd64.deb/download.deb \
-         && dpkg -i rmr-dev_3.8.2_amd64.deb
-
-RUN apt-get install -y libcurl4-gnutls-dev gawk libtbb-dev  libtbb-doc libtbb2 libtbb2-dbg \
+RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/ && cat /opt/e2/RIC-E2-TERMINATION/config/config.conf \
+    && wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
+    && dpkg -i cgreen_1.2.0_amd64.deb \
+    && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr_3.8.2_amd64.deb/download.deb \
+    && dpkg -i rmr_3.8.2_amd64.deb \
+    && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr-dev_3.8.2_amd64.deb/download.deb \
+    && dpkg -i rmr-dev_3.8.2_amd64.deb \
+    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog_0.0.4-1_amd64.deb/download.deb \
+    && dpkg -i mdclog_0.0.4-1_amd64.deb \
+    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog-dev_0.0.4-1_amd64.deb/download.deb \
+    && dpkg -i mdclog-dev_0.0.4-1_amd64.deb \
+    && apt-get install -y libcurl4-gnutls-dev gawk libtbb-dev  libtbb-doc libtbb2 libtbb2-dbg \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/oktal/pistache.git && cd pistache \
     && git submodule update --init && mkdir build && cd build \
     && cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DPISTACHE_BUILD_DOCS=false \
        -DPISTACHE_USE_SSL=false -DPISTACHE_BUILD_TESTS=false -DCMAKE_INSTALL_PREFIX=/usr/local ../ \
     && make -j && make install && ldconfig \
-    && git clone http://gerrit.o-ran-sc.org/r/com/log \
-    && cd log && ./autogen.sh && ./configure && make && make install && ldconfig \
+#    && git clone http://gerrit.o-ran-sc.org/r/com/log \
+#    && cd log && ./autogen.sh && ./configure && make && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/jarro2783/cxxopts.git \
-#    && cd cxxopts && mkdir build && cd build && cmake .. && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/Tencent/rapidjson.git \
-#    && cd rapidjson && mkdir build && cd build && cmake .. && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/zeux/pugixml.git \
     && cd /opt/e2/ && git clone https://github.com/bilke/cmake-modules.git \
     && cd /opt/e2/ && /usr/local/bin/cmake -D CMAKE_BUILD_TYPE=$BUILD_TYPE . && make \
@@ -87,20 +85,14 @@ COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/startup.sh /opt/e2/startup.sh
 #COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/tracelibcpp/build/libtracelibcpp.so.0 /usr/local/lib/libtracelibcpp.so.0
 #COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/tracelibcpp/build/libtracelibcpp.so.0.0.2 /usr/local/lib/libtracelibcpp.so.0.0.2
 
-#COPY --from=ubuntu /usr/local/lib/libnng.so  /usr/local/lib/libnng.so
-#COPY --from=ubuntu /usr/local/lib/libnng.so.1  /usr/local/lib/libnng.so.1
-#COPY --from=ubuntu /usr/local/lib/libnng.so.1.1.0  /usr/local/lib/libnng.so.1.1.0
-#
-#COPY --from=ubuntu /usr/local/lib/librmr_nng.so.3.8.2 /usr/local/lib/librmr_nng.so.3.8.2
 
 COPY --from=ubuntu /usr/local/lib/librmr_si.so.3.8.2 /usr/local/lib/librmr_si.so.3.8.2
 COPY --from=ubuntu /usr/local/lib/librmr_si.so.3  /usr/local/lib/librmr_si.so.3
 COPY --from=ubuntu /usr/local/lib/librmr_si.so /usr/local/lib/librmr_si.so
-#COPY --from=ubuntu /usr/local/lib/librmr_nng.so.3 /usr/local/lib/librmr_nng.so.3
-#COPY --from=ubuntu /usr/local/lib/librmr_nng.so  /usr/local/lib/librmr_nng.so
 
-
-COPY --from=ubuntu /usr/local/lib/libmdclog.so.0 /usr/local/lib/libmdclog.so.0
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libmdclog.so /usr/local/lib/libmdclog.so
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libmdclog.so.0 /usr/local/lib/libmdclog.so.0
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libmdclog.so.0.0.4 /usr/local/lib/libmdclog.so.0.0.4
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcgreen.so /usr/local/libcgreen.so
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcgreen.so.1 /usr/local/libcgreen.so.1
