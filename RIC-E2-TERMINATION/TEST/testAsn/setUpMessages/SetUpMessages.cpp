@@ -217,6 +217,20 @@ auto main(const int argc, char **argv) -> int {
     ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, &pdu);
     memset(buffer, 0, buffer_size);
 
+    cout << "========== en-gnb ============" << endl;
+    buildSetupRequesteenGNB(&pdu, 320, 512);
+    asn_fprint(stream, &asn_DEF_E2AP_PDU, &pdu);
+    cout << "Encoding E2AP PDU of size  " << size << endl << printBuffer << endl;
+    fseek(stream,0,SEEK_SET);
+    cout << "========== en-gnb ============" << endl;
+
+    extractPdu(&pdu, buffer, buffer_size);
+    buildRanName(&pdu, buffer);
+    cout << "Ran name = " << buffer << endl;
+
+    ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, &pdu);
+    memset(buffer, 0, buffer_size);
+
     buildSetupRequestWithFunc(&pdu, 311, 410);
     extractPdu(&pdu, buffer, buffer_size);
 

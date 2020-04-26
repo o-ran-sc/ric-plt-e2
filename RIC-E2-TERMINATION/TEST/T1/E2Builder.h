@@ -32,6 +32,7 @@
 #include <3rdparty/oranE2SM/E2SM-gNB-NRT-RANfunction-Definition.h>
 #include <3rdparty/oranE2SM/RIC-InsertStyle-List.h>
 #include <3rdparty/oranE2SM/RANparameterDef-Item.h>
+#include <3rdparty/oranE2/GlobalE2node-en-gNB-ID.h>
 
 
 //#include <mdclog/mdclog.h>
@@ -453,6 +454,7 @@ void buildSetupRequest(E2AP_PDU_t *pdu, int mcc, int mnc) {
     auto *e2SetupRequestIEs = (E2setupRequestIEs_t *)calloc(1, sizeof(E2setupRequestIEs_t));
     ASN_STRUCT_RESET(asn_DEF_E2setupRequestIEs, e2SetupRequestIEs);
 
+    e2SetupRequestIEs->value.choice.GlobalE2node_ID.present = GlobalE2node_ID_PR_gNB;
     e2SetupRequestIEs->value.choice.GlobalE2node_ID.choice.gNB = (GlobalE2node_gNB_ID_t *)calloc(1, sizeof(GlobalE2node_gNB_ID_t));
     auto *globalE2NodeGNbId = e2SetupRequestIEs->value.choice.GlobalE2node_ID.choice.gNB;
     ASN_STRUCT_RESET(asn_DEF_GlobalE2node_gNB_ID, globalE2NodeGNbId);
@@ -471,7 +473,6 @@ void buildSetupRequest(E2AP_PDU_t *pdu, int mcc, int mnc) {
     e2SetupRequestIEs->criticality = Criticality_reject;
     e2SetupRequestIEs->id = ProtocolIE_ID_id_GlobalE2node_ID;
     e2SetupRequestIEs->value.present = E2setupRequestIEs__value_PR_GlobalE2node_ID;
-    e2SetupRequestIEs->value.choice.GlobalE2node_ID.present = GlobalE2node_ID_PR_gNB;
 
 
     auto *e2SetupRequest = &initiatingMessage->value.choice.E2setupRequest;
@@ -481,6 +482,49 @@ void buildSetupRequest(E2AP_PDU_t *pdu, int mcc, int mnc) {
 
     pdu->present = E2AP_PDU_PR_initiatingMessage;
 }
+
+void buildSetupRequesteenGNB(E2AP_PDU_t *pdu, int mcc, int mnc) {
+    ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
+
+    pdu->choice.initiatingMessage = (InitiatingMessage_t *)calloc(1, sizeof(InitiatingMessage_t));
+    auto *initiatingMessage = pdu->choice.initiatingMessage;
+    ASN_STRUCT_RESET(asn_DEF_InitiatingMessage, initiatingMessage);
+    initiatingMessage->procedureCode = ProcedureCode_id_E2setup;
+    initiatingMessage->criticality = Criticality_reject;
+    initiatingMessage->value.present = InitiatingMessage__value_PR_E2setupRequest;
+
+    auto *e2SetupRequestIEs = (E2setupRequestIEs_t *)calloc(1, sizeof(E2setupRequestIEs_t));
+    ASN_STRUCT_RESET(asn_DEF_E2setupRequestIEs, e2SetupRequestIEs);
+
+    e2SetupRequestIEs->value.choice.GlobalE2node_ID.present = GlobalE2node_ID_PR_en_gNB;
+    e2SetupRequestIEs->value.choice.GlobalE2node_ID.choice.en_gNB = (GlobalE2node_en_gNB_ID_t *)calloc(1, sizeof(GlobalE2node_en_gNB_ID_t));
+    auto *globalE2NodeEN_GNb = e2SetupRequestIEs->value.choice.GlobalE2node_ID.choice.en_gNB;
+    ASN_STRUCT_RESET(asn_DEF_GlobalE2node_en_gNB_ID, globalE2NodeEN_GNb);
+
+    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.present = ENGNB_ID_PR_gNB_ID;
+    createPLMN_IDByMCCandMNC(&globalE2NodeEN_GNb->global_gNB_ID.pLMN_Identity, mcc, mnc);
+    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.size = 4;
+    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.buf =
+            (uint8_t *) calloc(1, globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.size); //22..32 bits
+    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.buf[0] = 0xC5;
+    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.buf[1] = 0xC6;
+    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.buf[2] = 0xC7;
+    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.buf[3] = 0xF8;
+    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.bits_unused = 0;
+    e2SetupRequestIEs->criticality = Criticality_reject;
+    e2SetupRequestIEs->id = ProtocolIE_ID_id_GlobalE2node_ID;
+    e2SetupRequestIEs->value.present = E2setupRequestIEs__value_PR_GlobalE2node_ID;
+
+
+    auto *e2SetupRequest = &initiatingMessage->value.choice.E2setupRequest;
+
+    ASN_STRUCT_RESET(asn_DEF_E2setupRequest, e2SetupRequest);
+    ASN_SEQUENCE_ADD(&e2SetupRequest->protocolIEs.list, e2SetupRequestIEs);
+
+    pdu->present = E2AP_PDU_PR_initiatingMessage;
+}
+
+
 
 void buildSetupRequestWithFunc(E2AP_PDU_t *pdu, int mcc, int mnc) {
     ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
