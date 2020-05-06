@@ -571,8 +571,6 @@ void buildSetupRequestWithFunc(E2AP_PDU_t *pdu, int mcc, int mnc) {
     ranFlistIEs->id = ProtocolIE_ID_id_RANfunctionsAdded;
     ranFlistIEs->value.present = E2setupRequestIEs__value_PR_RANfunctions_List;
 
-    auto *itemIes = (RANfunction_ItemIEs_t *)calloc(1, sizeof(RANfunction_ItemIEs_t));
-    ASN_STRUCT_RESET(asn_DEF_RANfunction_ItemIEs, itemIes);
 
 
     E2SM_gNB_NRT_RANfunction_Definition_t ranFunDef;
@@ -621,6 +619,9 @@ void buildSetupRequestWithFunc(E2AP_PDU_t *pdu, int mcc, int mnc) {
     ASN_SEQUENCE_ADD(&ranFunDef.ric_InsertStyle_List->list, &insertStyleList);
     //ranFunDef.ric_InsertStyle_List.
 
+    auto *itemIes = (RANfunction_ItemIEs_t *)calloc(1, sizeof(RANfunction_ItemIEs_t));
+    ASN_STRUCT_RESET(asn_DEF_RANfunction_ItemIEs, itemIes);
+
     uint8_t buffer[8192];
     size_t buffer_size = 8192;
     auto *ranDef = &itemIes->value.choice.RANfunction_Item.ranFunctionDefinition;
@@ -637,8 +638,6 @@ void buildSetupRequestWithFunc(E2AP_PDU_t *pdu, int mcc, int mnc) {
         ranDef->size = er.encoded;
         memcpy(ranDef->buf, buffer, ranDef->size);
     }
-
-
 
     itemIes->id = ProtocolIE_ID_id_RANfunction_Item;
     itemIes->criticality = Criticality_reject;

@@ -106,7 +106,7 @@ namespace expr = boost::log::expressions;
 
 #define MAXEVENTS 128
 
-#define RECEIVE_SCTP_BUFFER_SIZE (128 * 1024)
+#define RECEIVE_SCTP_BUFFER_SIZE (256 * 1024)
 #define RECEIVE_XAPP_BUFFER_SIZE RECEIVE_SCTP_BUFFER_SIZE 
 
 typedef mapWrapper Sctp_Map_t;
