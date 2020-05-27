@@ -44,6 +44,8 @@ include_directories(RIC-E2-TERMINATION
         RIC-E2-TERMINATION/3rdparty/oranE2
         RIC-E2-TERMINATION/3rdparty/oranE2SM
         RIC-E2-TERMINATION/3rdparty/cxxopts/include
+        RIC-E2-TERMINATION/3rdparty/prometheus-cpp
+        RIC-E2-TERMINATION/3rdparty/prometheus-cpp/core/include
         RIC-E2-TERMINATION/3rdparty
         cmake-modules)
 

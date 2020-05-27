@@ -135,31 +135,30 @@ std::string otherXml = "<E2AP-PDU>\n"
                        "</E2AP-PDU>\n";
 
 
-
 std::string newXml =
         "<E2AP-PDU><successfulOutcome><procedureCode>1</procedureCode><criticality><reject/></criticality><value><E2setupResponse><protocolIEs><E2setupResponseIEs><id>4</id><criticality><reject/></criticality><value><GlobalRIC-ID><pLMN-Identity>13 10 14</pLMN-Identity><ric-ID>10101010110011001110</ric-ID></GlobalRIC-ID></value></E2setupResponseIEs><E2setupResponseIEs><id>9</id><criticality><reject/></criticality><value><RANfunctionsID-List><ProtocolIE-SingleContainer><id>6</id><criticality><ignore/></criticality><value><RANfunctionID-Item><ranFunctionID>1</ranFunctionID><ranFunctionRevision>1</ranFunctionRevision></RANfunctionID-Item></value></ProtocolIE-SingleContainer><ProtocolIE-SingleContainer><id>6</id><criticality><ignore/></criticality><value><RANfunctionID-Item><ranFunctionID>2</ranFunctionID><ranFunctionRevision>1</ranFunctionRevision></RANfunctionID-Item></value></ProtocolIE-SingleContainer><ProtocolIE-SingleContainer><id>6</id><criticality><ignore/></criticality><value><RANfunctionID-Item><ranFunctionID>3</ranFunctionID><ranFunctionRevision>1</ranFunctionRevision></RANfunctionID-Item></value></ProtocolIE-SingleContainer></RANfunctionsID-List></value></E2setupResponseIEs></protocolIEs></E2setupResponse></value></successfulOutcome></E2AP-PDU>";
 std::string setupFailure = "<E2AP-PDU>"
-                             "<unsuccessfulOutcome>"
-                               "<procedureCode>1</procedureCode>"
-                               "<criticality><reject/></criticality>"
-                               "<value>"
-                                 "<E2setupFailure>"
-                                   "<protocolIEs>"
-                                     "<E2setupFailureIEs>"
-                                       "<id>1</id>"
-                                       "<criticality><reject/></criticality>"
-                                       "<value>"
-                                         "<Cause>"
-                                           "<transport>"
-                                             "<transport-resource-unavailable/>"
-                                           "</transport>"
-                                         "</Cause>"
-                                       "</value>"
-                                     "</E2setupFailureIEs>"
-                                   "</protocolIEs>"
-                                 "</E2setupFailure>"
-                               "</value>"
-                             "</unsuccessfulOutcome>"
+                           "<unsuccessfulOutcome>"
+                           "<procedureCode>1</procedureCode>"
+                           "<criticality><reject/></criticality>"
+                           "<value>"
+                           "<E2setupFailure>"
+                           "<protocolIEs>"
+                           "<E2setupFailureIEs>"
+                           "<id>1</id>"
+                           "<criticality><reject/></criticality>"
+                           "<value>"
+                           "<Cause>"
+                           "<transport>"
+                           "<transport-resource-unavailable/>"
+                           "</transport>"
+                           "</Cause>"
+                           "</value>"
+                           "</E2setupFailureIEs>"
+                           "</protocolIEs>"
+                           "</E2setupFailure>"
+                           "</value>"
+                           "</unsuccessfulOutcome>"
                            "</E2AP-PDU>";
 
 
@@ -203,7 +202,19 @@ auto main(const int argc, char **argv) -> int {
     cout << "Encoding E2AP PDU of size  " << size << endl << printBuffer << endl;
     fseek(stream,0,SEEK_SET);
 
-//    cout << "=========================" << endl << otherXml << endl << "========================" << endl;
+    cout << "=========================" << endl << endl << endl << "========================" << endl;
+    buildSubsReq(&pdu);
+    char errbuf[256];
+    int errlen = 256;
+    int ret = asn_check_constraints(&asn_DEF_E2AP_PDU, &pdu, errbuf, (size_t *)&errlen);
+    if (ret) {
+        cout << "Constraint validation failed: " << errbuf << endl;
+    }
+    asn_fprint(stream, &asn_DEF_E2AP_PDU, &pdu);
+    cout << "Encoding E2AP PDU of size  " << size << endl << printBuffer << endl;
+    //fseek(stream,0,SEEK_SET);
+    extractPdu(&pdu, buffer, buffer_size);
+    memset(buffer, 0, buffer_size);
 
     buildSetupRequest(&pdu, 311, 410);
     asn_fprint(stream, &asn_DEF_E2AP_PDU, &pdu);
@@ -261,4 +272,39 @@ auto main(const int argc, char **argv) -> int {
     fseek(stream,0,SEEK_SET);
 
     extractPdu(&pdu, buffer, buffer_size);
+    memset(buffer, 0, buffer_size);
+
+    buildResetReq(&pdu);
+    asn_fprint(stream, &asn_DEF_E2AP_PDU, &pdu);
+    cout << "Encoding E2AP PDU (Reset Request) of size  " << size << endl << printBuffer << endl;
+    fseek(stream,0,SEEK_SET);
+
+    extractPdu(&pdu, buffer, buffer_size);
+    memset(buffer, 0, buffer_size);
+
+
+    buildServiceQuery(&pdu);
+    asn_fprint(stream, &asn_DEF_E2AP_PDU, &pdu);
+    cout << "Encoding E2AP PDU (service query) of size  " << size << endl << printBuffer << endl;
+    fseek(stream,0,SEEK_SET);
+
+    extractPdu(&pdu, buffer, buffer_size);
+    memset(buffer, 0, buffer_size);
+
+    buildServiceUpdateResponce(&pdu);
+    asn_fprint(stream, &asn_DEF_E2AP_PDU, &pdu);
+    cout << "Encoding E2AP PDU (service update ack) of size  " << size << endl << printBuffer << endl;
+    fseek(stream,0,SEEK_SET);
+
+    extractPdu(&pdu, buffer, buffer_size);
+    memset(buffer, 0, buffer_size);
+
+    buildResetResponse(&pdu);
+    asn_fprint(stream, &asn_DEF_E2AP_PDU, &pdu);
+    cout << "Encoding E2AP PDU (reset response example) of size  " << size << endl << printBuffer << endl;
+    fseek(stream,0,SEEK_SET);
+
+    extractPdu(&pdu, buffer, buffer_size);
+    memset(buffer, 0, buffer_size);
+
 }

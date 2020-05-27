@@ -50,8 +50,9 @@ RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/ && cat /opt/e2/RIC-E2-
     && cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DPISTACHE_BUILD_DOCS=false \
        -DPISTACHE_USE_SSL=false -DPISTACHE_BUILD_TESTS=false -DCMAKE_INSTALL_PREFIX=/usr/local ../ \
     && make -j && make install && ldconfig \
-#    && git clone http://gerrit.o-ran-sc.org/r/com/log \
-#    && cd log && ./autogen.sh && ./configure && make && make install && ldconfig \
+    && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone -v https://github.com/jupp0r/prometheus-cpp.git \
+    && cd prometheus-cpp && git submodule init && git submodule update && mkdir build && cd build \
+    && cmake .. -DBUILD_SHARED_LIBS=OFF && make -j 4  && make install && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/jarro2783/cxxopts.git \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/Tencent/rapidjson.git \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/zeux/pugixml.git \
