@@ -33,6 +33,7 @@
 #include <3rdparty/oranE2SM/RIC-InsertStyle-List.h>
 #include <3rdparty/oranE2SM/RANparameterDef-Item.h>
 #include <3rdparty/oranE2/GlobalE2node-en-gNB-ID.h>
+#include <3rdparty/oranE2/RICsubsequentAction.h>
 
 
 //#include <mdclog/mdclog.h>
@@ -671,7 +672,109 @@ void buildSetupRequestWithFunc(E2AP_PDU_t *pdu, int mcc, int mnc) {
 }
 
 
+void buildSubsReq(E2AP_PDU_t *pdu) {
+    ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
 
+    pdu->choice.initiatingMessage = (InitiatingMessage_t *)calloc(1, sizeof(InitiatingMessage_t));
+    pdu->present = E2AP_PDU_PR_initiatingMessage;
+
+    auto *initMsg = pdu->choice.initiatingMessage;
+    ASN_STRUCT_RESET(asn_DEF_InitiatingMessage, initMsg);
+    initMsg->procedureCode = ProcedureCode_id_RICsubscription;
+    initMsg->criticality = Criticality_reject;
+    initMsg->value.present = InitiatingMessage__value_PR_RICsubscriptionRequest;
+
+    auto *subReq = &(initMsg->value.choice.RICsubscriptionRequest);
+    ASN_STRUCT_RESET(asn_DEF_RICsubscriptionRequest, subReq);
+
+    { // RICrequestID
+        auto *e = (RICsubscriptionRequest_IEs_t *)calloc(1, sizeof(RICsubscriptionRequest_IEs_t));
+        ASN_STRUCT_RESET(asn_DEF_RICsubscriptionRequest_IEs, e);
+        e->id = ProtocolIE_ID_id_RICrequestID;
+        e->value.present = RICsubscriptionRequest_IEs__value_PR_RICrequestID;
+        e->value.choice.RICrequestID.ricRequestorID = 88;
+        e->value.choice.RICrequestID.ricInstanceID = 5;
+        ASN_SEQUENCE_ADD(&subReq->protocolIEs.list, e);
+    }
+    { // RANfunctionID
+        auto *e = (RICsubscriptionRequest_IEs_t *)calloc(1, sizeof(RICsubscriptionRequest_IEs_t));
+        ASN_STRUCT_RESET(asn_DEF_RICsubscriptionRequest_IEs, e);
+        e->id = ProtocolIE_ID_id_RANfunctionID;
+        e->criticality = Criticality_reject;
+        e->value.present = RICsubscriptionRequest_IEs__value_PR_RANfunctionID;
+        e->value.choice.RANfunctionID = 8;
+        ASN_SEQUENCE_ADD(&subReq->protocolIEs.list, e);
+    }
+    { // RICrequestID
+        auto *e = (RICsubscriptionRequest_IEs_t *)calloc(1, sizeof(RICsubscriptionRequest_IEs_t));
+        ASN_STRUCT_RESET(asn_DEF_RICsubscriptionRequest_IEs, e);
+        e->id = ProtocolIE_ID_id_RICsubscriptionDetails;
+        e->criticality = Criticality_reject;
+        e->value.present = RICsubscriptionRequest_IEs__value_PR_RICsubscriptionDetails;
+
+        uint8_t buf[10] = {1,2,3,4,5,6,7,8,9,0} ;
+        e->value.choice.RICsubscriptionDetails.ricEventTriggerDefinition.size = 10;
+        e->value.choice.RICsubscriptionDetails.ricEventTriggerDefinition.buf = (uint8_t *)calloc(1, 10);
+        memcpy(e->value.choice.RICsubscriptionDetails.ricEventTriggerDefinition.buf,
+                buf,
+                e->value.choice.RICsubscriptionDetails.ricEventTriggerDefinition.size);
+        { // item 1
+            auto ie = (RICaction_ToBeSetup_ItemIEs_t *)calloc(1, sizeof(RICaction_ToBeSetup_ItemIEs_t));
+            ASN_STRUCT_RESET(asn_DEF_RICaction_ToBeSetup_ItemIEs, ie);
+            ie->id = ProtocolIE_ID_id_RICaction_ToBeSetup_Item;
+            ie->criticality = Criticality_ignore;
+            ie->value.present = RICaction_ToBeSetup_ItemIEs__value_PR_RICaction_ToBeSetup_Item;
+            ie->value.choice.RICaction_ToBeSetup_Item.ricActionID = 22;
+            ie->value.choice.RICaction_ToBeSetup_Item.ricActionType = RICactionType_report;
+
+            auto *ad = (RICactionDefinition_t *)calloc(1, sizeof(RICactionDefinition_t));
+            ASN_STRUCT_RESET(asn_DEF_RICactionDefinition, ad);
+            ad->size = 10;
+            uint8_t buf[10] = {1,2,3,4,5,6,7,8,9,0} ;
+            ad->buf = (uint8_t *)calloc(1, ad->size);
+            memcpy(ad->buf, buf, ad->size);
+            ie->value.choice.RICaction_ToBeSetup_Item.ricActionDefinition = ad;
+
+            auto *sa = (RICsubsequentAction_t *) calloc(1, sizeof(RICsubsequentAction_t));
+            ASN_STRUCT_RESET(asn_DEF_RICsubsequentAction, sa);
+
+            sa->ricTimeToWait = RICtimeToWait_w500ms;
+            sa->ricSubsequentActionType = RICsubsequentActionType_continue;
+
+            ie->value.choice.RICaction_ToBeSetup_Item.ricSubsequentAction = sa;
+            ASN_SEQUENCE_ADD(&e->value.choice.RICsubscriptionDetails.ricAction_ToBeSetup_List.list, ie);
+        }
+
+        { // item 2
+            auto ie = (RICaction_ToBeSetup_ItemIEs_t *)calloc(1, sizeof(RICaction_ToBeSetup_ItemIEs_t));
+            ASN_STRUCT_RESET(asn_DEF_RICaction_ToBeSetup_ItemIEs, ie);
+            ie->id = ProtocolIE_ID_id_RICaction_ToBeSetup_Item;
+            ie->criticality = Criticality_ignore;
+            ie->value.present = RICaction_ToBeSetup_ItemIEs__value_PR_RICaction_ToBeSetup_Item;
+            ie->value.choice.RICaction_ToBeSetup_Item.ricActionID = 47;
+            ie->value.choice.RICaction_ToBeSetup_Item.ricActionType = RICactionType_policy;
+
+            auto *ad = (RICactionDefinition_t *)calloc(1, sizeof(RICactionDefinition_t));
+            ASN_STRUCT_RESET(asn_DEF_RICactionDefinition, ad);
+            ad->size = 10;
+            uint8_t buf[10] = {1,2,3,4,5,6,7,8,9,0} ;
+            ad->buf = (uint8_t *)calloc(1, ad->size);
+            memcpy(ad->buf, buf, ad->size);
+            ie->value.choice.RICaction_ToBeSetup_Item.ricActionDefinition = ad;
+
+            auto *sa = (RICsubsequentAction_t *) calloc(1, sizeof(RICsubsequentAction_t));
+            ASN_STRUCT_RESET(asn_DEF_RICsubsequentAction, sa);
+
+            sa->ricTimeToWait = RICtimeToWait_w5s;
+            sa->ricSubsequentActionType = RICsubsequentActionType_wait;
+
+            ie->value.choice.RICaction_ToBeSetup_Item.ricSubsequentAction = sa;
+            ASN_SEQUENCE_ADD(&e->value.choice.RICsubscriptionDetails.ricAction_ToBeSetup_List.list, ie);
+        }
+
+        ASN_SEQUENCE_ADD(&subReq->protocolIEs.list, e);
+    }
+}
 
 
 void buildSetupSuccsessfulResponse(E2AP_PDU_t *pdu, int mcc, int mnc, uint8_t *data) {
@@ -781,6 +884,256 @@ void buildSetupUnSuccsessfulResponse(E2AP_PDU_t *pdu) {
     }
 
     pdu->present = E2AP_PDU_PR_unsuccessfulOutcome;
+}
+
+void buildResetReq(E2AP_PDU_t *pdu) {
+    ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
+
+    pdu->choice.initiatingMessage = (InitiatingMessage_t *)calloc(1, sizeof(InitiatingMessage_t));
+    pdu->present = E2AP_PDU_PR_initiatingMessage;
+
+    auto *initMsg = pdu->choice.initiatingMessage;
+    ASN_STRUCT_RESET(asn_DEF_InitiatingMessage, initMsg);
+    initMsg->procedureCode = ProcedureCode_id_Reset;
+    initMsg->criticality = Criticality_reject;
+    initMsg->value.present = InitiatingMessage__value_PR_ResetRequest;
+
+
+    auto *resetReq = &(initMsg->value.choice.ResetRequest);
+    ASN_STRUCT_RESET(asn_DEF_ResetRequest, resetReq);
+
+    { //
+        auto *e = (ResetRequestIEs_t *)calloc(1, sizeof(ResetRequestIEs_t));
+        ASN_STRUCT_RESET(asn_DEF_ResetRequestIEs, e);
+        e->id = ProtocolIE_ID_id_Cause;
+        e->criticality = Criticality_ignore;
+        e->value.present = ResetRequestIEs__value_PR_Cause;
+        e->value.choice.Cause.present = Cause_PR_ricRequest;
+        e->value.choice.Cause.choice.ricRequest = 1;
+        ASN_SEQUENCE_ADD(&resetReq->protocolIEs.list, e);
+    }
+
+}
+
+void buildResetResponse(E2AP_PDU_t *pdu) {
+    ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
+
+    pdu->choice.successfulOutcome = (SuccessfulOutcome_t *)calloc(1, sizeof(SuccessfulOutcome_t));
+    pdu->present = E2AP_PDU_PR_successfulOutcome;
+
+    auto *succ = pdu->choice.successfulOutcome;
+    ASN_STRUCT_RESET(asn_DEF_InitiatingMessage, succ);
+    succ->procedureCode = ProcedureCode_id_Reset;
+    succ->criticality = Criticality_reject;
+    succ->value.present = SuccessfulOutcome__value_PR_ResetResponse;
+
+
+    auto *resetRespo = &(succ->value.choice.ResetResponse);
+    ASN_STRUCT_RESET(asn_DEF_ResetResponse, resetRespo);
+
+    { //
+        auto *e = (ResetResponseIEs_t *)calloc(1, sizeof(ResetResponseIEs_t));
+        ASN_STRUCT_RESET(asn_DEF_ResetResponseIEs, e);
+        e->id = ProtocolIE_ID_id_CriticalityDiagnostics;
+        e->criticality = Criticality_ignore;
+        e->value.present = ResetResponseIEs__value_PR_CriticalityDiagnostics;
+
+        e->value.choice.CriticalityDiagnostics.procedureCode = (ProcedureCode_t *)calloc(1,sizeof(ProcedureCode_t));
+        *e->value.choice.CriticalityDiagnostics.procedureCode = ProcedureCode_id_Reset;
+        e->value.choice.CriticalityDiagnostics.triggeringMessage = (TriggeringMessage_t *)calloc(1,sizeof(TriggeringMessage_t));
+        *e->value.choice.CriticalityDiagnostics.triggeringMessage = TriggeringMessage_initiating_message;
+        e->value.choice.CriticalityDiagnostics.procedureCriticality = (Criticality_t *)calloc(1, sizeof(Criticality_t));
+        *e->value.choice.CriticalityDiagnostics.procedureCriticality = Criticality_reject;
+        ASN_SEQUENCE_ADD(&resetRespo->protocolIEs.list, e);
+    }
+
+}
+
+void buildServiceQuery(E2AP_PDU_t *pdu) {
+    ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
+
+    pdu->choice.initiatingMessage = (InitiatingMessage_t *)calloc(1, sizeof(InitiatingMessage_t));
+    pdu->present = E2AP_PDU_PR_initiatingMessage;
+
+    auto *initMsg = pdu->choice.initiatingMessage;
+    ASN_STRUCT_RESET(asn_DEF_InitiatingMessage, initMsg);
+    initMsg->procedureCode = ProcedureCode_id_RICserviceQuery;
+    initMsg->criticality = Criticality_ignore;
+    initMsg->value.present = InitiatingMessage__value_PR_RICserviceQuery;
+
+
+    auto *serviceQuery = &(initMsg->value.choice.RICserviceQuery);
+    ASN_STRUCT_RESET(asn_DEF_ResetRequest, serviceQuery);
+
+    { //
+        auto *e = (RICserviceQuery_IEs_t *)calloc(1, sizeof(RICserviceQuery_IEs_t));
+        ASN_STRUCT_RESET(asn_DEF_RICserviceQuery_IEs, e);
+        e->id = ProtocolIE_ID_id_RANfunctionsAccepted;
+        e->criticality = Criticality_reject;
+        e->value.present = RICserviceQuery_IEs__value_PR_RANfunctionsID_List;
+        {
+            auto *ranFuncIdItemIEs = (RANfunctionID_ItemIEs_t *)calloc(1, sizeof(RANfunctionID_ItemIEs_t));
+
+            ranFuncIdItemIEs->criticality = Criticality_ignore;
+            ranFuncIdItemIEs->id = ProtocolIE_ID_id_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.present = RANfunctionID_ItemIEs__value_PR_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionID = 10;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionRevision = 1;
+            ASN_SEQUENCE_ADD(&e->value.choice.RANfunctionsID_List.list, ranFuncIdItemIEs);
+        }
+        {
+            auto *ranFuncIdItemIEs = (RANfunctionID_ItemIEs_t *)calloc(1, sizeof(RANfunctionID_ItemIEs_t));
+
+            ranFuncIdItemIEs->criticality = Criticality_ignore;
+            ranFuncIdItemIEs->id = ProtocolIE_ID_id_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.present = RANfunctionID_ItemIEs__value_PR_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionID = 11;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionRevision = 2;
+            ASN_SEQUENCE_ADD(&e->value.choice.RANfunctionsID_List.list, ranFuncIdItemIEs);
+        }
+        {
+            auto *ranFuncIdItemIEs = (RANfunctionID_ItemIEs_t *)calloc(1, sizeof(RANfunctionID_ItemIEs_t));
+
+            ranFuncIdItemIEs->criticality = Criticality_ignore;
+            ranFuncIdItemIEs->id = ProtocolIE_ID_id_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.present = RANfunctionID_ItemIEs__value_PR_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionID = 28;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionRevision = 13;
+            ASN_SEQUENCE_ADD(&e->value.choice.RANfunctionsID_List.list, ranFuncIdItemIEs);
+        }
+        {
+            auto *ranFuncIdItemIEs = (RANfunctionID_ItemIEs_t *)calloc(1, sizeof(RANfunctionID_ItemIEs_t));
+
+            ranFuncIdItemIEs->criticality = Criticality_ignore;
+            ranFuncIdItemIEs->id = ProtocolIE_ID_id_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.present = RANfunctionID_ItemIEs__value_PR_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionID = 1;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionRevision = 4;
+            ASN_SEQUENCE_ADD(&e->value.choice.RANfunctionsID_List.list, ranFuncIdItemIEs);
+        }
+        ASN_SEQUENCE_ADD(&serviceQuery->protocolIEs.list, e);
+    }
+
+}
+void buildServiceUpdateResponce(E2AP_PDU_t *pdu) {
+    ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
+
+    pdu->choice.successfulOutcome = (SuccessfulOutcome_t *)calloc(1, sizeof(SuccessfulOutcome_t));
+    pdu->present = E2AP_PDU_PR_successfulOutcome;
+
+    auto *succ = pdu->choice.successfulOutcome;
+    ASN_STRUCT_RESET(asn_DEF_SuccessfulOutcome, succ);
+    succ->procedureCode = ProcedureCode_id_RICserviceQuery;
+    succ->criticality = Criticality_reject;
+    succ->value.present = SuccessfulOutcome__value_PR_RICserviceUpdateAcknowledge;
+
+
+    auto *serviceUpdAck = &(succ->value.choice.RICserviceUpdateAcknowledge);
+    ASN_STRUCT_RESET(asn_DEF_RICserviceUpdateAcknowledge, serviceUpdAck);
+
+    { //
+        auto *e = (RICserviceUpdateAcknowledge_IEs_t *)calloc(1, sizeof(RICserviceUpdateAcknowledge_IEs_t));
+        ASN_STRUCT_RESET(asn_DEF_RICserviceUpdateAcknowledge_IEs, e);
+        e->id = ProtocolIE_ID_id_RANfunctionsAccepted;
+        e->criticality = Criticality_reject;
+        e->value.present = RICserviceUpdateAcknowledge_IEs__value_PR_RANfunctionsID_List;
+        {
+            auto *ranFuncIdItemIEs = (RANfunctionID_ItemIEs_t *)calloc(1, sizeof(RANfunctionID_ItemIEs_t));
+
+            ranFuncIdItemIEs->criticality = Criticality_reject;
+            ranFuncIdItemIEs->id = ProtocolIE_ID_id_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.present = RANfunctionID_ItemIEs__value_PR_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionID = 10;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionRevision = 1;
+            ASN_SEQUENCE_ADD(&e->value.choice.RANfunctionsID_List.list, ranFuncIdItemIEs);
+        }
+        {
+            auto *ranFuncIdItemIEs = (RANfunctionID_ItemIEs_t *)calloc(1, sizeof(RANfunctionID_ItemIEs_t));
+
+            ranFuncIdItemIEs->criticality = Criticality_reject;
+            ranFuncIdItemIEs->id = ProtocolIE_ID_id_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.present = RANfunctionID_ItemIEs__value_PR_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionID = 11;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionRevision = 2;
+            ASN_SEQUENCE_ADD(&e->value.choice.RANfunctionsID_List.list, ranFuncIdItemIEs);
+        }
+        {
+            auto *ranFuncIdItemIEs = (RANfunctionID_ItemIEs_t *)calloc(1, sizeof(RANfunctionID_ItemIEs_t));
+
+            ranFuncIdItemIEs->criticality = Criticality_reject;
+            ranFuncIdItemIEs->id = ProtocolIE_ID_id_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.present = RANfunctionID_ItemIEs__value_PR_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionID = 28;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionRevision = 13;
+            ASN_SEQUENCE_ADD(&e->value.choice.RANfunctionsID_List.list, ranFuncIdItemIEs);
+        }
+        {
+            auto *ranFuncIdItemIEs = (RANfunctionID_ItemIEs_t *)calloc(1, sizeof(RANfunctionID_ItemIEs_t));
+
+            ranFuncIdItemIEs->criticality = Criticality_reject;
+            ranFuncIdItemIEs->id = ProtocolIE_ID_id_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.present = RANfunctionID_ItemIEs__value_PR_RANfunctionID_Item;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionID = 1;
+            ranFuncIdItemIEs->value.choice.RANfunctionID_Item.ranFunctionRevision = 4;
+            ASN_SEQUENCE_ADD(&e->value.choice.RANfunctionsID_List.list, ranFuncIdItemIEs);
+        }
+        ASN_SEQUENCE_ADD(&serviceUpdAck->protocolIEs.list, e);
+    }
+
+
+    {
+        auto *e = (RICserviceUpdateAcknowledge_IEs_t *)calloc(1, sizeof(RICserviceUpdateAcknowledge_IEs_t));
+        ASN_STRUCT_RESET(asn_DEF_RICserviceUpdateAcknowledge_IEs, e);
+        e->id = ProtocolIE_ID_id_RANfunctionsRejected;
+        e->criticality = Criticality_reject;
+        e->value.present = RICserviceUpdateAcknowledge_IEs__value_PR_RANfunctionsIDcause_List;
+        {
+
+            auto *ranFuncIdcause = (RANfunctionIDcause_ItemIEs_t *) calloc(1, sizeof(RANfunctionIDcause_ItemIEs_t));
+            ASN_STRUCT_RESET(asn_DEF_RANfunctionIDcause_Item, ranFuncIdcause);
+
+            ranFuncIdcause->criticality = Criticality_ignore;
+            ranFuncIdcause->id = ProtocolIE_ID_id_RANfunctionIEcause_Item;
+            ranFuncIdcause->value.present = RANfunctionIDcause_ItemIEs__value_PR_RANfunctionIDcause_Item;
+            ranFuncIdcause->value.choice.RANfunctionIDcause_Item.ranFunctionID = 1;
+
+            ranFuncIdcause->value.choice.RANfunctionIDcause_Item.cause.present = Cause_PR_ricService;
+            ranFuncIdcause->value.choice.RANfunctionIDcause_Item.cause.choice.ricService = 1;
+            ASN_SEQUENCE_ADD(&e->value.choice.RANfunctionsIDcause_List.list, ranFuncIdcause);
+
+        }
+        {
+
+            auto *ranFuncIdcause = (RANfunctionIDcause_ItemIEs_t *) calloc(1, sizeof(RANfunctionIDcause_ItemIEs_t));
+            ASN_STRUCT_RESET(asn_DEF_RANfunctionIDcause_Item, ranFuncIdcause);
+
+            ranFuncIdcause->criticality = Criticality_ignore;
+            ranFuncIdcause->id = ProtocolIE_ID_id_RANfunctionIEcause_Item;
+            ranFuncIdcause->value.present = RANfunctionIDcause_ItemIEs__value_PR_RANfunctionIDcause_Item;
+            ranFuncIdcause->value.choice.RANfunctionIDcause_Item.ranFunctionID = 2;
+
+            ranFuncIdcause->value.choice.RANfunctionIDcause_Item.cause.present = Cause_PR_ricService;
+            ranFuncIdcause->value.choice.RANfunctionIDcause_Item.cause.choice.ricService = 2;
+            ASN_SEQUENCE_ADD(&e->value.choice.RANfunctionsIDcause_List.list, ranFuncIdcause);
+
+        }
+        {
+            auto *ranFuncIdcause = (RANfunctionIDcause_ItemIEs_t *) calloc(1, sizeof(RANfunctionIDcause_ItemIEs_t));
+            ASN_STRUCT_RESET(asn_DEF_RANfunctionIDcause_Item, ranFuncIdcause);
+
+            ranFuncIdcause->criticality = Criticality_ignore;
+            ranFuncIdcause->id = ProtocolIE_ID_id_RANfunctionIEcause_Item;
+            ranFuncIdcause->value.present = RANfunctionIDcause_ItemIEs__value_PR_RANfunctionIDcause_Item;
+            ranFuncIdcause->value.choice.RANfunctionIDcause_Item.ranFunctionID = 3;
+
+            ranFuncIdcause->value.choice.RANfunctionIDcause_Item.cause.present = Cause_PR_ricService;
+            ranFuncIdcause->value.choice.RANfunctionIDcause_Item.cause.choice.ricService = 2;
+            ASN_SEQUENCE_ADD(&e->value.choice.RANfunctionsIDcause_List.list, ranFuncIdcause);
+
+        }
+        ASN_SEQUENCE_ADD(&serviceUpdAck->protocolIEs.list, e);
+    }
+
 }
 
 #endif //E2_E2BUILDER_H

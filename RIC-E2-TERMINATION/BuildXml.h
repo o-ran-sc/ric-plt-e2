@@ -127,6 +127,8 @@ string buildXmlData(const string &messageName,
         return string("");
     }
     auto res = node_to_string(*doc);
+    res.erase(std::remove(res.begin(), res.end(), '\n'), res.end());
+    res.erase(std::remove(res.begin(), res.end(), '\t'), res.end());
     delete doc;
     return res;
 
