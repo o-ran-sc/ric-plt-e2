@@ -31,6 +31,8 @@
 using namespace std;
 //using namespace std::placeholders;
 using namespace boost::filesystem;
+using namespace prometheus;
+
 
 //#ifdef __cplusplus
 //extern "C"
@@ -237,6 +239,11 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     }
     jsonTrace = sctpParams.trace;
 
+    tmpStr = conf.getStringValue("prometheusPort");
+    if (tmpStr.length() != 0) {
+        sctpParams.prometheusPort = tmpStr;
+    }
+
     sctpParams.ka_message_length = snprintf(sctpParams.ka_message, KA_MESSAGE_SIZE, "{\"address\": \"%s:%d\","
                                                                                     "\"fqdn\": \"%s\","
                                                                                     "\"pod_name\": \"%s\"}",
@@ -325,6 +332,20 @@ int main(const int argc, char **argv) {
         exit(-1);
     }
 
+    //auto registry = std::make_shared<Registry>();
+    sctpParams.promteheusRegistry = std::make_shared<Registry>();
+
+    //sctpParams.prometheusFamily = new Family<Counter>("E2T", "E2T message counter", {{"E", sctpParams.podName}});
+
+    sctpParams.prometheusFamily = &BuildCounter()
+            .Name("E2T")
+            .Help("E2T message counter")
+            .Labels({{"E", sctpParams.podName}})
+            .Register(*sctpParams.promteheusRegistry);
+
+    Exposer exposer{sctpParams.myIP + ":" + sctpParams.prometheusPort, "/metrics", 1};
+
+
     // start epoll
     sctpParams.epoll_fd = epoll_create1(0);
     if (sctpParams.epoll_fd == -1) {
@@ -357,6 +378,8 @@ int main(const int argc, char **argv) {
     std::vector<std::thread> threads(num_cpus);
 //    std::vector<std::thread> threads;
 
+    exposer.RegisterCollectable(sctpParams.promteheusRegistry);
+
     num_cpus = 1;
     for (unsigned int i = 0; i < num_cpus; i++) {
         threads[i] = std::thread(listener, &sctpParams);
@@ -370,8 +393,6 @@ int main(const int argc, char **argv) {
         }
     }
 
-    auto statFlag = false;
-    auto statThread = std::thread(statColectorThread, (void *)&statFlag);
 
     //loop over term_init until first message from xApp
     handleTermInit(sctpParams);
@@ -379,9 +400,6 @@ int main(const int argc, char **argv) {
     for (auto &t : threads) {
         t.join();
     }
-
-    statFlag = true;
-    statThread.join();
 
     return 0;
 }
@@ -530,7 +548,6 @@ void listener(sctp_params_t *params) {
         mdclog_write(MDCLOG_DEBUG, "started thread number %s", tid);
     }
 
-
     RmrMessagesBuffer_t rmrMessageBuffer{};
     //create and init RMR
     rmrMessageBuffer.rmrCtx = params->rmrCtx;
@@ -556,8 +573,6 @@ void listener(sctp_params_t *params) {
 //        rmrMessageBuffer.rcvBufferedMessages[i] = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
 //        rmrMessageBuffer.sendBufferedMessages[i] = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
 //    }
-
-    message.statCollector = StatCollector::GetInstance();
 
     while (true) {
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
@@ -983,8 +998,6 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
             m->erase(key);
             return -1;
         }
-        // TODO remove stat update
-        //message.statCollector->incSentMessage(string(message.message.enodbName));
         message.message.direction = 'D';
         // send report.buffer of size
         buildJsonMessage(message);
@@ -1042,13 +1055,11 @@ int receiveDataFromSctp(struct epoll_event *events,
     // get the identity of the interface
     message.peerInfo = (ConnectedCU_t *)events->data.ptr;
 
-    message.statCollector = StatCollector::GetInstance();
     struct timespec start{0, 0};
     struct timespec decodestart{0, 0};
     struct timespec end{0, 0};
 
     E2AP_PDU_t *pdu = nullptr;
-
 
     while (true) {
         if (loglevel >= MDCLOG_DEBUG) {
@@ -1066,7 +1077,6 @@ int receiveDataFromSctp(struct epoll_event *events,
         }
 
         memcpy(message.message.enodbName, message.peerInfo->enodbName, sizeof(message.peerInfo->enodbName));
-        message.statCollector->incRecvMessage(string(message.message.enodbName));
         message.message.direction = 'U';
         message.message.time.tv_nsec = ts.tv_nsec;
         message.message.time.tv_sec = ts.tv_sec;
@@ -1115,7 +1125,6 @@ int receiveDataFromSctp(struct epoll_event *events,
         if (rval.code != RC_OK) {
             mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) E2AP PDU from RAN : %s", rval.code,
                          message.peerInfo->enodbName);
-            //todo may need reset to pdu
             break;
         }
 
@@ -1195,89 +1204,97 @@ int receiveDataFromSctp(struct epoll_event *events,
 static void buildAndsendSetupRequest(ReportingMessages_t &message,
                                      RmrMessagesBuffer_t &rmrMessageBuffer,
                                      E2AP_PDU_t *pdu,
-                                     vector<string> &repValues) {
+                                     string const &messageName,
+                                     string const &ieName,
+                                     vector<string> &functionsToAdd_v,
+                                     vector<string> &functionsToModified_v) {
     auto logLevel = mdclog_level_get();
     // now we can send the data to e2Mgr
-    auto buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
-    unsigned char buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
-    auto *rmrMsg = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, buffer_size);
-    // encode to xml
-    auto er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, buffer, buffer_size);
-    if (er.encoded == -1) {
-        mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
-    } else if (er.encoded > (ssize_t) buffer_size) {
-        mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s, at %s line %d",
-                     (int) buffer_size,
-                     asn_DEF_E2AP_PDU.name, __func__, __LINE__);
-    } else {
-        string messageType("E2setupRequest");
-        string ieName("E2setupRequestIEs");
-        buffer[er.encoded] = '\0';
-        buildXmlData(messageType, ieName, repValues, buffer, (size_t)er.encoded);
 
-//        string xmlStr = (char *)buffer;
-//        auto removeSpaces = [] (string str) -> string {
-//            str.erase(remove(str.begin(), str.end(), ' '), str.end());
-//            str.erase(remove(str.begin(), str.end(), '\t'), str.end());
-//            return str;
-//        };
-//
-//        xmlStr = removeSpaces(xmlStr);
-//        // we have the XML
-//        rmrMsg->len = snprintf((char *)rmrMsg->payload, RECEIVE_SCTP_BUFFER_SIZE * 2, "%s:%d|%s",
-//                               message.peerInfo->sctpParams->myIP.c_str(),
-//                               message.peerInfo->sctpParams->rmrPort,
-//                               xmlStr.c_str());
-        rmrMsg->len = snprintf((char *)rmrMsg->payload, RECEIVE_SCTP_BUFFER_SIZE * 2, "%s:%d|%s",
+    asn_enc_rval_t er;
+    auto buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
+    unsigned char *buffer;
+    while (true) {
+        buffer = (unsigned char *)malloc(buffer_size);
+        er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, buffer, buffer_size);
+        if (er.encoded == -1) {
+            mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
+            return;
+        } else if (er.encoded > (ssize_t) buffer_size) {
+            buffer_size = er.encoded + 128;
+            mdclog_write(MDCLOG_WARN, "Buffer of size %d is to small for %s. Reallocate buffer of size %d",
+                         (int) buffer_size,
+                         asn_DEF_E2AP_PDU.name, buffer_size);
+            buffer_size = er.encoded + 128;
+            free(buffer);
+            continue;
+        }
+        buffer[er.encoded] = '\0';
+        break;
+    }
+    // encode to xml
+
+    auto res = buildXmlData(messageName, ieName, functionsToAdd_v, functionsToModified_v, buffer, (size_t) er.encoded);
+    rmr_mbuf_t *rmrMsg;
+    if (res.length() == 0) {
+        rmrMsg = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, buffer_size + 256);
+        rmrMsg->len = snprintf((char *) rmrMsg->payload, RECEIVE_SCTP_BUFFER_SIZE * 2, "%s:%d|%s",
                                message.peerInfo->sctpParams->myIP.c_str(),
                                message.peerInfo->sctpParams->rmrPort,
                                buffer);
-        if (logLevel >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "Setup request of size %d :\n %s\n", rmrMsg->len, rmrMsg->payload);
-        }
-        // send to RMR
-        message.message.messageType = rmrMsg->mtype = RIC_E2_SETUP_REQ;
-        rmrMsg->state = 0;
-        rmr_bytes2meid(rmrMsg, (unsigned char *) message.message.enodbName, strlen(message.message.enodbName));
+    } else {
+        rmrMsg = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, (int)res.length() + 256);
+        rmrMsg->len = snprintf((char *) rmrMsg->payload, res.length() + 256, "%s:%d|%s",
+                               message.peerInfo->sctpParams->myIP.c_str(),
+                               message.peerInfo->sctpParams->rmrPort,
+                               res.c_str());
+    }
 
-        static unsigned char tx[32];
-        snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
-        rmr_bytes2xact(rmrMsg, tx, strlen((const char *) tx));
+    if (logLevel >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_DEBUG, "Setup request of size %d :\n %s\n", rmrMsg->len, rmrMsg->payload);
+    }
+    // send to RMR
+    rmrMsg->mtype = message.message.messageType;
+    rmrMsg->state = 0;
+    rmr_bytes2meid(rmrMsg, (unsigned char *) message.message.enodbName, strlen(message.message.enodbName));
 
-        rmrMsg = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMsg);
-        if (rmrMsg == nullptr) {
-            mdclog_write(MDCLOG_ERR, "RMR failed to send returned nullptr");
-        } else if (rmrMsg->state != 0) {
-            char meid[RMR_MAX_MEID]{};
-            if (rmrMsg->state == RMR_ERR_RETRY) {
-                usleep(5);
-                rmrMsg->state = 0;
-                mdclog_write(MDCLOG_INFO, "RETRY sending Message %d to Xapp from %s",
-                             rmrMsg->mtype, rmr_get_meid(rmrMsg, (unsigned char *) meid));
-                rmrMsg = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMsg);
-                if (rmrMsg == nullptr) {
-                    mdclog_write(MDCLOG_ERR, "RMR failed send returned nullptr");
-                } else if (rmrMsg->state != 0) {
-                    mdclog_write(MDCLOG_ERR,
-                                 "RMR Retry failed %s sending request %d to Xapp from %s",
-                                 translateRmrErrorMessages(rmrMsg->state).c_str(),
-                                 rmrMsg->mtype,
-                                 rmr_get_meid(rmrMsg, (unsigned char *) meid));
-                }
-            } else {
-                mdclog_write(MDCLOG_ERR, "RMR failed: %s. sending request %d to Xapp from %s",
+    static unsigned char tx[32];
+    snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
+    rmr_bytes2xact(rmrMsg, tx, strlen((const char *) tx));
+
+    rmrMsg = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMsg);
+    if (rmrMsg == nullptr) {
+        mdclog_write(MDCLOG_ERR, "RMR failed to send returned nullptr");
+    } else if (rmrMsg->state != 0) {
+        char meid[RMR_MAX_MEID]{};
+        if (rmrMsg->state == RMR_ERR_RETRY) {
+            usleep(5);
+            rmrMsg->state = 0;
+            mdclog_write(MDCLOG_INFO, "RETRY sending Message %d to Xapp from %s",
+                         rmrMsg->mtype, rmr_get_meid(rmrMsg, (unsigned char *) meid));
+            rmrMsg = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMsg);
+            if (rmrMsg == nullptr) {
+                mdclog_write(MDCLOG_ERR, "RMR failed send returned nullptr");
+            } else if (rmrMsg->state != 0) {
+                mdclog_write(MDCLOG_ERR,
+                             "RMR Retry failed %s sending request %d to Xapp from %s",
                              translateRmrErrorMessages(rmrMsg->state).c_str(),
                              rmrMsg->mtype,
                              rmr_get_meid(rmrMsg, (unsigned char *) meid));
             }
-        }
-        message.peerInfo->gotSetup = true;
-        buildJsonMessage(message);
-        if (rmrMsg != nullptr) {
-            rmr_free_msg(rmrMsg);
+        } else {
+            mdclog_write(MDCLOG_ERR, "RMR failed: %s. sending request %d to Xapp from %s",
+                         translateRmrErrorMessages(rmrMsg->state).c_str(),
+                         rmrMsg->mtype,
+                         rmr_get_meid(rmrMsg, (unsigned char *) meid));
         }
     }
-
+    message.peerInfo->gotSetup = true;
+    buildJsonMessage(message);
+    if (rmrMsg != nullptr) {
+        rmr_free_msg(rmrMsg);
+    }
+    free(buffer);
 }
 
 int RAN_Function_list_To_Vector(RANfunctions_List_t& list, vector <string> &runFunXML_v) {
@@ -1301,17 +1318,9 @@ int RAN_Function_list_To_Vector(RANfunctions_List_t& list, vector <string> &runF
                 return -1;
             }
 
-//                        if (mdclog_level_get() >= MDCLOG_DEBUG) {
-//                            char *printBuffer;
-//                            size_t size;
-//                            FILE *stream = open_memstream(&printBuffer, &size);
-//                            asn_fprint(stream, &asn_DEF_E2SM_gNB_NRT_RANfunction_Definition, ranFunDef);
-//                            mdclog_write(MDCLOG_DEBUG, "Encoding E2SM %s PDU past : %s",
-//                                         asn_DEF_E2SM_gNB_NRT_RANfunction_Definition.name,
-//                                         printBuffer);
-//                        }
             auto xml_buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
             unsigned char xml_buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
+            memset(xml_buffer, 0, RECEIVE_SCTP_BUFFER_SIZE * 2);
             // encode to xml
             auto er = asn_encode_to_buffer(nullptr,
                                            ATS_BASIC_XER,
@@ -1334,6 +1343,7 @@ int RAN_Function_list_To_Vector(RANfunctions_List_t& list, vector <string> &runF
                                  index++,
                                  xml_buffer);
                 }
+
                 string runFuncs = (char *)(xml_buffer);
                 runFunXML_v.emplace_back(runFuncs);
             }
@@ -1342,29 +1352,16 @@ int RAN_Function_list_To_Vector(RANfunctions_List_t& list, vector <string> &runF
     return 0;
 }
 
-
-
-int collectSetupAndServiceUpdate_RequestData(E2AP_PDU_t *pdu,
-                                             Sctp_Map_t *sctpMap,
-                                             ReportingMessages_t &message,
-                                             vector <string> &RANfunctionsAdded_v,
-                                             vector <string> &RANfunctionsModified_v) {
+int collectServiceUpdate_RequestData(E2AP_PDU_t *pdu,
+                                     Sctp_Map_t *sctpMap,
+                                     ReportingMessages_t &message,
+                                     vector <string> &RANfunctionsAdded_v,
+                                     vector <string> &RANfunctionsModified_v) {
     memset(message.peerInfo->enodbName, 0 , MAX_ENODB_NAME_SIZE);
-    for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.count; i++) {
-        auto *ie = pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.array[i];
-        if (ie->id == ProtocolIE_ID_id_GlobalE2node_ID) {
-            // get the ran name for meid
-            if (ie->value.present == E2setupRequestIEs__value_PR_GlobalE2node_ID) {
-                if (buildRanName(message.peerInfo->enodbName, ie) < 0) {
-                    mdclog_write(MDCLOG_ERR, "Bad param in E2setupRequestIEs GlobalE2node_ID.\n");
-                    // no mesage will be sent
-                    return -1;
-                }
-                memcpy(message.message.enodbName, message.peerInfo->enodbName, strlen(message.peerInfo->enodbName));
-                sctpMap->setkey(message.message.enodbName, message.peerInfo);
-            }
-        } else if (ie->id == ProtocolIE_ID_id_RANfunctionsAdded) {
-            if (ie->value.present == E2setupRequestIEs__value_PR_RANfunctions_List) {
+    for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.RICserviceUpdate.protocolIEs.list.count; i++) {
+        auto *ie = pdu->choice.initiatingMessage->value.choice.RICserviceUpdate.protocolIEs.list.array[i];
+        if (ie->id == ProtocolIE_ID_id_RANfunctionsAdded) {
+            if (ie->value.present == RICserviceUpdate_IEs__value_PR_RANfunctionsID_List) {
                 if (mdclog_level_get() >= MDCLOG_DEBUG) {
                     mdclog_write(MDCLOG_DEBUG, "Run function list have %d entries",
                                  ie->value.choice.RANfunctions_List.list.count);
@@ -1374,7 +1371,7 @@ int collectSetupAndServiceUpdate_RequestData(E2AP_PDU_t *pdu,
                 }
             }
         } else if (ie->id == ProtocolIE_ID_id_RANfunctionsModified) {
-            if (ie->value.present == E2setupRequestIEs__value_PR_RANfunctions_List) {
+            if (ie->value.present == RICserviceUpdate_IEs__value_PR_RANfunctions_List) {
                 if (mdclog_level_get() >= MDCLOG_DEBUG) {
                     mdclog_write(MDCLOG_DEBUG, "Run function list have %d entries",
                                  ie->value.choice.RANfunctions_List.list.count);
@@ -1391,6 +1388,163 @@ int collectSetupAndServiceUpdate_RequestData(E2AP_PDU_t *pdu,
     }
     return 0;
 }
+
+
+
+void buildPromethuslist(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFamily) {
+    peerInfo->counters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_E2setup - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"SetupRequest", "Messages"}});
+    peerInfo->counters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_E2setup - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"SetupRequest", "Bytes"}});
+
+    peerInfo->counters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_ErrorIndication - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"ErrorIndication", "Messages"}});
+    peerInfo->counters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_ErrorIndication - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"ErrorIndication", "Bytes"}});
+
+    peerInfo->counters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_RICindication - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICindication", "Messages"}});
+    peerInfo->counters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_RICindication - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICindication", "Bytes"}});
+
+    peerInfo->counters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_Reset - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"ResetRequest", "Messages"}});
+    peerInfo->counters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_Reset - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"ResetRequest", "Bytes"}});
+
+    peerInfo->counters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_RICserviceUpdate - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICserviceUpdate", "Messages"}});
+    peerInfo->counters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_RICserviceUpdate - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICserviceUpdate", "Bytes"}});
+    // ---------------------------------------------
+    peerInfo->counters[IN_SUCC][MSG_COUNTER][(ProcedureCode_id_Reset - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"ResetACK", "Messages"}});
+    peerInfo->counters[IN_SUCC][BYTES_COUNTER][(ProcedureCode_id_Reset - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"ResetACK", "Bytes"}});
+
+    peerInfo->counters[IN_SUCC][MSG_COUNTER][(ProcedureCode_id_RICcontrol - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICcontrolACK", "Messages"}});
+    peerInfo->counters[IN_SUCC][BYTES_COUNTER][(ProcedureCode_id_RICcontrol - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICcontrolACK", "Bytes"}});
+
+    peerInfo->counters[IN_SUCC][MSG_COUNTER][(ProcedureCode_id_RICsubscription - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICsubscriptionACK", "Messages"}});
+    peerInfo->counters[IN_SUCC][BYTES_COUNTER][(ProcedureCode_id_RICsubscription - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICsubscriptionACK", "Bytes"}});
+
+    peerInfo->counters[IN_SUCC][MSG_COUNTER][(ProcedureCode_id_RICsubscriptionDelete - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICsubscriptionDeleteACK", "Messages"}});
+    peerInfo->counters[IN_SUCC][BYTES_COUNTER][(ProcedureCode_id_RICsubscriptionDelete - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICsubscriptionDeleteACK", "Bytes"}});
+    //-------------------------------------------------------------
+
+    peerInfo->counters[IN_UN_SUCC][MSG_COUNTER][(ProcedureCode_id_RICcontrol - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICcontrolFailure", "Messages"}});
+    peerInfo->counters[IN_UN_SUCC][BYTES_COUNTER][(ProcedureCode_id_RICcontrol - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICcontrolFailure", "Bytes"}});
+
+    peerInfo->counters[IN_UN_SUCC][MSG_COUNTER][(ProcedureCode_id_RICsubscription - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICsubscriptionFailure", "Messages"}});
+    peerInfo->counters[IN_UN_SUCC][BYTES_COUNTER][(ProcedureCode_id_RICsubscription - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICsubscriptionFailure", "Bytes"}});
+
+    peerInfo->counters[IN_UN_SUCC][MSG_COUNTER][(ProcedureCode_id_RICsubscriptionDelete - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICsubscriptionDeleteFailure", "Messages"}});
+    peerInfo->counters[IN_UN_SUCC][BYTES_COUNTER][(ProcedureCode_id_RICsubscriptionDelete - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICsubscriptionDeleteFailure", "Bytes"}});
+
+    //====================================================================================
+    peerInfo->counters[OUT_INITI][MSG_COUNTER][(ProcedureCode_id_ErrorIndication - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"ErrorIndication", "Messages"}});
+    peerInfo->counters[OUT_INITI][BYTES_COUNTER][(ProcedureCode_id_ErrorIndication - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"ErrorIndication", "Bytes"}});
+
+    peerInfo->counters[OUT_INITI][MSG_COUNTER][(ProcedureCode_id_Reset - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"ResetRequest", "Messages"}});
+    peerInfo->counters[OUT_INITI][BYTES_COUNTER][(ProcedureCode_id_Reset - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"ResetRequest", "Bytes"}});
+
+    peerInfo->counters[OUT_INITI][MSG_COUNTER][(ProcedureCode_id_RICcontrol - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICcontrol", "Messages"}});
+    peerInfo->counters[OUT_INITI][BYTES_COUNTER][(ProcedureCode_id_RICcontrol - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICcontrol", "Bytes"}});
+
+    peerInfo->counters[OUT_INITI][MSG_COUNTER][(ProcedureCode_id_RICserviceQuery - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICserviceQuery", "Messages"}});
+    peerInfo->counters[OUT_INITI][BYTES_COUNTER][(ProcedureCode_id_RICserviceQuery - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICserviceQuery", "Bytes"}});
+
+    peerInfo->counters[OUT_INITI][MSG_COUNTER][(ProcedureCode_id_RICsubscription - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICsubscription", "Messages"}});
+    peerInfo->counters[OUT_INITI][BYTES_COUNTER][(ProcedureCode_id_RICsubscription - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICsubscription", "Bytes"}});
+
+    peerInfo->counters[OUT_INITI][MSG_COUNTER][(ProcedureCode_id_RICsubscriptionDelete - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICsubscriptionDelete", "Messages"}});
+    peerInfo->counters[OUT_INITI][BYTES_COUNTER][(ProcedureCode_id_RICsubscriptionDelete - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICsubscriptionDelete", "Bytes"}});
+    //---------------------------------------------------------------------------------------------------------
+    peerInfo->counters[OUT_SUCC][MSG_COUNTER][(ProcedureCode_id_E2setup - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"SetupResponse", "Messages"}});
+    peerInfo->counters[OUT_SUCC][BYTES_COUNTER][(ProcedureCode_id_E2setup - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"SetupResponse", "Bytes"}});
+
+    peerInfo->counters[OUT_SUCC][MSG_COUNTER][(ProcedureCode_id_Reset - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"ResetACK", "Messages"}});
+    peerInfo->counters[OUT_SUCC][BYTES_COUNTER][(ProcedureCode_id_Reset - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"ResetACK", "Bytes"}});
+
+    peerInfo->counters[OUT_SUCC][MSG_COUNTER][(ProcedureCode_id_RICserviceUpdate - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICserviceUpdateResponse", "Messages"}});
+    peerInfo->counters[OUT_SUCC][BYTES_COUNTER][(ProcedureCode_id_RICserviceUpdate - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICserviceUpdateResponse", "Bytes"}});
+    //----------------------------------------------------------------------------------------------------------------
+    peerInfo->counters[OUT_UN_SUCC][MSG_COUNTER][(ProcedureCode_id_E2setup - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"SetupRequestFailure", "Messages"}});
+    peerInfo->counters[OUT_UN_SUCC][BYTES_COUNTER][(ProcedureCode_id_E2setup - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"SetupRequestFailure", "Bytes"}});
+
+    peerInfo->counters[OUT_UN_SUCC][MSG_COUNTER][(ProcedureCode_id_RICserviceUpdate - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICserviceUpdateFailure", "Messages"}});
+    peerInfo->counters[OUT_UN_SUCC][BYTES_COUNTER][(ProcedureCode_id_RICserviceUpdate - 1)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICserviceUpdateFailure", "Bytes"}});
+}
+/**
+ *
+ * @param pdu
+ * @param sctpMap
+ * @param message
+ * @param RANfunctionsAdded_v
+ * @return
+ */
+int collectSetupRequestData(E2AP_PDU_t *pdu,
+                                     Sctp_Map_t *sctpMap,
+                                     ReportingMessages_t &message,
+                                     vector <string> &RANfunctionsAdded_v) {
+    memset(message.peerInfo->enodbName, 0 , MAX_ENODB_NAME_SIZE);
+    for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.count; i++) {
+        auto *ie = pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.array[i];
+        if (ie->id == ProtocolIE_ID_id_GlobalE2node_ID) {
+            // get the ran name for meid
+            if (ie->value.present == E2setupRequestIEs__value_PR_GlobalE2node_ID) {
+                if (buildRanName(message.peerInfo->enodbName, ie) < 0) {
+                    mdclog_write(MDCLOG_ERR, "Bad param in E2setupRequestIEs GlobalE2node_ID.\n");
+                    // no mesage will be sent
+                    return -1;
+                }
+
+                memcpy(message.message.enodbName, message.peerInfo->enodbName, strlen(message.peerInfo->enodbName));
+                sctpMap->setkey(message.message.enodbName, message.peerInfo);
+                buildPromethuslist(message.peerInfo, message.peerInfo->sctpParams->prometheusFamily);
+            }
+        } else if (ie->id == ProtocolIE_ID_id_RANfunctionsAdded) {
+            if (ie->value.present == E2setupRequestIEs__value_PR_RANfunctions_List) {
+                if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                    mdclog_write(MDCLOG_DEBUG, "Run function list have %d entries",
+                                 ie->value.choice.RANfunctions_List.list.count);
+                }
+                if (RAN_Function_list_To_Vector(ie->value.choice.RANfunctions_List, RANfunctionsAdded_v) != 0 ) {
+                    return -1;
+                }
+            }
+        }
+    }
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_DEBUG, "Run function vector have %ld entries",
+                     RANfunctionsAdded_v.size());
+    }
+    return 0;
+}
+
+int XML_From_PER(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer) {
+    E2AP_PDU_t *pdu = nullptr;
+
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_DEBUG, "got PER message of size %d is:%s",
+                     rmrMessageBuffer.sendMessage->len, rmrMessageBuffer.sendMessage->payload);
+    }
+    auto rval = asn_decode(nullptr, ATS_ALIGNED_BASIC_PER, &asn_DEF_E2AP_PDU, (void **) &pdu,
+                           rmrMessageBuffer.sendMessage->payload, rmrMessageBuffer.sendMessage->len);
+    if (rval.code != RC_OK) {
+        mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) setup response  from E2MGR : %s",
+                     rval.code,
+                     message.message.enodbName);
+        return -1;
+    }
+
+    int buff_size = RECEIVE_XAPP_BUFFER_SIZE;
+    auto er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu,
+                                   rmrMessageBuffer.sendMessage->payload, buff_size);
+    if (er.encoded == -1) {
+        mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
+        return -1;
+    } else if (er.encoded > (ssize_t)buff_size) {
+        mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s, at %s line %d",
+                     (int)rmrMessageBuffer.sendMessage->len,
+                     asn_DEF_E2AP_PDU.name,
+                     __func__,
+                     __LINE__);
+        return -1;
+    }
+    rmrMessageBuffer.sendMessage->len = er.encoded;
+    return 0;
+
+}
+
 /**
  *
  * @param pdu
@@ -1412,41 +1566,37 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                 mdclog_write(MDCLOG_DEBUG, "Got E2setup");
             }
 
-            // first get the message as XML buffer
-            auto setup_xml_buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
-            unsigned char setup_xml_buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
-
-            auto er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, setup_xml_buffer, setup_xml_buffer_size);
-            if (er.encoded == -1) {
-                mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
-                break;
-            } else if (er.encoded > (ssize_t) setup_xml_buffer_size) {
-                mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s, at %s line %d",
-                             (int)setup_xml_buffer_size,
-                             asn_DEF_E2AP_PDU.name, __func__, __LINE__);
-                break;
-            }
-            std::string xmlString(setup_xml_buffer_size,  setup_xml_buffer_size + er.encoded);
-
             vector <string> RANfunctionsAdded_v;
             vector <string> RANfunctionsModified_v;
             RANfunctionsAdded_v.clear();
             RANfunctionsModified_v.clear();
-            if (collectSetupAndServiceUpdate_RequestData(pdu, sctpMap, message,
-                    RANfunctionsAdded_v, RANfunctionsModified_v) != 0) {
+            if (collectSetupRequestData(pdu, sctpMap, message, RANfunctionsAdded_v) != 0) {
                 break;
             }
 
-            buildAndsendSetupRequest(message, rmrMessageBuffer, pdu, RANfunctionsAdded_v);
+            string messageName("E2setupRequest");
+            string ieName("E2setupRequestIEs");
+            message.message.messageType = RIC_E2_SETUP_REQ;
+            buildAndsendSetupRequest(message, rmrMessageBuffer, pdu, messageName, ieName, RANfunctionsAdded_v, RANfunctionsModified_v);
             break;
         }
         case ProcedureCode_id_RICserviceUpdate: {
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICserviceUpdate %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_SERVICE_UPDATE, rmrMessageBuffer) != 0) {
-                mdclog_write(MDCLOG_ERR, "RIC_SERVICE_UPDATE message failed to send to xAPP");
+            vector <string> RANfunctionsAdded_v;
+            vector <string> RANfunctionsModified_v;
+            RANfunctionsAdded_v.clear();
+            RANfunctionsModified_v.clear();
+            if (collectServiceUpdate_RequestData(pdu, sctpMap, message,
+                                                 RANfunctionsAdded_v, RANfunctionsModified_v) != 0) {
+                break;
             }
+
+            string messageName("RICserviceUpdate");
+            string ieName("RICserviceUpdateIEs");
+            message.message.messageType = RIC_SERVICE_UPDATE;
+            buildAndsendSetupRequest(message, rmrMessageBuffer, pdu, messageName, ieName, RANfunctionsAdded_v, RANfunctionsModified_v);
             break;
         }
         case ProcedureCode_id_ErrorIndication: {
@@ -1462,8 +1612,13 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got Reset %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_X2_RESET, rmrMessageBuffer) != 0) {
-                mdclog_write(MDCLOG_ERR, "RIC_X2_RESET message failed to send to xAPP");
+
+            if (XML_From_PER(message, rmrMessageBuffer) < 0) {
+                break;
+            }
+
+            if (sendRequestToXapp(message, RIC_E2_RESET_REQ, rmrMessageBuffer) != 0) {
+                mdclog_write(MDCLOG_ERR, "RIC_E2_RESET_REQ message failed to send to xAPP");
             }
             break;
         }
@@ -1582,8 +1737,11 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got Reset %s", message.message.enodbName);
             }
-            if (sendRequestToXapp(message, RIC_X2_RESET, rmrMessageBuffer) != 0) {
-                mdclog_write(MDCLOG_ERR, "RIC_X2_RESET message failed to send to xAPP");
+            if (XML_From_PER(message, rmrMessageBuffer) < 0) {
+                break;
+            }
+            if (sendRequestToXapp(message, RIC_E2_RESET_RESP, rmrMessageBuffer) != 0) {
+                mdclog_write(MDCLOG_ERR, "RIC_E2_RESET_RESP message failed to send to xAPP");
             }
             break;
         }
@@ -1744,12 +1902,7 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
             break;
         }
         case ProcedureCode_id_Reset: {
-            if (logLevel >= MDCLOG_DEBUG) {
-                mdclog_write(MDCLOG_DEBUG, "Got Reset %s", message.message.enodbName);
-            }
-            if (sendRequestToXapp(message, RIC_X2_RESET, rmrMessageBuffer) != 0) {
-                mdclog_write(MDCLOG_ERR, "RIC_X2_RESET message failed to send to xAPP");
-            }
+            mdclog_write(MDCLOG_ERR, "Got Reset for %s, Protocol ERROR", message.message.enodbName);
             break;
         }
         case ProcedureCode_id_RICcontrol: {
@@ -1898,7 +2051,10 @@ int sendRequestToXapp(ReportingMessages_t &message,
     return rc;
 }
 
-
+/**
+ *
+ * @param pSctpParams
+ */
 void getRmrContext(sctp_params_t &pSctpParams) {
     pSctpParams.rmrCtx = nullptr;
     pSctpParams.rmrCtx = rmr_init(pSctpParams.rmrAddress, RECEIVE_XAPP_BUFFER_SIZE, RMRFL_NONE);
@@ -1942,11 +2098,17 @@ void getRmrContext(sctp_params_t &pSctpParams) {
     }
 }
 
+/**
+ *
+ * @param message
+ * @param rmrMessageBuffer
+ * @return
+ */
 int PER_FromXML(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer) {
     E2AP_PDU_t *pdu = nullptr;
 
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "got xml setup response of size %d is:%s",
+        mdclog_write(MDCLOG_DEBUG, "got xml Format  data from xApp of size %d is:%s",
                 rmrMessageBuffer.rcvMessage->len, rmrMessageBuffer.rcvMessage->payload);
     }
     auto rval = asn_decode(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, (void **) &pdu,
@@ -2093,16 +2255,22 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             }
             break;
         }
-        case RIC_X2_RESET: {
+        case RIC_E2_RESET_REQ: {
+            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+                break;
+            }
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send RIC_X2_RESET");
+                mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_RESET");
                 return -6;
             }
             break;
         }
-        case RIC_X2_RESET_RESP: {
+        case RIC_E2_RESET_RESP: {
+            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+                break;
+            }
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
-                mdclog_write(MDCLOG_ERR, "Failed to send RIC_X2_RESET_RESP");
+                mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_RESET_RESP");
                 return -6;
             }
             break;
@@ -2165,6 +2333,30 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 
             break;
         }
+        case RIC_HEALTH_CHECK_REQ: {
+            // send message back
+            rmr_bytes2payload(rmrMessageBuffer.sendMessage,
+                              (unsigned char *)"OK",
+                              2);
+            rmrMessageBuffer.sendMessage->mtype = RIC_HEALTH_CHECK_RESP;
+            rmrMessageBuffer.sendMessage->state = 0;
+            static unsigned char tx[32];
+            auto txLen = snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
+            rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, txLen);
+            rmrMessageBuffer.sendMessage = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMessageBuffer.sendMessage);
+            if (rmrMessageBuffer.sendMessage == nullptr) {
+                rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
+                mdclog_write(MDCLOG_ERR, "Failed to send RIC_HEALTH_CHECK_RESP RMR message returned NULL");
+            } else if (rmrMessageBuffer.sendMessage->state != 0)  {
+                mdclog_write(MDCLOG_ERR, "Failed to send RIC_HEALTH_CHECK_RESP, on RMR state = %d ( %s)",
+                             rmrMessageBuffer.sendMessage->state, translateRmrErrorMessages(rmrMessageBuffer.sendMessage->state).c_str());
+            } else if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RIC_HEALTH_CHECK_REQ Request send : OK");
+            }
+
+            break;
+        }
+
         default:
             mdclog_write(MDCLOG_WARN, "Message Type : %d is not seported", rmrMessageBuffer.rcvMessage->mtype);
             message.message.asndata = rmrMessageBuffer.rcvMessage->payload;

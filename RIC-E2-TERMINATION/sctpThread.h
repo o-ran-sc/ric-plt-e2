@@ -83,10 +83,14 @@
 
 #include "cxxopts.hpp"
 //#include "config-cpp/include/config-cpp/config-cpp.h"
+#include <zlib.h>
+#include <prometheus/counter.h>
+#include <prometheus/exposer.h>
+#include <prometheus/registry.h>
 
+using namespace prometheus;
 
 #include "mapWrapper.h"
-#include "statCollector.h"
 
 #include "base64.h"
 
@@ -106,8 +110,8 @@ namespace expr = boost::log::expressions;
 
 #define MAXEVENTS 128
 
-#define RECEIVE_SCTP_BUFFER_SIZE (128 * 1024)
-#define RECEIVE_XAPP_BUFFER_SIZE RECEIVE_SCTP_BUFFER_SIZE 
+#define RECEIVE_SCTP_BUFFER_SIZE (256 * 1024)
+#define RECEIVE_XAPP_BUFFER_SIZE RECEIVE_SCTP_BUFFER_SIZE
 
 typedef mapWrapper Sctp_Map_t;
 
@@ -137,8 +141,24 @@ typedef struct sctp_params {
     string configFilePath {};
     string configFileName {};
     bool trace = true;
+    shared_ptr<prometheus::Registry> promteheusRegistry;
+    string prometheusPort {"8088"};
+    Family<Counter> *prometheusFamily;
     //shared_timed_mutex fence; // moved to mapWrapper
 } sctp_params_t;
+
+// RAN to RIC
+#define IN_INITI 0 //INITIATING
+#define IN_SUCC 1 //SUCCESSFULL
+#define IN_UN_SUCC 2 //UN-Successfull
+
+// RIC To RAN
+#define OUT_INITI 3 //INITIATING
+#define OUT_SUCC 4 //SUCCESSFULL
+#define OUT_UN_SUCC 5 //UN-Successfull
+
+#define MSG_COUNTER 0
+#define BYTES_COUNTER 1
 
 typedef struct ConnectedCU {
     int fileDescriptor = 0;
@@ -151,7 +171,9 @@ typedef struct ConnectedCU {
     bool isConnected = false;
     bool gotSetup = false;
     sctp_params_t *sctpParams = nullptr;
+    Counter *counters[6][2][ProcedureCode_id_RICsubscriptionDelete] {};
 } ConnectedCU_t ;
+
 
 #define MAX_RMR_BUFF_ARRY 32
 typedef struct RmrMessagesBuffer {
@@ -179,7 +201,6 @@ typedef struct ReportingMessages {
     long outLen = 0;
     unsigned char base64Data[RECEIVE_SCTP_BUFFER_SIZE * 2] {};
     char buffer[RECEIVE_SCTP_BUFFER_SIZE * 8] {};
-    StatCollector *statCollector = nullptr;
 } ReportingMessages_t;
 
 cxxopts::ParseResult parse(int argc, char *argv[], sctp_params_t &pSctpParams);

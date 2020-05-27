@@ -44,6 +44,8 @@ include_directories(RIC-E2-TERMINATION
         RIC-E2-TERMINATION/3rdparty/oranE2
         RIC-E2-TERMINATION/3rdparty/oranE2SM
         RIC-E2-TERMINATION/3rdparty/cxxopts/include
+        RIC-E2-TERMINATION/3rdparty/prometheus-cpp
+        RIC-E2-TERMINATION/3rdparty/prometheus-cpp/core/include
         RIC-E2-TERMINATION/3rdparty
         cmake-modules)
 
@@ -99,6 +101,10 @@ link_libraries(nsl
         tbb
         boost_filesystem
         cgreen
+        prometheus-cpp-core
+        prometheus-cpp-pull
+        z
+        curl
         pthread)
 
 add_executable(e2 RIC-E2-TERMINATION/sctpThread.cpp
@@ -109,7 +115,6 @@ add_executable(e2 RIC-E2-TERMINATION/sctpThread.cpp
         RIC-E2-TERMINATION/base64.cpp
         RIC-E2-TERMINATION/ReadConfigFile.h
         RIC-E2-TERMINATION/BuildRunName.h
-        RIC-E2-TERMINATION/statCollector.h
         RIC-E2-TERMINATION/3rdparty/pugixml/src/pugiconfig.hpp
         RIC-E2-TERMINATION/3rdparty/pugixml/src/pugixml.cpp
         RIC-E2-TERMINATION/3rdparty/pugixml/src/pugixml.hpp
@@ -119,6 +124,8 @@ target_link_libraries(e2 librmr_si.a)
 target_link_libraries(e2 libicui18n.a)
 target_link_libraries(e2 libicuuc.a)
 target_link_libraries(e2 libicudata.a)
+target_link_libraries(e2 prometheus-cpp-core.a)
+target_link_libraries(e2 prometheus-cpp-pull.a)
 
 #target_link_libraries(e2 libnng.a)
 
@@ -147,7 +154,6 @@ add_executable(sctpClient
         )
 target_link_libraries(sctpClient libpistache.a)
 target_link_libraries(sctpClient librmr_si.a)
-#target_link_libraries(sctpClient libnng.a)
 
 add_executable(setUpMessages
         RIC-E2-TERMINATION/TEST/testAsn/setUpMessages/SetUpMessages.cpp
