@@ -103,6 +103,7 @@ link_libraries(nsl
         cgreen
         prometheus-cpp-core
         prometheus-cpp-pull
+        prometheus-cpp-push
         z
         curl
         pthread)
@@ -126,6 +127,7 @@ target_link_libraries(e2 libicuuc.a)
 target_link_libraries(e2 libicudata.a)
 target_link_libraries(e2 prometheus-cpp-core.a)
 target_link_libraries(e2 prometheus-cpp-pull.a)
+target_link_libraries(e2 prometheus-cpp-push.a)
 
 #target_link_libraries(e2 libnng.a)
 

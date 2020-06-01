@@ -50,6 +50,7 @@
 #include <map>
 #include <sys/inotify.h>
 #include <csignal>
+#include <future>
 
 #include <rmr/rmr.h>
 #include <rmr/RIC_message_types.h>
@@ -86,6 +87,7 @@
 #include <zlib.h>
 #include <prometheus/counter.h>
 #include <prometheus/exposer.h>
+#include <prometheus/gateway.h>
 #include <prometheus/registry.h>
 
 using namespace prometheus;
@@ -121,6 +123,7 @@ typedef mapWrapper Sctp_Map_t;
 #define KA_MESSAGE_SIZE 2048
 
 typedef struct sctp_params {
+    int      epollTimeOut = -1;
     uint16_t rmrPort = 0;
     uint16_t sctpPort = SRC_PORT;
     int      epoll_fd = 0;
@@ -141,10 +144,13 @@ typedef struct sctp_params {
     string configFilePath {};
     string configFileName {};
     bool trace = true;
-    shared_ptr<prometheus::Registry> promteheusRegistry;
+    string prometheusMode {"pull"};
+    string prometheusPushAddress {"127.0.0.1:7676"};
+    shared_ptr<prometheus::Registry> prometheusRegistry;
     string prometheusPort {"8088"};
     Family<Counter> *prometheusFamily;
-    //shared_timed_mutex fence; // moved to mapWrapper
+    Gateway *prometheusGateway = nullptr;
+    Exposer *prometheusExposer = nullptr;
 } sctp_params_t;
 
 // RAN to RIC
