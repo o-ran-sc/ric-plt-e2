@@ -142,6 +142,11 @@ COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicudata.so.60 /usr/lib/libicudat
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/libstdc++.so.6
 
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so.4.5.0 /usr/lib/libcurl-gnutls.so.4.5.0
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so.4 /usr/lib/libcurl-gnutls.so.4
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so /usr/lib/libcurl-gnutls.so
+
+
 WORKDIR /opt/e2/
 ENV LD_LIBRARY_PATH=/usr/local/lib
 ENV RMR_SEED_RT=dockerRouter.txt

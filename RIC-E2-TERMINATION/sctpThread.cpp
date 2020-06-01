@@ -239,16 +239,17 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     }
     jsonTrace = sctpParams.trace;
 
+    sctpParams.epollTimeOut = -1;
     tmpStr = conf.getStringValue("prometheusMode");
     transform(tmpStr.begin(), tmpStr.end(), tmpStr.begin(), ::tolower);
     if (tmpStr.length() != 0) {
-        if (tmpStr.compare("push")) {
+        if (tmpStr.compare("push") == 0) {
             sctpParams.prometheusPushAddress = tmpStr;
             auto timeout = conf.getIntValue("prometheusPushTimeOut");
             if (timeout >= 5 && timeout <= 300) {
-                sctpParams.epollTimeOut = timeout;
+                sctpParams.epollTimeOut = timeout * 1000;
             } else {
-                sctpParams.epollTimeOut = 10;
+                sctpParams.epollTimeOut = 10 * 1000;
             }
         }
     }
@@ -624,7 +625,7 @@ void listener(sctp_params_t *params) {
         future<int> gateWay;
 
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "Start EPOLL Wait");
+            mdclog_write(MDCLOG_DEBUG, "Start EPOLL Wait. Timeout = %d", params->epollTimeOut);
         }
         auto numOfEvents = epoll_wait(params->epoll_fd, events, MAXEVENTS, params->epollTimeOut);
         if (numOfEvents == 0) {
@@ -870,11 +871,14 @@ void handleConfigChange(sctp_params_t *sctpParams) {
                 }
                 jsonTrace = sctpParams->trace;
 
-                auto timeout = conf.getIntValue("prometheusPushTimeOut");
-                if (timeout >= 5 && timeout <= 300) {
-                    sctpParams->epollTimeOut = timeout;
-                } else {
-                    mdclog_write(MDCLOG_ERR, "prometheusPushTimeOut set wrong value %d, values are [5..300]", timeout);
+                if (sctpParams->prometheusMode.compare("push") == 0) {
+                    auto timeout = conf.getIntValue("prometheusPushTimeOut");
+                    if (timeout >= 5 && timeout <= 300) {
+                        sctpParams->epollTimeOut = timeout * 1000;
+                    } else {
+                        mdclog_write(MDCLOG_ERR, "prometheusPushTimeOut set wrong value %d, values are [5..300]",
+                                     timeout);
+                    }
                 }
 
                 endlessLoop = false;
@@ -2104,8 +2108,16 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
     rmr_get_meid(rmrMessageBuffer.rcvMessage, (unsigned char *)message.message.enodbName);
     message.peerInfo = (ConnectedCU_t *) sctpMap->find(message.message.enodbName);
     if (message.peerInfo == nullptr) {
-         mdclog_write(MDCLOG_ERR, "Failed to send message no CU entry %s", message.message.enodbName);
-        return -1;
+        auto type = rmrMessageBuffer.rcvMessage->mtype;
+        switch (type) {
+            case RIC_SCTP_CLEAR_ALL:
+            case E2_TERM_KEEP_ALIVE_REQ:
+            case RIC_HEALTH_CHECK_REQ:
+                break;
+            default:
+                mdclog_write(MDCLOG_ERR, "Failed to send message no CU entry %s", message.message.enodbName);
+                return -1;
+        }
     }
 
     switch (rmrMessageBuffer.rcvMessage->mtype) {
