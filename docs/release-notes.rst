@@ -20,7 +20,7 @@ Release-Notes
 =============
 
 
-This document provides the release notes for the Amber release of E2Terminator
+This document provides the release notes for the Bronze release of E2Terminator
 
 .. contents::
    :depth: 3
