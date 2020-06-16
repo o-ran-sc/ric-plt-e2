@@ -43,10 +43,10 @@ static int translatePlmnId(char * plmnId, const unsigned char *data, const char*
 
     int j = 0;
     if (mnc3 != 15) {
-        j = snprintf(plmnId, 20, "%s%1d%1d%1d-%1d%1d%1d", type, mcc1, mcc2, mcc3, mnc1, mnc2, mnc3);
+        j = snprintf(plmnId, 20, "%s%1d%1d%1d_%1d%1d%1d", type, mcc1, mcc2, mcc3, mnc1, mnc2, mnc3);
     }
     else {
-        j = snprintf(plmnId, 20, "%s%1d%1d%1d-0%1d%1d", type, mcc1, mcc2, mcc3, mnc1, mnc2);
+        j = snprintf(plmnId, 20, "%s%1d%1d%1d_0%1d%1d", type, mcc1, mcc2, mcc3, mnc1, mnc2);
     }
 
     return j;
@@ -55,7 +55,7 @@ static int translatePlmnId(char * plmnId, const unsigned char *data, const char*
 static int translateBitStringToChar(char *ranName, BIT_STRING_t &data) {
     // dont care of last unused bits
     char buffer[256] {};
-    auto j = snprintf(buffer, 256, "%s-", ranName);
+    auto j = snprintf(buffer, 256, "%s_", ranName);
     memcpy(ranName, buffer, j);
 
     unsigned b1 = 0;
@@ -77,7 +77,7 @@ int buildRanName(char *ranName, E2setupRequestIEs_t *ie) {
     switch (ie->value.choice.GlobalE2node_ID.present) {
         case GlobalE2node_ID_PR_gNB: {
             auto *gnb = ie->value.choice.GlobalE2node_ID.choice.gNB;
-            translatePlmnId(ranName, (const unsigned char *)gnb->global_gNB_ID.plmn_id.buf, (const char *)"gnb:");
+            translatePlmnId(ranName, (const unsigned char *)gnb->global_gNB_ID.plmn_id.buf, (const char *)"gnb_");
             if (gnb->global_gNB_ID.gnb_id.present == GNB_ID_Choice_PR_gnb_ID) {
                 translateBitStringToChar(ranName, gnb->global_gNB_ID.gnb_id.choice.gnb_ID);
             }
@@ -87,7 +87,7 @@ int buildRanName(char *ranName, E2setupRequestIEs_t *ie) {
             auto *enGnb = ie->value.choice.GlobalE2node_ID.choice.en_gNB;
             translatePlmnId(ranName,
                             (const unsigned char *)enGnb->global_gNB_ID.pLMN_Identity.buf,
-                            (const char *)"en-gnb:");
+                            (const char *)"en_gnb_");
             if (enGnb->global_gNB_ID.gNB_ID.present == ENGNB_ID_PR_gNB_ID) {
                 translateBitStringToChar(ranName, enGnb->global_gNB_ID.gNB_ID.choice.gNB_ID);
             }
@@ -100,17 +100,17 @@ int buildRanName(char *ranName, E2setupRequestIEs_t *ie) {
             BIT_STRING_t *data = nullptr;
             switch (ngEnb->global_ng_eNB_ID.enb_id.present) {
                 case ENB_ID_Choice_PR_enb_ID_macro: {
-                    strncpy(str, (const char *)"ng-enB-macro:", 13);
+                    strncpy(str, (const char *)"ng_enB_macro_", 13);
                     data = &ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_macro;
                     break;
                 }
                 case ENB_ID_Choice_PR_enb_ID_shortmacro: {
-                    strncpy(str, (const char *)"ng-enB-shortmacro:", 18);
+                    strncpy(str, (const char *)"ng_enB_shortmacro_", 18);
                     data = &ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_shortmacro;
                     break;
                 }
                 case ENB_ID_Choice_PR_enb_ID_longmacro: {
-                    strncpy(str, (const char *)"ng-enB-longmacro:", 17);
+                    strncpy(str, (const char *)"ng_enB_longmacro_", 17);
                     data = &ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_longmacro;
                 }
                 case ENB_ID_Choice_PR_NOTHING: {
@@ -131,22 +131,22 @@ int buildRanName(char *ranName, E2setupRequestIEs_t *ie) {
 
             switch (enb->global_eNB_ID.eNB_ID.present) {
                 case ENB_ID_PR_macro_eNB_ID: {
-                    strncpy(str, (const char *)"enB-macro:", 10);
+                    strncpy(str, (const char *)"enB_macro_", 10);
                     data = &enb->global_eNB_ID.eNB_ID.choice.macro_eNB_ID;
                     break;
                 }
                 case ENB_ID_PR_home_eNB_ID: {
-                    strncpy(str, (const char *)"enB-home:", 9);
+                    strncpy(str, (const char *)"enB_home_", 9);
                     data = &enb->global_eNB_ID.eNB_ID.choice.home_eNB_ID;
                     break;
                 }
                 case ENB_ID_PR_short_Macro_eNB_ID: {
-                    strncpy(str, (const char *)"enB-shortmacro:", 15);
+                    strncpy(str, (const char *)"enB_shortmacro_", 15);
                     data = &enb->global_eNB_ID.eNB_ID.choice.short_Macro_eNB_ID;
                     break;
                 }
                 case ENB_ID_PR_long_Macro_eNB_ID: {
-                    strncpy(str, (const char *)"enB-longmacro:", 14);
+                    strncpy(str, (const char *)"enB_longmacro_", 14);
                     data = &enb->global_eNB_ID.eNB_ID.choice.long_Macro_eNB_ID;
                     break;
                 }
