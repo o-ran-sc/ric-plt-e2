@@ -116,10 +116,11 @@ add_executable(e2 RIC-E2-TERMINATION/sctpThread.cpp
         RIC-E2-TERMINATION/base64.cpp
         RIC-E2-TERMINATION/ReadConfigFile.h
         RIC-E2-TERMINATION/BuildRunName.h
-        RIC-E2-TERMINATION/3rdparty/pugixml/src/pugiconfig.hpp
-        RIC-E2-TERMINATION/3rdparty/pugixml/src/pugixml.cpp
-        RIC-E2-TERMINATION/3rdparty/pugixml/src/pugixml.hpp
-        RIC-E2-TERMINATION/BuildXml.h)
+        #        RIC-E2-TERMINATION/3rdparty/pugixml/src/pugiconfig.hpp
+        #        RIC-E2-TERMINATION/3rdparty/pugixml/src/pugixml.cpp
+        #        RIC-E2-TERMINATION/3rdparty/pugixml/src/pugixml.hpp
+        #        RIC-E2-TERMINATION/BuildXml.h
+        )
 target_link_libraries(e2 libasn1ce2smcodec.a)
 target_link_libraries(e2 librmr_si.a)
 target_link_libraries(e2 libicui18n.a)

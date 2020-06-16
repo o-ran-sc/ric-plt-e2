@@ -24,9 +24,9 @@
 #include "sctpThread.h"
 #include "BuildRunName.h"
 
-#include "3rdparty/oranE2SM/E2SM-gNB-NRT-RANfunction-Definition.h"
-#include "BuildXml.h"
-#include "pugixml/src/pugixml.hpp"
+//#include "3rdparty/oranE2SM/E2SM-gNB-NRT-RANfunction-Definition.h"
+//#include "BuildXml.h"
+//#include "pugixml/src/pugixml.hpp"
 
 using namespace std;
 //using namespace std::placeholders;
@@ -1276,19 +1276,18 @@ int receiveDataFromSctp(struct epoll_event *events,
 
 static void buildAndsendSetupRequest(ReportingMessages_t &message,
                                      RmrMessagesBuffer_t &rmrMessageBuffer,
-                                     E2AP_PDU_t *pdu,
+                                     E2AP_PDU_t *pdu/*,
                                      string const &messageName,
                                      string const &ieName,
                                      vector<string> &functionsToAdd_v,
-                                     vector<string> &functionsToModified_v) {
+                                     vector<string> &functionsToModified_v*/) {
     auto logLevel = mdclog_level_get();
     // now we can send the data to e2Mgr
 
     asn_enc_rval_t er;
     auto buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
-    unsigned char *buffer;
+    unsigned char buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
     while (true) {
-        buffer = (unsigned char *)malloc(buffer_size);
         er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, buffer, buffer_size);
         if (er.encoded == -1) {
             mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
@@ -1299,7 +1298,7 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
                          (int) buffer_size,
                          asn_DEF_E2AP_PDU.name, buffer_size);
             buffer_size = er.encoded + 128;
-            free(buffer);
+//            free(buffer);
             continue;
         }
         buffer[er.encoded] = '\0';
@@ -1307,24 +1306,29 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
     }
     // encode to xml
 
-    string res {};
-    if (!functionsToAdd_v.empty() || !functionsToModified_v.empty()) {
-        res = buildXmlData(messageName, ieName, functionsToAdd_v, functionsToModified_v, buffer, (size_t) er.encoded);
-    }
+    string res((char *)buffer);
+    res.erase(std::remove(res.begin(), res.end(), '\n'), res.end());
+    res.erase(std::remove(res.begin(), res.end(), '\t'), res.end());
+    res.erase(std::remove(res.begin(), res.end(), ' '), res.end());
+
+//    string res {};
+//    if (!functionsToAdd_v.empty() || !functionsToModified_v.empty()) {
+//        res = buildXmlData(messageName, ieName, functionsToAdd_v, functionsToModified_v, buffer, (size_t) er.encoded);
+//    }
     rmr_mbuf_t *rmrMsg;
-    if (res.length() == 0) {
-        rmrMsg = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, buffer_size + 256);
-        rmrMsg->len = snprintf((char *) rmrMsg->payload, RECEIVE_SCTP_BUFFER_SIZE * 2, "%s:%d|%s",
-                               message.peerInfo->sctpParams->myIP.c_str(),
-                               message.peerInfo->sctpParams->rmrPort,
-                               buffer);
-    } else {
+//    if (res.length() == 0) {
+//        rmrMsg = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, buffer_size + 256);
+//        rmrMsg->len = snprintf((char *) rmrMsg->payload, RECEIVE_SCTP_BUFFER_SIZE * 2, "%s:%d|%s",
+//                               message.peerInfo->sctpParams->myIP.c_str(),
+//                               message.peerInfo->sctpParams->rmrPort,
+//                               buffer);
+//    } else {
         rmrMsg = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, (int)res.length() + 256);
         rmrMsg->len = snprintf((char *) rmrMsg->payload, res.length() + 256, "%s:%d|%s",
                                message.peerInfo->sctpParams->myIP.c_str(),
                                message.peerInfo->sctpParams->rmrPort,
                                res.c_str());
-    }
+//    }
 
     if (logLevel >= MDCLOG_DEBUG) {
         mdclog_write(MDCLOG_DEBUG, "Setup request of size %d :\n %s\n", rmrMsg->len, rmrMsg->payload);
@@ -1370,9 +1374,9 @@ static void buildAndsendSetupRequest(ReportingMessages_t &message,
     if (rmrMsg != nullptr) {
         rmr_free_msg(rmrMsg);
     }
-    free(buffer);
 }
 
+#if 0
 int RAN_Function_list_To_Vector(RANfunctions_List_t& list, vector <string> &runFunXML_v) {
     auto index = 0;
     runFunXML_v.clear();
@@ -1465,6 +1469,7 @@ int collectServiceUpdate_RequestData(E2AP_PDU_t *pdu,
     return 0;
 }
 
+#endif
 
 
 void buildPrometheuslist(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFamily) {
@@ -1549,8 +1554,7 @@ void buildPrometheuslist(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFam
  */
 int collectSetupRequestData(E2AP_PDU_t *pdu,
                                      Sctp_Map_t *sctpMap,
-                                     ReportingMessages_t &message,
-                                     vector <string> &RANfunctionsAdded_v) {
+                                     ReportingMessages_t &message /*, vector <string> &RANfunctionsAdded_v*/) {
     memset(message.peerInfo->enodbName, 0 , MAX_ENODB_NAME_SIZE);
     for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.count; i++) {
         auto *ie = pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.array[i];
@@ -1566,7 +1570,7 @@ int collectSetupRequestData(E2AP_PDU_t *pdu,
                 memcpy(message.message.enodbName, message.peerInfo->enodbName, strlen(message.peerInfo->enodbName));
                 sctpMap->setkey(message.message.enodbName, message.peerInfo);
             }
-        } else if (ie->id == ProtocolIE_ID_id_RANfunctionsAdded) {
+        } /*else if (ie->id == ProtocolIE_ID_id_RANfunctionsAdded) {
             if (ie->value.present == E2setupRequestIEs__value_PR_RANfunctions_List) {
                 if (mdclog_level_get() >= MDCLOG_DEBUG) {
                     mdclog_write(MDCLOG_DEBUG, "Run function list have %d entries",
@@ -1576,12 +1580,12 @@ int collectSetupRequestData(E2AP_PDU_t *pdu,
                     return -1;
                 }
             }
-        }
+        } */
     }
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "Run function vector have %ld entries",
-                     RANfunctionsAdded_v.size());
-    }
+//    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+//        mdclog_write(MDCLOG_DEBUG, "Run function vector have %ld entries",
+//                     RANfunctionsAdded_v.size());
+//    }
     return 0;
 }
 
@@ -1641,11 +1645,11 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                 mdclog_write(MDCLOG_DEBUG, "Got E2setup");
             }
 
-            vector <string> RANfunctionsAdded_v;
-            vector <string> RANfunctionsModified_v;
-            RANfunctionsAdded_v.clear();
-            RANfunctionsModified_v.clear();
-            if (collectSetupRequestData(pdu, sctpMap, message, RANfunctionsAdded_v) != 0) {
+//            vector <string> RANfunctionsAdded_v;
+//            vector <string> RANfunctionsModified_v;
+//            RANfunctionsAdded_v.clear();
+//            RANfunctionsModified_v.clear();
+            if (collectSetupRequestData(pdu, sctpMap, message) != 0) {
                 break;
             }
 
@@ -1656,21 +1660,21 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             message.message.messageType = RIC_E2_SETUP_REQ;
             message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_E2setup - 1]->Increment();
             message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_E2setup - 1]->Increment((double)rmrMessageBuffer.rcvMessage->len);
-            buildAndsendSetupRequest(message, rmrMessageBuffer, pdu, messageName, ieName, RANfunctionsAdded_v, RANfunctionsModified_v);
+            buildAndsendSetupRequest(message, rmrMessageBuffer, pdu);
             break;
         }
         case ProcedureCode_id_RICserviceUpdate: {
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICserviceUpdate %s", message.message.enodbName);
             }
-            vector <string> RANfunctionsAdded_v;
-            vector <string> RANfunctionsModified_v;
-            RANfunctionsAdded_v.clear();
-            RANfunctionsModified_v.clear();
-            if (collectServiceUpdate_RequestData(pdu, sctpMap, message,
-                                                 RANfunctionsAdded_v, RANfunctionsModified_v) != 0) {
-                break;
-            }
+//            vector <string> RANfunctionsAdded_v;
+//            vector <string> RANfunctionsModified_v;
+//            RANfunctionsAdded_v.clear();
+//            RANfunctionsModified_v.clear();
+//            if (collectServiceUpdate_RequestData(pdu, sctpMap, message,
+//                                                 RANfunctionsAdded_v, RANfunctionsModified_v) != 0) {
+//                break;
+//            }
 
             string messageName("RICserviceUpdate");
             string ieName("RICserviceUpdateIEs");
@@ -1678,7 +1682,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate - 1]->Increment();
             message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate - 1]->Increment((double)rmrMessageBuffer.rcvMessage->len);
 
-            buildAndsendSetupRequest(message, rmrMessageBuffer, pdu, messageName, ieName, RANfunctionsAdded_v, RANfunctionsModified_v);
+            buildAndsendSetupRequest(message, rmrMessageBuffer, pdu);
             break;
         }
         case ProcedureCode_id_ErrorIndication: {
