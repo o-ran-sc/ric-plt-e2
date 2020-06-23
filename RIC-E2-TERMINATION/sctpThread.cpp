@@ -85,13 +85,18 @@ std::atomic<int64_t> num_of_XAPP_messages{0};
 static long transactionCounter = 0;
 
 int buildListeningPort(sctp_params_t &sctpParams) {
-    sctpParams.listenFD = socket (AF_INET6, SOCK_STREAM, IPPROTO_SCTP);
+    sctpParams.listenFD = socket(AF_INET6, SOCK_STREAM, IPPROTO_SCTP);
+    if (sctpParams.listenFD <= 0) {
+        mdclog_write(MDCLOG_ERR, "Error Opening socket, %s", strerror(errno));
+        return -1;
+    }
+
     struct sockaddr_in6 servaddr {};
     servaddr.sin6_family = AF_INET6;
     servaddr.sin6_addr   = in6addr_any;
     servaddr.sin6_port = htons(sctpParams.sctpPort);
     if (bind(sctpParams.listenFD, (SA *)&servaddr, sizeof(servaddr)) < 0 ) {
-        mdclog_write(MDCLOG_ERR, "Error binding. %s\n", strerror(errno));
+        mdclog_write(MDCLOG_ERR, "Error binding port %d. %s", sctpParams.sctpPort, strerror(errno));
         return -1;
     }
     if (setSocketNoBlocking(sctpParams.listenFD) == -1) {
