@@ -177,7 +177,7 @@ typedef struct ConnectedCU {
     bool isConnected = false;
     bool gotSetup = false;
     sctp_params_t *sctpParams = nullptr;
-    Counter *counters[6][2][ProcedureCode_id_RICsubscriptionDelete] {};
+    Counter *counters[6][2][ProcedureCode_id_RICsubscriptionDelete + 1] {};
 } ConnectedCU_t ;
 
 
