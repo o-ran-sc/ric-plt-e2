@@ -7,4 +7,4 @@ project: ric-plt/e2
 ref: 175ef39f1efc79b3a18dad0ecd6d8475e92df631
 containers:
     - name: ric-plt-e2
-      version: 5.0.4
+      version: 4.0.10
