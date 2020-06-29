@@ -245,25 +245,6 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     jsonTrace = sctpParams.trace;
 
     sctpParams.epollTimeOut = -1;
-    tmpStr = conf.getStringValue("prometheusMode");
-    transform(tmpStr.begin(), tmpStr.end(), tmpStr.begin(), ::tolower);
-    sctpParams.prometheusMode = tmpStr;
-    if (tmpStr.length() != 0) {
-        if (tmpStr.compare("push") == 0) {
-            sctpParams.prometheusPushAddress = tmpStr;
-            auto timeout = conf.getIntValue("prometheusPushTimeOut");
-            if (timeout >= 5 && timeout <= 300) {
-                sctpParams.epollTimeOut = timeout * 1000;
-            } else {
-                sctpParams.epollTimeOut = 10 * 1000;
-            }
-        }
-    }
-
-    tmpStr = conf.getStringValue("prometheusPushAddr");
-    if (tmpStr.length() != 0) {
-        sctpParams.prometheusPushAddress = tmpStr;
-    }
 
     tmpStr = conf.getStringValue("prometheusPort");
     if (tmpStr.length() != 0) {
@@ -315,15 +296,6 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     return 0;
 }
 
-static std::string GetHostName() {
-    char hostname[1024];
-
-    if (::gethostname(hostname, sizeof(hostname))) {
-        return {};
-    }
-    return hostname;
-}
-
 void startPrometheus(sctp_params_t &sctpParams) {
     sctpParams.prometheusFamily = &BuildCounter()
             .Name("E2T")
@@ -331,32 +303,12 @@ void startPrometheus(sctp_params_t &sctpParams) {
             .Labels({{"POD_NAME", sctpParams.podName}})
             .Register(*sctpParams.prometheusRegistry);
 
-    if (strcmp(sctpParams.prometheusMode.c_str(),"pull") == 0) {
-        if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "Start Prometheus Pull mode on %s:%s", sctpParams.myIP.c_str(), sctpParams.prometheusPort.c_str());
-        }
-        sctpParams.prometheusExposer = new Exposer(sctpParams.myIP + ":" + sctpParams.prometheusPort, 1);
-        sctpParams.prometheusExposer->RegisterCollectable(sctpParams.prometheusRegistry);
-    } else if (strcmp(sctpParams.prometheusMode.c_str(),"push") == 0) {
-        if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "Start Prometheus Push mode");
-        }
-        const auto labels = Gateway::GetInstanceLabel(GetHostName());
-        string address {};
-        string port {};
-        char ch = ':';
-        auto found = sctpParams.prometheusPushAddress.find_last_of(ch);
-        // If string doesn't have
-        // character ch present in it
-        if (found != string::npos) {
-            address = sctpParams.prometheusPushAddress.substr(0,found);
-            port = sctpParams.prometheusPushAddress.substr(found + 1);
-            sctpParams.prometheusGateway = new Gateway(address, port, "E2T", labels);
-            sctpParams.prometheusGateway->RegisterCollectable(sctpParams.prometheusRegistry);
-        } else {
-            mdclog_write(MDCLOG_ERR, "failed to build Prometheus gateway no stats will be sent");
-        }
+    string promethusPath = sctpParams.prometheusPort + "," + "[::]:" + sctpParams.prometheusPort;
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_DEBUG, "Start Prometheus Pull mode on %s", promethusPath.c_str());
     }
+    sctpParams.prometheusExposer = new Exposer(promethusPath, 1);
+    sctpParams.prometheusExposer->RegisterCollectable(sctpParams.prometheusRegistry);
 }
 
 int main(const int argc, char **argv) {
@@ -633,18 +585,14 @@ void listener(sctp_params_t *params) {
 //        rmrMessageBuffer.sendBufferedMessages[i] = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
 //    }
 
-    bool gatewayflag = false;
     while (true) {
-        future<int> gateWay;
-
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
             mdclog_write(MDCLOG_DEBUG, "Start EPOLL Wait. Timeout = %d", params->epollTimeOut);
         }
         auto numOfEvents = epoll_wait(params->epoll_fd, events, MAXEVENTS, params->epollTimeOut);
-        if (numOfEvents == 0) {
-            if (params->prometheusGateway != nullptr) {
-                gateWay = params->prometheusGateway->AsyncPush();
-                gatewayflag = true;
+        if (numOfEvents == 0) { // time out
+            if (mdclog_level_get() >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "got epoll timeout");
             }
             continue;
         } else if (numOfEvents < 0) {
@@ -656,15 +604,6 @@ void listener(sctp_params_t *params) {
             }
             mdclog_write(MDCLOG_ERR, "Epoll wait failed, errno = %s", strerror(errno));
             return;
-        }
-        if (gatewayflag) {
-            gatewayflag = false;
-            auto rc = gateWay.get();
-            if (rc != 200) {
-                mdclog_write(MDCLOG_ERR, "Async Send to Promethues faild with Return Code %d", rc);
-            } else if (mdclog_level_get() >= MDCLOG_DEBUG) {
-                mdclog_write(MDCLOG_DEBUG, "Stats sent to Prometheus");
-            }
         }
         for (auto i = 0; i < numOfEvents; i++) {
             if (mdclog_level_get() >= MDCLOG_DEBUG) {
@@ -884,15 +823,6 @@ void handleConfigChange(sctp_params_t *sctpParams) {
                 }
                 jsonTrace = sctpParams->trace;
 
-                if (strcmp(sctpParams->prometheusMode.c_str(), "push") == 0) {
-                    auto timeout = conf.getIntValue("prometheusPushTimeOut");
-                    if (timeout >= 5 && timeout <= 300) {
-                        sctpParams->epollTimeOut = timeout * 1000;
-                    } else {
-                        mdclog_write(MDCLOG_ERR, "prometheusPushTimeOut set wrong value %d, values are [5..300]",
-                                     timeout);
-                    }
-                }
 
                 endlessLoop = false;
             }
@@ -2398,32 +2328,6 @@ int sendMessagetoCu(Sctp_Map_t *sctpMap,
     auto rc = sendSctpMsg(message.peerInfo, message, sctpMap);
     return rc;
 }
-
-/**
- *
- * @param rmrCtx the rmr context to send and receive
- * @param msg the msg we got fromxApp
- * @param metaData data from xApp in ordered struct
- * @param failedMesgId the return message type error
- */
-void
-sendFailedSendingMessagetoXapp(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &message, int failedMesgId) {
-    rmr_mbuf_t *msg = rmrMessageBuffer.sendMessage;
-    msg->len = snprintf((char *) msg->payload, 200, "the gNb/eNode name %s not found",
-                        message.message.enodbName);
-    if (mdclog_level_get() >= MDCLOG_INFO) {
-        mdclog_write(MDCLOG_INFO, "%s", msg->payload);
-    }
-    msg->mtype = failedMesgId;
-    msg->state = 0;
-
-    static unsigned char tx[32];
-    snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
-    rmr_bytes2xact(msg, tx, strlen((const char *) tx));
-
-    sendRmrMessage(rmrMessageBuffer, message);
-}
-
 
 
 /**

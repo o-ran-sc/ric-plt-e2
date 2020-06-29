@@ -144,12 +144,9 @@ typedef struct sctp_params {
     string configFilePath {};
     string configFileName {};
     bool trace = true;
-    string prometheusMode {"pull"};
-    string prometheusPushAddress {"127.0.0.1:7676"};
     shared_ptr<prometheus::Registry> prometheusRegistry;
     string prometheusPort {"8088"};
     Family<Counter> *prometheusFamily;
-    Gateway *prometheusGateway = nullptr;
     Exposer *prometheusExposer = nullptr;
 } sctp_params_t;
 
