@@ -146,11 +146,12 @@ COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so.4.5.0 /usr/lib/li
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so.4 /usr/lib/libcurl-gnutls.so.4
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so /usr/lib/libcurl-gnutls.so
 
+COPY --from=ubuntu /usr/local/bin/rmr_probe /opt/e2/rmr_probe
 
 WORKDIR /opt/e2/
 ENV LD_LIBRARY_PATH=/usr/local/lib
 ENV RMR_SEED_RT=dockerRouter.txt
 ENV E2TERM_POD_NAME=e2term
-RUN chmod +x /opt/e2/startup.sh
+RUN chmod +x /opt/e2/startup.sh /opt/e2/rmr_probe
 EXPOSE 38000
 CMD ["sh", "-c", "./startup.sh"]
