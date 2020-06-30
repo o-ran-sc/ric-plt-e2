@@ -2248,21 +2248,22 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
         }
         case RIC_HEALTH_CHECK_REQ: {
             // send message back
-            rmr_bytes2payload(rmrMessageBuffer.sendMessage,
+            rmr_bytes2payload(rmrMessageBuffer.rcvMessage,
                               (unsigned char *)"OK",
                               2);
-            rmrMessageBuffer.sendMessage->mtype = RIC_HEALTH_CHECK_RESP;
-            rmrMessageBuffer.sendMessage->state = 0;
+            rmrMessageBuffer.rcvMessage->mtype = RIC_HEALTH_CHECK_RESP;
+            rmrMessageBuffer.rcvMessage->state = 0;
             static unsigned char tx[32];
             auto txLen = snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
-            rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, txLen);
-            rmrMessageBuffer.sendMessage = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMessageBuffer.sendMessage);
-            if (rmrMessageBuffer.sendMessage == nullptr) {
-                rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
+            rmr_bytes2xact(rmrMessageBuffer.rcvMessage, tx, txLen);
+            rmrMessageBuffer.rcvMessage = rmr_rts_msg(rmrMessageBuffer.rmrCtx, rmrMessageBuffer.rcvMessage);
+            //rmrMessageBuffer.sendMessage = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMessageBuffer.sendMessage);
+            if (rmrMessageBuffer.rcvMessage == nullptr) {
+                rmrMessageBuffer.rcvMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_HEALTH_CHECK_RESP RMR message returned NULL");
-            } else if (rmrMessageBuffer.sendMessage->state != 0)  {
+            } else if (rmrMessageBuffer.rcvMessage->state != 0)  {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_HEALTH_CHECK_RESP, on RMR state = %d ( %s)",
-                             rmrMessageBuffer.sendMessage->state, translateRmrErrorMessages(rmrMessageBuffer.sendMessage->state).c_str());
+                             rmrMessageBuffer.rcvMessage->state, translateRmrErrorMessages(rmrMessageBuffer.rcvMessage->state).c_str());
             } else if (mdclog_level_get() >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RIC_HEALTH_CHECK_REQ Request send : OK");
             }
