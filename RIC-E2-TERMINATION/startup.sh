@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 #dockerIp=$(ifconfig eth0 | awk '{ print $2}' | grep -E -o "([0-9]{1,3}[\.]){3}[0-9]{1,3}")
 #echo "docker ip: $dockerIp"
