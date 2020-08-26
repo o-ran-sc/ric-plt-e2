@@ -195,7 +195,7 @@ __attribute_warn_unused_result__ cxxopts::ParseResult parse(SctpClient &sctpClie
             ("p,port", "port number", cxxopts::value<int>(sctpClient.rmrPort)->default_value("38200"))
             ("h,help", "Print help");
 
-    auto result = options.parse(argc, argv);
+    auto result = options.parse(argc, (const char**&)argv);
 
     if (result.count("help")) {
         std::cout << options.help({""}) << std::endl;

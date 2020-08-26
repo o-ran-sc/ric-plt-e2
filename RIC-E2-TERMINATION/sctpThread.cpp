@@ -482,8 +482,7 @@ cxxopts::ParseResult parse(int argc, char *argv[], sctp_params_t &sctpParams) {
             ("f,file", "config file name", cxxopts::value<std::string>(sctpParams.configFileName)->default_value("config.conf"))
             ("h,help", "Print help");
 
-    auto result = options.parse(argc, argv);
-
+    auto result = options.parse(argc, (const char**&)argv);
     if (result.count("help")) {
         std::cout << options.help({""}) << std::endl;
         exit(0);
