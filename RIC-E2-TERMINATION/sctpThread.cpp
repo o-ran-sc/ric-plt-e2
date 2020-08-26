@@ -482,7 +482,7 @@ cxxopts::ParseResult parse(int argc, char *argv[], sctp_params_t &sctpParams) {
             ("f,file", "config file name", cxxopts::value<std::string>(sctpParams.configFileName)->default_value("config.conf"))
             ("h,help", "Print help");
 
-    auto result = options.parse(argc, argv);
+    auto result = options.parse(argc, (const char **&)argv);
 
     if (result.count("help")) {
         std::cout << options.help({""}) << std::endl;
@@ -671,7 +671,7 @@ void listener(sctp_params_t *params) {
                 }
             } else if (params->rmrListenFd == events[i].data.fd) {
                 // got message from XAPP
-                num_of_XAPP_messages.fetch_add(1, std::memory_order_release);
+                //num_of_XAPP_messages.fetch_add(1, std::memory_order_release);
                 num_of_messages.fetch_add(1, std::memory_order_release);
                 if (mdclog_level_get() >= MDCLOG_DEBUG) {
                     mdclog_write(MDCLOG_DEBUG, "new message from RMR");
@@ -2067,6 +2067,10 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
         }
     }
 
+    if (rmrMessageBuffer.rcvMessage->mtype != RIC_HEALTH_CHECK_REQ) {
+        num_of_XAPP_messages.fetch_add(1, std::memory_order_release);
+
+    }
     switch (rmrMessageBuffer.rcvMessage->mtype) {
         case RIC_E2_SETUP_RESP : {
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
