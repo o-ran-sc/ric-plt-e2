@@ -671,7 +671,7 @@ void listener(sctp_params_t *params) {
                 }
             } else if (params->rmrListenFd == events[i].data.fd) {
                 // got message from XAPP
-                num_of_XAPP_messages.fetch_add(1, std::memory_order_release);
+                //num_of_XAPP_messages.fetch_add(1, std::memory_order_release);
                 num_of_messages.fetch_add(1, std::memory_order_release);
                 if (mdclog_level_get() >= MDCLOG_DEBUG) {
                     mdclog_write(MDCLOG_DEBUG, "new message from RMR");
@@ -2065,6 +2065,10 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
                 mdclog_write(MDCLOG_ERR, "Failed to send message no CU entry %s", message.message.enodbName);
                 return -1;
         }
+    }
+    if (rmrMessageBuffer.rcvMessage->mtype != RIC_HEALTH_CHECK_REQ) {
+        num_of_XAPP_messages.fetch_add(1, std::memory_order_release);
+
     }
 
     switch (rmrMessageBuffer.rcvMessage->mtype) {
