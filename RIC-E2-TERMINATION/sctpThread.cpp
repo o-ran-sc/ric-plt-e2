@@ -674,7 +674,7 @@ void listener(sctp_params_t *params) {
                 //num_of_XAPP_messages.fetch_add(1, std::memory_order_release);
                 num_of_messages.fetch_add(1, std::memory_order_release);
                 if (mdclog_level_get() >= MDCLOG_DEBUG) {
-                    mdclog_write(MDCLOG_DEBUG, "new message from RMR");
+                    mdclog_write(MDCLOG_DEBUG, "new RMR message");
                 }
                 if (receiveXappMessages(params->sctpMap,
                                         rmrMessageBuffer,
@@ -2026,15 +2026,16 @@ int PER_FromXML(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuf
 int receiveXappMessages(Sctp_Map_t *sctpMap,
                         RmrMessagesBuffer_t &rmrMessageBuffer,
                         struct timespec &ts) {
+    int loglevel = mdclog_level_get();
     if (rmrMessageBuffer.rcvMessage == nullptr) {
         //we have error
         mdclog_write(MDCLOG_ERR, "RMR Allocation message, %s", strerror(errno));
         return -1;
     }
 
-    if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "Call to rmr_rcv_msg");
-    }
+//    if (loglevel >= MDCLOG_DEBUG) {
+//        mdclog_write(MDCLOG_DEBUG, "Call to rmr_rcv_msg");
+//    }
     rmrMessageBuffer.rcvMessage = rmr_rcv_msg(rmrMessageBuffer.rmrCtx, rmrMessageBuffer.rcvMessage);
     if (rmrMessageBuffer.rcvMessage == nullptr) {
         mdclog_write(MDCLOG_ERR, "RMR Receving message with null pointer, Realloc rmr mesage buffer");
@@ -2073,6 +2074,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
     }
     switch (rmrMessageBuffer.rcvMessage->mtype) {
         case RIC_E2_SETUP_RESP : {
+            if (loglevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "RIC_E2_SETUP_RESP");
+            }
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
@@ -2085,6 +2089,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_E2_SETUP_FAILURE : {
+            if (loglevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "RIC_E2_SETUP_FAILURE");
+            }
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
@@ -2097,6 +2104,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_ERROR_INDICATION: {
+            if (loglevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "RIC_ERROR_INDICATION");
+            }
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_ErrorIndication]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_ErrorIndication]->Increment(rmrMessageBuffer.rcvMessage->len);
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
@@ -2106,6 +2116,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_SUB_REQ: {
+            if (loglevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "RIC_SUB_REQ");
+            }
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscription]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscription]->Increment(rmrMessageBuffer.rcvMessage->len);
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
@@ -2115,6 +2128,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_SUB_DEL_REQ: {
+            if (loglevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "RIC_SUB_DEL_REQ");
+            }
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment(rmrMessageBuffer.rcvMessage->len);
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
@@ -2124,6 +2140,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_CONTROL_REQ: {
+            if (loglevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "RIC_CONTROL_REQ");
+            }
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICcontrol]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICcontrol]->Increment(rmrMessageBuffer.rcvMessage->len);
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
@@ -2133,6 +2152,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_SERVICE_QUERY: {
+            if (loglevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "RIC_SERVICE_QUERY");
+            }
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
@@ -2145,6 +2167,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_SERVICE_UPDATE_ACK: {
+            if (loglevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "RIC_SERVICE_UPDATE_ACK");
+            }
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
@@ -2157,6 +2182,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_SERVICE_UPDATE_FAILURE: {
+            if (loglevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "RIC_SERVICE_UPDATE_FAILURE");
+            }
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
@@ -2169,6 +2197,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_E2_RESET_REQ: {
+            if (loglevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "RIC_E2_RESET_REQ");
+            }
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
@@ -2181,6 +2212,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_E2_RESET_RESP: {
+            if (loglevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "RIC_E2_RESET_RESP");
+            }
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
@@ -2244,13 +2278,14 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             } else if (rmrMessageBuffer.sendMessage->state != 0)  {
                 mdclog_write(MDCLOG_ERR, "Failed to send E2_TERM_KEEP_ALIVE_RESP, on RMR state = %d ( %s)",
                              rmrMessageBuffer.sendMessage->state, translateRmrErrorMessages(rmrMessageBuffer.sendMessage->state).c_str());
-            } else if (mdclog_level_get() >= MDCLOG_DEBUG) {
+            } else if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got Keep Alive Request send : %s", rmrMessageBuffer.ka_message);
             }
 
             break;
         }
         case RIC_HEALTH_CHECK_REQ: {
+            static int counter = 0;
             // send message back
             rmr_bytes2payload(rmrMessageBuffer.rcvMessage,
                               (unsigned char *)"OK",
@@ -2268,8 +2303,8 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             } else if (rmrMessageBuffer.rcvMessage->state != 0)  {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_HEALTH_CHECK_RESP, on RMR state = %d ( %s)",
                              rmrMessageBuffer.rcvMessage->state, translateRmrErrorMessages(rmrMessageBuffer.rcvMessage->state).c_str());
-            } else if (mdclog_level_get() >= MDCLOG_DEBUG) {
-                mdclog_write(MDCLOG_DEBUG, "Got RIC_HEALTH_CHECK_REQ Request send : OK");
+            } else if (loglevel >= MDCLOG_DEBUG && ++counter % 100 == 0) {
+                mdclog_write(MDCLOG_DEBUG, "Got %d RIC_HEALTH_CHECK_REQ Request send : OK", counter);
             }
 
             break;
