@@ -500,9 +500,6 @@ int buildInotify(sctp_params_t &sctpParams) {
     sctpParams.inotifyFD = inotify_init1(IN_NONBLOCK);
     if (sctpParams.inotifyFD == -1) {
         mdclog_write(MDCLOG_ERR, "Failed to init inotify (inotify_init1) %s", strerror(errno));
-        close(sctpParams.rmrListenFd);
-        rmr_close(sctpParams.rmrCtx);
-        close(sctpParams.epoll_fd);
         return -1;
     }
 
@@ -631,6 +628,10 @@ void listener(sctp_params_t *params) {
 
                     in_len = sizeof(in_addr);
                     auto *peerInfo = (ConnectedCU_t *)calloc(1, sizeof(ConnectedCU_t));
+                    if(peerInfo == NULL){
+                        mdclog_write(MDCLOG_ERR, "calloc failed");
+                        break;
+                    }
                     peerInfo->sctpParams = params;
                     peerInfo->fileDescriptor = accept(params->listenFD, &in_addr, &in_len);
                     if (peerInfo->fileDescriptor == -1) {
@@ -1121,7 +1122,7 @@ int receiveDataFromSctp(struct epoll_event *events,
         }
 
         if (loglevel >= MDCLOG_DEBUG) {
-            char printBuffer[4096]{};
+            char printBuffer[RECEIVE_SCTP_BUFFER_SIZE]{};
             char *tmp = printBuffer;
             for (size_t i = 0; i < (size_t)message.message.asnLength; ++i) {
                 snprintf(tmp, 3, "%02x", message.message.asndata[i]);

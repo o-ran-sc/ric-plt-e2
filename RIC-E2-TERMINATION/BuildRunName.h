@@ -95,23 +95,21 @@ int buildRanName(char *ranName, E2setupRequestIEs_t *ie) {
         }
         case GlobalE2node_ID_PR_ng_eNB: {
             auto *ngEnb = ie->value.choice.GlobalE2node_ID.choice.ng_eNB;
-            char *buf = (char *)ngEnb->global_ng_eNB_ID.plmn_id.buf;
-            char str[20] = {};
-            BIT_STRING_t *data = nullptr;
             switch (ngEnb->global_ng_eNB_ID.enb_id.present) {
                 case ENB_ID_Choice_PR_enb_ID_macro: {
-                    strncpy(str, (const char *)"ng_enB_macro_", 13);
-                    data = &ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_macro;
+                    translatePlmnId(ranName, (const unsigned char *)ngEnb->global_ng_eNB_ID.plmn_id.buf, (const char *)"ng_enB_macro_");
+                    translateBitStringToChar(ranName, ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_macro);
                     break;
                 }
                 case ENB_ID_Choice_PR_enb_ID_shortmacro: {
-                    strncpy(str, (const char *)"ng_enB_shortmacro_", 18);
-                    data = &ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_shortmacro;
+                    translatePlmnId(ranName, (const unsigned char *)ngEnb->global_ng_eNB_ID.plmn_id.buf, (const char *)"ng_enB_shortmacro_");
+                    translateBitStringToChar(ranName, ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_shortmacro);
                     break;
                 }
                 case ENB_ID_Choice_PR_enb_ID_longmacro: {
-                    strncpy(str, (const char *)"ng_enB_longmacro_", 17);
-                    data = &ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_longmacro;
+                    translatePlmnId(ranName, (const unsigned char *)ngEnb->global_ng_eNB_ID.plmn_id.buf, (const char *)"ng_enB_longmacro_");
+                    translateBitStringToChar(ranName, ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_longmacro);
+                    break;
                 }
                 case ENB_ID_Choice_PR_NOTHING: {
                     break;
@@ -119,45 +117,37 @@ int buildRanName(char *ranName, E2setupRequestIEs_t *ie) {
                 default:
                     break;
             }
-            translatePlmnId(ranName, (const unsigned char *)buf, (const char *)str);
-            translateBitStringToChar(ranName, *data);
-            break;
         }
         case GlobalE2node_ID_PR_eNB: {
             auto *enb = ie->value.choice.GlobalE2node_ID.choice.eNB;
-            char *buf = (char *)enb->global_eNB_ID.pLMN_Identity.buf;
-            char str[20] = {};
-            BIT_STRING_t *data = nullptr;
-
             switch (enb->global_eNB_ID.eNB_ID.present) {
                 case ENB_ID_PR_macro_eNB_ID: {
-                    strncpy(str, (const char *)"enB_macro_", 10);
-                    data = &enb->global_eNB_ID.eNB_ID.choice.macro_eNB_ID;
+                    translatePlmnId(ranName, (const unsigned char *)enb->global_eNB_ID.pLMN_Identity.buf, (const char *)"enB_macro_");
+                    translateBitStringToChar(ranName, enb->global_eNB_ID.eNB_ID.choice.macro_eNB_ID);
                     break;
                 }
                 case ENB_ID_PR_home_eNB_ID: {
-                    strncpy(str, (const char *)"enB_home_", 9);
-                    data = &enb->global_eNB_ID.eNB_ID.choice.home_eNB_ID;
+                    translatePlmnId(ranName, (const unsigned char *)enb->global_eNB_ID.pLMN_Identity.buf, (const char *)"enB_home_");
+                    translateBitStringToChar(ranName, enb->global_eNB_ID.eNB_ID.choice.home_eNB_ID);
                     break;
                 }
                 case ENB_ID_PR_short_Macro_eNB_ID: {
-                    strncpy(str, (const char *)"enB_shortmacro_", 15);
-                    data = &enb->global_eNB_ID.eNB_ID.choice.short_Macro_eNB_ID;
+                    translatePlmnId(ranName, (const unsigned char *)enb->global_eNB_ID.pLMN_Identity.buf, (const char *)"enB_shortmacro_");
+                    translateBitStringToChar(ranName, enb->global_eNB_ID.eNB_ID.choice.short_Macro_eNB_ID);
                     break;
                 }
                 case ENB_ID_PR_long_Macro_eNB_ID: {
-                    strncpy(str, (const char *)"enB_longmacro_", 14);
-                    data = &enb->global_eNB_ID.eNB_ID.choice.long_Macro_eNB_ID;
+                    translatePlmnId(ranName, (const unsigned char *)enb->global_eNB_ID.pLMN_Identity.buf, (const char *)"enB_longmacro_");
+                    translateBitStringToChar(ranName, enb->global_eNB_ID.eNB_ID.choice.long_Macro_eNB_ID);
                     break;
                 }
-                case ENB_ID_PR_NOTHING:
+                case ENB_ID_PR_NOTHING: {
+                    break;
+                }
                 default: {
                     break;
                 }
             }
-            translatePlmnId(ranName, (const unsigned char *)buf, (const char *)str);
-            translateBitStringToChar(ranName, *data);
-            break;
         }
         case GlobalE2node_ID_PR_NOTHING:
         default:
