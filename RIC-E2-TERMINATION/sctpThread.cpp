@@ -222,7 +222,7 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     }
     auto *podName = getenv(pod.c_str());
     if (podName == nullptr) {
-        mdclog_write(MDCLOG_ERR, "illegal pod_name or environment varible not exists : %s", pod.c_str());
+        mdclog_write(MDCLOG_ERR, "illegal pod_name or environment variable not exists : %s", pod.c_str());
         return -1;
 
     } else {
@@ -280,7 +280,7 @@ int buildConfiguration(sctp_params_t &sctpParams) {
             //keywords::format = "[%TimeStamp%]: %Message%" // use each tmpStr with time stamp
     );
 
-    // Setup a destination folder for collecting rotated (closed) files --since the same volumn can use rename()
+    // Setup a destination folder for collecting rotated (closed) files --since the same volume can use rename()
     boostLogger->locked_backend()->set_file_collector(sinks::file::make_collector(
             keywords::target = sctpParams.volume
     ));
@@ -303,11 +303,11 @@ void startPrometheus(sctp_params_t &sctpParams) {
             .Labels({{"POD_NAME", sctpParams.podName}})
             .Register(*sctpParams.prometheusRegistry);
 
-    string promethusPath = sctpParams.prometheusPort + "," + "[::]:" + sctpParams.prometheusPort;
+    string prometheusPath = sctpParams.prometheusPort + "," + "[::]:" + sctpParams.prometheusPort;
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        mdclog_write(MDCLOG_DEBUG, "Start Prometheus Pull mode on %s", promethusPath.c_str());
+        mdclog_write(MDCLOG_DEBUG, "Start Prometheus Pull mode on %s", prometheusPath.c_str());
     }
-    sctpParams.prometheusExposer = new Exposer(promethusPath, 1);
+    sctpParams.prometheusExposer = new Exposer(prometheusPath, 1);
     sctpParams.prometheusExposer->RegisterCollectable(sctpParams.prometheusRegistry);
 }
 
@@ -425,7 +425,7 @@ void handleTermInit(sctp_params_t &sctpParams) {
         auto xappMessages = num_of_XAPP_messages.load(std::memory_order_acquire);
         if (xappMessages > 0) {
             if (mdclog_level_get() >=  MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "Got a message from some appliction, stop sending E2_TERM_INIT");
+                mdclog_write(MDCLOG_INFO, "Got a message from some application, stop sending E2_TERM_INIT");
             }
             return;
         }
@@ -2178,10 +2178,14 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
                 mdclog_write(MDCLOG_DEBUG, "RIC_SERVICE_UPDATE_ACK");
             }
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+                mdclog_write(MDCLOG_ERR, "error in PER_FromXML");
                 break;
             }
             message.peerInfo->counters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
             message.peerInfo->counters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_RICserviceQuery]->Increment(rmrMessageBuffer.rcvMessage->len);
+            if (loglevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Before sending to CU");
+            }
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SERVICE_UPDATE_ACK");
                 return -6;
