@@ -135,7 +135,7 @@ typedef struct sctp_params {
     Sctp_Map_t *sctpMap = nullptr;
     char      ka_message[KA_MESSAGE_SIZE] {};
     int       ka_message_length = 0;
-    char       rmrAddress[256] {}; // "tcp:portnumber" "tcp:5566" listen to all address on port 5566
+    char       rmrAddress[256] {}; // "tcp:port number" "tcp:5566" listen to all address on port 5566
     mdclog_severity_t logLevel = MDCLOG_INFO;
     char volume[VOLUME_URL_SIZE];
     string myIP {};
@@ -152,13 +152,13 @@ typedef struct sctp_params {
 
 // RAN to RIC
 #define IN_INITI 0 //INITIATING
-#define IN_SUCC 1 //SUCCESSFULL
-#define IN_UN_SUCC 2 //UN-Successfull
+#define IN_SUCC 1 //SUCCESSFUL
+#define IN_UN_SUCC 2 //UN-Successful
 
 // RIC To RAN
 #define OUT_INITI 3 //INITIATING
-#define OUT_SUCC 4 //SUCCESSFULL
-#define OUT_UN_SUCC 5 //UN-Successfull
+#define OUT_SUCC 4 //SUCCESSFUL
+#define OUT_UN_SUCC 5 //UN-Successful
 
 #define MSG_COUNTER 0
 #define BYTES_COUNTER 1
@@ -178,15 +178,15 @@ typedef struct ConnectedCU {
 } ConnectedCU_t ;
 
 
-#define MAX_RMR_BUFF_ARRY 32
+#define MAX_RMR_BUFF_ARRAY 32
 typedef struct RmrMessagesBuffer {
     char ka_message[KA_MESSAGE_SIZE] {};
     int  ka_message_len = 0;
     void *rmrCtx = nullptr;
     rmr_mbuf_t *sendMessage= nullptr;
-    //rmr_mbuf_t *sendBufferedMessages[MAX_RMR_BUFF_ARRY] {};
+    //rmr_mbuf_t *sendBufferedMessages[MAX_RMR_BUFF_ARRAY] {};
     rmr_mbuf_t *rcvMessage= nullptr;
-    //rmr_mbuf_t *rcvBufferedMessages[MAX_RMR_BUFF_ARRY] {};
+    //rmr_mbuf_t *rcvBufferedMessages[MAX_RMR_BUFF_ARRAY] {};
 } RmrMessagesBuffer_t;
 
 typedef struct formatedMessage {
@@ -244,13 +244,13 @@ void getRequestMetaData(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMe
 /**
  *
  * @param sctpMap
- * @param messagBuffer
+ * @param messageBuffer
  * @param message
  * @param failedMesgId
  * @return
  */
 int sendMessagetoCu(Sctp_Map_t *sctpMap,
-                    RmrMessagesBuffer_t &messagBuffer,
+                    RmrMessagesBuffer_t &messageBuffer,
                     ReportingMessages_t &message,
                     int failedMesgId);
 
@@ -314,10 +314,9 @@ void getRmrContext(sctp_params_t &pSctpParams);
 
 /**
  *
- * @param epoll_fd
- * @param rmrCtx
  * @param sctpMap
- * @param messagBuffer
+ * @param rmrMessageBuffer
+ * @param ts
  * @return
  */
 int receiveXappMessages(Sctp_Map_t *sctpMap,
@@ -326,12 +325,12 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 
 /**
  *
- * @param messagBuffer
+ * @param messageBuffer
  * @param failedMsgId
  * @param sctpMap
  * @return
  */
-int sendDirectionalSctpMsg(RmrMessagesBuffer_t &messagBuffer,
+int sendDirectionalSctpMsg(RmrMessagesBuffer_t &messageBuffer,
                            ReportingMessages_t &message,
                            int failedMsgId,
                            Sctp_Map_t *sctpMap);
@@ -352,7 +351,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
  * @param sctpMap
  * @param rmrMessageBuffer
  */
-void asnSuccsesfulMsg(E2AP_PDU_t *pdu,
+void asnSuccessfulMsg(E2AP_PDU_t *pdu,
                       Sctp_Map_t *sctpMap,
                       ReportingMessages_t &message,
                       RmrMessagesBuffer_t &rmrMessageBuffer);

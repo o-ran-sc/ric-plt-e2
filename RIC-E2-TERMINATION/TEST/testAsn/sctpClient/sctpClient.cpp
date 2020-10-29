@@ -456,7 +456,7 @@ void runFunc(SctpClient_t *sctpClient) {
                     //                            break;
                     //                        }
                     //                        case E2AP_PDU_PR_successfulOutcome: { //successful outcome
-                    //                            asnSuccsesfulMsg(pdu, message, sctpMap, rmrMessageBuffer);
+                    //                            asnSuccessfulMsg(pdu, message, sctpMap, rmrMessageBuffer);
                     //                            break;
                     //                        }
                     //                        case E2AP_PDU_PR_unsuccessfulOutcome: { //Unsuccessful Outcome

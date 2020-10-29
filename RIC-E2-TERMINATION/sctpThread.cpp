@@ -68,12 +68,12 @@ double age() {
     return seconds_t(std::chrono::high_resolution_clock::now() - start_time).count();
 }
 
-double approx_CPU_MHz(unsigned sleeptime) {
+double approx_CPU_MHz(unsigned sleepTime) {
     using namespace std::chrono_literals;
     uint32_t aux = 0;
     uint64_t cycles_start = rdtscp(aux);
     double time_start = age();
-    std::this_thread::sleep_for(sleeptime * 1ms);
+    std::this_thread::sleep_for(sleepTime * 1ms);
     uint64_t elapsed_cycles = rdtscp(aux) - cycles_start;
     double elapsed_time = age() - time_start;
     return elapsed_cycles / elapsed_time;
@@ -91,11 +91,11 @@ int buildListeningPort(sctp_params_t &sctpParams) {
         return -1;
     }
 
-    struct sockaddr_in6 servaddr {};
-    servaddr.sin6_family = AF_INET6;
-    servaddr.sin6_addr   = in6addr_any;
-    servaddr.sin6_port = htons(sctpParams.sctpPort);
-    if (bind(sctpParams.listenFD, (SA *)&servaddr, sizeof(servaddr)) < 0 ) {
+    struct sockaddr_in6 serverAddress {};
+    serverAddress.sin6_family = AF_INET6;
+    serverAddress.sin6_addr   = in6addr_any;
+    serverAddress.sin6_port = htons(sctpParams.sctpPort);
+    if (bind(sctpParams.listenFD, (SA *)&serverAddress, sizeof(serverAddress)) < 0 ) {
         mdclog_write(MDCLOG_ERR, "Error binding port %d. %s", sctpParams.sctpPort, strerror(errno));
         return -1;
     }
@@ -104,12 +104,12 @@ int buildListeningPort(sctp_params_t &sctpParams) {
         return -1;
     }
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
-        struct sockaddr_in6 cliaddr {};
-        socklen_t len = sizeof(cliaddr);
-        getsockname(sctpParams.listenFD, (SA *)&cliaddr, &len);
+        struct sockaddr_in6 clientAddress {};
+        socklen_t len = sizeof(clientAddress);
+        getsockname(sctpParams.listenFD, (SA *)&clientAddress, &len);
         char buff[1024] {};
-        inet_ntop(AF_INET6, &cliaddr.sin6_addr, buff, sizeof(buff));
-        mdclog_write(MDCLOG_DEBUG, "My address: %s, port %d\n", buff, htons(cliaddr.sin6_port));
+        inet_ntop(AF_INET6, &clientAddress.sin6_addr, buff, sizeof(buff));
+        mdclog_write(MDCLOG_DEBUG, "My address: %s, port %d\n", buff, htons(clientAddress.sin6_port));
     }
 
     if (listen(sctpParams.listenFD, SOMAXCONN) < 0) {
@@ -152,7 +152,7 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     }
     int rmrPort = conf.getIntValue("nano");
     if (rmrPort == -1) {
-        mdclog_write(MDCLOG_ERR, "illigal RMR port ");
+        mdclog_write(MDCLOG_ERR, "illegal RMR port ");
         return -1;
     }
     sctpParams.rmrPort = (uint16_t)rmrPort;
@@ -160,7 +160,7 @@ int buildConfiguration(sctp_params_t &sctpParams) {
 
     auto tmpStr = conf.getStringValue("loglevel");
     if (tmpStr.length() == 0) {
-        mdclog_write(MDCLOG_ERR, "illigal loglevel. Set loglevel to MDCLOG_INFO");
+        mdclog_write(MDCLOG_ERR, "illegal loglevel. Set loglevel to MDCLOG_INFO");
         tmpStr = "info";
     }
     transform(tmpStr.begin(), tmpStr.end(), tmpStr.begin(), ::tolower);
@@ -174,14 +174,14 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     } else if ((tmpStr.compare("error")) == 0) {
         sctpParams.logLevel = MDCLOG_ERR;
     } else {
-        mdclog_write(MDCLOG_ERR, "illigal loglevel = %s. Set loglevel to MDCLOG_INFO", tmpStr.c_str());
+        mdclog_write(MDCLOG_ERR, "illegal loglevel = %s. Set loglevel to MDCLOG_INFO", tmpStr.c_str());
         sctpParams.logLevel = MDCLOG_INFO;
     }
     mdclog_level_set(sctpParams.logLevel);
 
     tmpStr = conf.getStringValue("volume");
     if (tmpStr.length() == 0) {
-        mdclog_write(MDCLOG_ERR, "illigal volume.");
+        mdclog_write(MDCLOG_ERR, "illegal volume.");
         return -1;
     }
 
@@ -198,37 +198,37 @@ int buildConfiguration(sctp_params_t &sctpParams) {
 
     sctpParams.myIP = conf.getStringValue("local-ip");
     if (sctpParams.myIP.length() == 0) {
-        mdclog_write(MDCLOG_ERR, "illigal local-ip.");
+        mdclog_write(MDCLOG_ERR, "illegal local-ip.");
         return -1;
     }
 
     int sctpPort = conf.getIntValue("sctp-port");
     if (sctpPort == -1) {
-        mdclog_write(MDCLOG_ERR, "illigal SCTP port ");
+        mdclog_write(MDCLOG_ERR, "illegal SCTP port ");
         return -1;
     }
     sctpParams.sctpPort = (uint16_t)sctpPort;
 
     sctpParams.fqdn = conf.getStringValue("external-fqdn");
     if (sctpParams.fqdn.length() == 0) {
-        mdclog_write(MDCLOG_ERR, "illigal external-fqdn");
+        mdclog_write(MDCLOG_ERR, "illegal external-fqdn");
         return -1;
     }
 
     std::string pod = conf.getStringValue("pod_name");
     if (pod.length() == 0) {
-        mdclog_write(MDCLOG_ERR, "illigal pod_name in config file");
+        mdclog_write(MDCLOG_ERR, "illegal pod_name in config file");
         return -1;
     }
     auto *podName = getenv(pod.c_str());
     if (podName == nullptr) {
-        mdclog_write(MDCLOG_ERR, "illigal pod_name or environment varible not exists : %s", pod.c_str());
+        mdclog_write(MDCLOG_ERR, "illegal pod_name or environment varible not exists : %s", pod.c_str());
         return -1;
 
     } else {
         sctpParams.podName.assign(podName);
         if (sctpParams.podName.length() == 0) {
-            mdclog_write(MDCLOG_ERR, "illigal pod_name");
+            mdclog_write(MDCLOG_ERR, "illegal pod_name");
             return -1;
         }
     }
@@ -355,7 +355,7 @@ int main(const int argc, char **argv) {
     //auto registry = std::make_shared<Registry>();
     sctpParams.prometheusRegistry = std::make_shared<Registry>();
 
-    //sctpParams.promtheusFamily = new Family<Counter>("E2T", "E2T message counter", {{"E", sctpParams.podName}});
+    //sctpParams.prometheusFamily = new Family<Counter>("E2T", "E2T message counter", {{"E", sctpParams.podName}});
 
     startPrometheus(sctpParams);
 
@@ -454,7 +454,7 @@ void sendTermInit(sctp_params_t &sctpParams) {
         } else if (msg->state == 0) {
             rmr_free_msg(msg);
             if (mdclog_level_get() >=  MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "E2_TERM_INIT succsesfuly sent ");
+                mdclog_write(MDCLOG_INFO, "E2_TERM_INIT successfully sent ");
             }
             return;
         } else {
@@ -577,7 +577,7 @@ void listener(sctp_params_t *params) {
 
     ReportingMessages_t message {};
 
-//    for (int i = 0; i < MAX_RMR_BUFF_ARRY; i++) {
+//    for (int i = 0; i < MAX_RMR_BUFF_ARRAY; i++) {
 //        rmrMessageBuffer.rcvBufferedMessages[i] = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
 //        rmrMessageBuffer.sendBufferedMessages[i] = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
 //    }
@@ -628,7 +628,7 @@ void listener(sctp_params_t *params) {
 
                     in_len = sizeof(in_addr);
                     auto *peerInfo = (ConnectedCU_t *)calloc(1, sizeof(ConnectedCU_t));
-                    if(peerInfo == NULL){
+                    if(peerInfo == nullptr){
                         mdclog_write(MDCLOG_ERR, "calloc failed");
                         break;
                     }
@@ -781,7 +781,7 @@ void handleConfigChange(sctp_params_t *sctpParams) {
 
                 auto tmpStr = conf.getStringValue("loglevel");
                 if (tmpStr.length() == 0) {
-                    mdclog_write(MDCLOG_ERR, "illigal loglevel. Set loglevel to MDCLOG_INFO");
+                    mdclog_write(MDCLOG_ERR, "illegal loglevel. Set loglevel to MDCLOG_INFO");
                     tmpStr = "info";
                 }
                 transform(tmpStr.begin(), tmpStr.end(), tmpStr.begin(), ::tolower);
@@ -799,7 +799,7 @@ void handleConfigChange(sctp_params_t *sctpParams) {
                     mdclog_write(MDCLOG_INFO, "Log level set to MDCLOG_ERR");
                     sctpParams->logLevel = MDCLOG_ERR;
                 } else {
-                    mdclog_write(MDCLOG_ERR, "illigal loglevel = %s. Set loglevel to MDCLOG_INFO", tmpStr.c_str());
+                    mdclog_write(MDCLOG_ERR, "illegal loglevel = %s. Set loglevel to MDCLOG_INFO", tmpStr.c_str());
                     sctpParams->logLevel = MDCLOG_INFO;
                 }
                 mdclog_level_set(sctpParams->logLevel);
@@ -807,7 +807,7 @@ void handleConfigChange(sctp_params_t *sctpParams) {
 
                 tmpStr = conf.getStringValue("trace");
                 if (tmpStr.length() == 0) {
-                    mdclog_write(MDCLOG_ERR, "illigal trace. Set trace to stop");
+                    mdclog_write(MDCLOG_ERR, "illegal trace. Set trace to stop");
                     tmpStr = "stop";
                 }
 
@@ -976,13 +976,13 @@ void cleanHashEntry(ConnectedCU_t *val, Sctp_Map_t *m) {
 
 /**
  *
- * @param fd file discriptor
+ * @param fd file descriptor
  * @param data the asn data to send
  * @param len  length of the data
  * @param enodbName the enodbName as in the map for printing purpose
  * @param m map host information
  * @param mtype message number
- * @return 0 success, anegative number on fail
+ * @return 0 success, a negative number on fail
  */
 int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_t *m) {
     auto loglevel = mdclog_level_get();
@@ -1073,7 +1073,7 @@ int receiveDataFromSctp(struct epoll_event *events,
     message.peerInfo = (ConnectedCU_t *)events->data.ptr;
 
     struct timespec start{0, 0};
-    struct timespec decodestart{0, 0};
+    struct timespec decodeStart{0, 0};
     struct timespec end{0, 0};
 
     E2AP_PDU_t *pdu = nullptr;
@@ -1134,7 +1134,7 @@ int receiveDataFromSctp(struct epoll_event *events,
                          message.peerInfo->enodbName, end.tv_sec - start.tv_sec, end.tv_nsec - start.tv_nsec);
             mdclog_write(MDCLOG_DEBUG, "PDU buffer length = %ld, data =  : %s", message.message.asnLength,
                          printBuffer);
-            clock_gettime(CLOCK_MONOTONIC, &decodestart);
+            clock_gettime(CLOCK_MONOTONIC, &decodeStart);
         }
 
         auto rval = asn_decode(nullptr, ATS_ALIGNED_BASIC_PER, &asn_DEF_E2AP_PDU, (void **) &pdu,
@@ -1148,13 +1148,13 @@ int receiveDataFromSctp(struct epoll_event *events,
         if (loglevel >= MDCLOG_DEBUG) {
             clock_gettime(CLOCK_MONOTONIC, &end);
             mdclog_write(MDCLOG_DEBUG, "After Encoding E2AP PDU for : %s, Read time is : %ld seconds, %ld nanoseconds",
-                         message.peerInfo->enodbName, end.tv_sec - decodestart.tv_sec, end.tv_nsec - decodestart.tv_nsec);
+                         message.peerInfo->enodbName, end.tv_sec - decodeStart.tv_sec, end.tv_nsec - decodeStart.tv_nsec);
             char *printBuffer;
             size_t size;
             FILE *stream = open_memstream(&printBuffer, &size);
             asn_fprint(stream, &asn_DEF_E2AP_PDU, pdu);
             mdclog_write(MDCLOG_DEBUG, "Encoding E2AP PDU past : %s", printBuffer);
-            clock_gettime(CLOCK_MONOTONIC, &decodestart);
+            clock_gettime(CLOCK_MONOTONIC, &decodeStart);
         }
 
         switch (pdu->present) {
@@ -1163,7 +1163,7 @@ int receiveDataFromSctp(struct epoll_event *events,
                 break;
             }
             case E2AP_PDU_PR_successfulOutcome: { //successful outcome
-                asnSuccsesfulMsg(pdu, sctpMap, message,  rmrMessageBuffer);
+                asnSuccessfulMsg(pdu, sctpMap, message, rmrMessageBuffer);
                 break;
             }
             case E2AP_PDU_PR_unsuccessfulOutcome: { //Unsuccessful Outcome
@@ -1178,7 +1178,7 @@ int receiveDataFromSctp(struct epoll_event *events,
             clock_gettime(CLOCK_MONOTONIC, &end);
             mdclog_write(MDCLOG_DEBUG,
                          "After processing message and sent to rmr for : %s, Read time is : %ld seconds, %ld nanoseconds",
-                         message.peerInfo->enodbName, end.tv_sec - decodestart.tv_sec, end.tv_nsec - decodestart.tv_nsec);
+                         message.peerInfo->enodbName, end.tv_sec - decodeStart.tv_sec, end.tv_nsec - decodeStart.tv_nsec);
         }
         numOfMessages++;
         if (pdu != nullptr) {
@@ -1218,7 +1218,7 @@ int receiveDataFromSctp(struct epoll_event *events,
     return 0;
 }
 
-static void buildAndsendSetupRequest(ReportingMessages_t &message,
+static void buildAndSendSetupRequest(ReportingMessages_t &message,
                                      RmrMessagesBuffer_t &rmrMessageBuffer,
                                      E2AP_PDU_t *pdu/*,
                                      string const &messageName,
@@ -1416,7 +1416,7 @@ int collectServiceUpdate_RequestData(E2AP_PDU_t *pdu,
 #endif
 
 
-void buildPrometheuslist(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFamily) {
+void buildPrometheusList(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFamily) {
     peerInfo->counters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_E2setup)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"SetupRequest", "Messages"}});
     peerInfo->counters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_E2setup)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"SetupRequest", "Bytes"}});
 
@@ -1507,7 +1507,7 @@ int collectSetupRequestData(E2AP_PDU_t *pdu,
             if (ie->value.present == E2setupRequestIEs__value_PR_GlobalE2node_ID) {
                 if (buildRanName(message.peerInfo->enodbName, ie) < 0) {
                     mdclog_write(MDCLOG_ERR, "Bad param in E2setupRequestIEs GlobalE2node_ID.\n");
-                    // no mesage will be sent
+                    // no message will be sent
                     return -1;
                 }
 
@@ -1597,14 +1597,14 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                 break;
             }
 
-            buildPrometheuslist(message.peerInfo, message.peerInfo->sctpParams->prometheusFamily);
+            buildPrometheusList(message.peerInfo, message.peerInfo->sctpParams->prometheusFamily);
 
             string messageName("E2setupRequest");
             string ieName("E2setupRequestIEs");
             message.message.messageType = RIC_E2_SETUP_REQ;
             message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
             message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment((double)message.message.asnLength);
-            buildAndsendSetupRequest(message, rmrMessageBuffer, pdu);
+            buildAndSendSetupRequest(message, rmrMessageBuffer, pdu);
             break;
         }
         case ProcedureCode_id_RICserviceUpdate: {
@@ -1626,7 +1626,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
             message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment((double)message.message.asnLength);
 
-            buildAndsendSetupRequest(message, rmrMessageBuffer, pdu);
+            buildAndSendSetupRequest(message, rmrMessageBuffer, pdu);
             break;
         }
         case ProcedureCode_id_ErrorIndication: {
@@ -1694,7 +1694,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
                         sendRmrMessage(rmrMessageBuffer, message);
                         messageSent = true;
                     } else {
-                        mdclog_write(MDCLOG_ERR, "RIC request id missing illigal request");
+                        mdclog_write(MDCLOG_ERR, "RIC request id missing illegal request");
                     }
                 }
                 if (messageSent) {
@@ -1720,7 +1720,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
  * @param message
  * @param rmrMessageBuffer
  */
-void asnSuccsesfulMsg(E2AP_PDU_t *pdu,
+void asnSuccessfulMsg(E2AP_PDU_t *pdu,
                       Sctp_Map_t *sctpMap,
                       ReportingMessages_t &message,
                       RmrMessagesBuffer_t &rmrMessageBuffer) {
@@ -1777,7 +1777,7 @@ void asnSuccsesfulMsg(E2AP_PDU_t *pdu,
                         sendRmrMessage(rmrMessageBuffer, message);
                         messageSent = true;
                     } else {
-                        mdclog_write(MDCLOG_ERR, "RIC request id missing illigal request");
+                        mdclog_write(MDCLOG_ERR, "RIC request id missing illegal request");
                     }
                 }
                 if (messageSent) {
@@ -1865,7 +1865,7 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
                         sendRmrMessage(rmrMessageBuffer, message);
                         messageSent = true;
                     } else {
-                        mdclog_write(MDCLOG_ERR, "RIC request id missing illigal request");
+                        mdclog_write(MDCLOG_ERR, "RIC request id missing illegal request");
                     }
                 }
                 if (messageSent) {
@@ -1992,6 +1992,9 @@ int PER_FromXML(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuf
     }
     auto rval = asn_decode(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, (void **) &pdu,
                            rmrMessageBuffer.rcvMessage->payload, rmrMessageBuffer.rcvMessage->len);
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_DEBUG, "%s After  decoding the XML to PDU", __func__ );
+    }
     if (rval.code != RC_OK) {
         mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) setup response  from E2MGR : %s",
                      rval.code,
@@ -2002,6 +2005,9 @@ int PER_FromXML(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuf
     int buff_size = RECEIVE_XAPP_BUFFER_SIZE;
     auto er = asn_encode_to_buffer(nullptr, ATS_ALIGNED_BASIC_PER, &asn_DEF_E2AP_PDU, pdu,
                                    rmrMessageBuffer.rcvMessage->payload, buff_size);
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_DEBUG, "%s After encoding PDU to PER", __func__ );
+    }
     if (er.encoded == -1) {
         mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
         return -1;
@@ -2039,7 +2045,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 //    }
     rmrMessageBuffer.rcvMessage = rmr_rcv_msg(rmrMessageBuffer.rmrCtx, rmrMessageBuffer.rcvMessage);
     if (rmrMessageBuffer.rcvMessage == nullptr) {
-        mdclog_write(MDCLOG_ERR, "RMR Receving message with null pointer, Realloc rmr mesage buffer");
+        mdclog_write(MDCLOG_ERR, "RMR Receiving message with null pointer, Reallocated rmr message buffer");
         rmrMessageBuffer.rcvMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
         return -2;
     }
@@ -2051,7 +2057,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
     // get message payload
     //auto msgData = msg->payload;
     if (rmrMessageBuffer.rcvMessage->state != 0) {
-        mdclog_write(MDCLOG_ERR, "RMR Receving message with stat = %d", rmrMessageBuffer.rcvMessage->state);
+        mdclog_write(MDCLOG_ERR, "RMR Receiving message with stat = %d", rmrMessageBuffer.rcvMessage->state);
         return -1;
     }
     rmr_get_meid(rmrMessageBuffer.rcvMessage, (unsigned char *)message.message.enodbName);
@@ -2312,7 +2318,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
         }
 
         default:
-            mdclog_write(MDCLOG_WARN, "Message Type : %d is not seported", rmrMessageBuffer.rcvMessage->mtype);
+            mdclog_write(MDCLOG_WARN, "Message Type : %d is not supported", rmrMessageBuffer.rcvMessage->mtype);
             message.message.asndata = rmrMessageBuffer.rcvMessage->payload;
             message.message.asnLength = rmrMessageBuffer.rcvMessage->len;
             message.message.time.tv_nsec = ts.tv_nsec;
@@ -2342,6 +2348,9 @@ int sendDirectionalSctpMsg(RmrMessagesBuffer_t &messageBuffer,
                            ReportingMessages_t &message,
                            int failedMsgId,
                            Sctp_Map_t *sctpMap) {
+    if (mdclog_level_get() >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_DEBUG, "send message: %d to %s address", message.message.messageType, message.message.enodbName);
+    }
 
     getRequestMetaData(message, messageBuffer);
     if (mdclog_level_get() >= MDCLOG_INFO) {
@@ -2393,7 +2402,7 @@ int addToEpoll(int epoll_fd,
     event.events = events;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, peerInfo->fileDescriptor, &event) < 0) {
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "epoll_ctl EPOLL_CTL_ADD (may chack not to quit here), %s, %s %d",
+            mdclog_write(MDCLOG_DEBUG, "epoll_ctl EPOLL_CTL_ADD (may check not to quit here), %s, %s %d",
                          strerror(errno), __func__, __LINE__);
         }
         close(peerInfo->fileDescriptor);
@@ -2412,7 +2421,7 @@ int addToEpoll(int epoll_fd,
         } else {
             peerInfo->enodbName[0] = 0;
         }
-        mdclog_write(MDCLOG_ERR, "epoll_ctl EPOLL_CTL_ADD (may chack not to quit here)");
+        mdclog_write(MDCLOG_ERR, "epoll_ctl EPOLL_CTL_ADD (may check not to quit here)");
         return -1;
     }
     return 0;
@@ -2440,7 +2449,7 @@ int modifyToEpoll(int epoll_fd,
     event.events = events;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, peerInfo->fileDescriptor, &event) < 0) {
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "epoll_ctl EPOLL_CTL_MOD (may chack not to quit here), %s, %s %d",
+            mdclog_write(MDCLOG_DEBUG, "epoll_ctl EPOLL_CTL_MOD (may check not to quit here), %s, %s %d",
                          strerror(errno), __func__, __LINE__);
         }
         close(peerInfo->fileDescriptor);
@@ -2455,7 +2464,7 @@ int modifyToEpoll(int epoll_fd,
             free(tmp);
         }
         sctpMap->erase(key);
-        mdclog_write(MDCLOG_ERR, "epoll_ctl EPOLL_CTL_ADD (may chack not to quit here)");
+        mdclog_write(MDCLOG_ERR, "epoll_ctl EPOLL_CTL_ADD (may check not to quit here)");
         return -1;
     }
     return 0;
@@ -2552,7 +2561,7 @@ string translateRmrErrorMessages(int state) {
             str = "RMR_OK - state is good";
             break;
         case RMR_ERR_BADARG:
-            str = "RMR_ERR_BADARG - argument passd to function was unusable";
+            str = "RMR_ERR_BADARG - argument passed to function was unusable";
             break;
         case RMR_ERR_NOENDPT:
             str = "RMR_ERR_NOENDPT - send//call could not find an endpoint based on msg type";
