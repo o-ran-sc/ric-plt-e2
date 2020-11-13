@@ -56,7 +56,21 @@ static int translateBitStringToChar(char *ranName, BIT_STRING_t &data) {
     // dont care of last unused bits
     char buffer[256] {};
     auto j = snprintf(buffer, 256, "%s_", ranName);
+
     memcpy(ranName, buffer, j);
+/*
+ // ran name decimal
+    unsigned long bitValue = 0;
+    for (auto i = 0; i < (int)data.size; i++) {
+        bitValue <<= (unsigned long)8;
+        bitValue += data.buf[i];
+    }
+
+    j = snprintf(buffer, 256, "%s%ld", ranName, bitValue);
+
+    memcpy(ranName, buffer, j);
+*/
+
 
     unsigned b1 = 0;
     unsigned b2 = 0;

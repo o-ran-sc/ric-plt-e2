@@ -391,7 +391,7 @@ int main(const int argc, char **argv) {
     std::vector<std::thread> threads(num_cpus);
 //    std::vector<std::thread> threads;
 
-    num_cpus = 1;
+    num_cpus = 3;
     for (unsigned int i = 0; i < num_cpus; i++) {
         threads[i] = std::thread(listener, &sctpParams);
 
