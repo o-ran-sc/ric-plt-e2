@@ -1233,7 +1233,13 @@ static void buildAndSendSetupRequest(ReportingMessages_t &message,
 
     asn_enc_rval_t er;
     auto buffer_size = RECEIVE_SCTP_BUFFER_SIZE * 2;
-    unsigned char buffer[RECEIVE_SCTP_BUFFER_SIZE * 2];
+    unsigned char *buffer = nullptr;
+    buffer = (unsigned char *) calloc(buffer_size, sizeof(unsigned char));
+    if(!buffer)
+    {
+        mdclog_write(MDCLOG_ERR, "Allocating buffer for %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
+        return;
+    }
     while (true) {
         er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, buffer, buffer_size);
         if (er.encoded == -1) {
@@ -1245,7 +1251,17 @@ static void buildAndSendSetupRequest(ReportingMessages_t &message,
                          (int) buffer_size,
                          asn_DEF_E2AP_PDU.name, buffer_size);
             buffer_size = er.encoded + 128;
-//            free(buffer);
+
+            unsigned char *newBuffer = nullptr;
+            newBuffer = (unsigned char *) realloc(buffer, buffer_size);
+            if (!newBuffer)
+            {
+                // out of memory
+                mdclog_write(MDCLOG_ERR, "Reallocating buffer for %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
+                free(buffer);
+                return;
+            }
+            buffer = newBuffer;
             continue;
         }
         buffer[er.encoded] = '\0';
@@ -1318,9 +1334,13 @@ static void buildAndSendSetupRequest(ReportingMessages_t &message,
     }
     message.peerInfo->gotSetup = true;
     buildJsonMessage(message);
+
     if (rmrMsg != nullptr) {
         rmr_free_msg(rmrMsg);
     }
+    free(buffer);
+
+    return;
 }
 
 #if 0
