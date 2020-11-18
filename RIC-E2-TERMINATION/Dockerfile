@@ -38,7 +38,7 @@ RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/ && cat /opt/e2/RIC-E2-
     && dpkg -i cgreen_1.2.0_amd64.deb \
     && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr_4.4.4_amd64.deb/download.deb \
     && dpkg -i rmr_4.4.4_amd64.deb \
-    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/rmr-dev_4.4.4_amd64.deb/download.deb \
+    && wget --content-disposition https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch/rmr-dev_4.4.4_amd64.deb/download.deb \
     && dpkg -i rmr-dev_4.4.4_amd64.deb \
     && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog_0.0.4-1_amd64.deb/download.deb \
     && dpkg -i mdclog_0.0.4-1_amd64.deb \
