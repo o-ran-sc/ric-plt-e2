@@ -1155,6 +1155,9 @@ int receiveDataFromSctp(struct epoll_event *events,
             asn_fprint(stream, &asn_DEF_E2AP_PDU, pdu);
             mdclog_write(MDCLOG_DEBUG, "Encoding E2AP PDU past : %s", printBuffer);
             clock_gettime(CLOCK_MONOTONIC, &decodeStart);
+
+            fclose(stream);
+            free(printBuffer);
         }
 
         switch (pdu->present) {
