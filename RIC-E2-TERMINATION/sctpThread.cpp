@@ -52,7 +52,7 @@ BOOST_LOG_INLINE_GLOBAL_LOGGER_DEFAULT(my_logger, src::logger_mt)
 
 boost::shared_ptr<sinks::synchronous_sink<sinks::text_file_backend>> boostLogger;
 double cpuClock = 0.0;
-bool jsonTrace = true;
+bool jsonTrace = false;
 
 void init_log() {
     mdclog_attr_t *attr;
@@ -241,6 +241,9 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     } else if ((tmpStr.compare("stop")) == 0) {
         mdclog_write(MDCLOG_INFO, "Trace set to: stop");
         sctpParams.trace = false;
+    } else {
+        mdclog_write(MDCLOG_ERR, "Trace was set to wrong value %s, set to stop", tmpStr.c_str());
+        sctpParams->trace = false;
     }
     jsonTrace = sctpParams.trace;
 
