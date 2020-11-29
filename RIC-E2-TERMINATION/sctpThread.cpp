@@ -243,7 +243,7 @@ int buildConfiguration(sctp_params_t &sctpParams) {
         sctpParams.trace = false;
     } else {
         mdclog_write(MDCLOG_ERR, "Trace was set to wrong value %s, set to stop", tmpStr.c_str());
-        sctpParams->trace = false;
+        sctpParams.trace = false;
     }
     jsonTrace = sctpParams.trace;
 
