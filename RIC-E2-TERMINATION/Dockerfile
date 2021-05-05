@@ -45,11 +45,13 @@ RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/ && cat /opt/e2/RIC-E2-
     && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog-dev_0.0.4-1_amd64.deb/download.deb \
     && dpkg -i mdclog-dev_0.0.4-1_amd64.deb \
     && apt-get update && apt-get install -y libcurl4-gnutls-dev gawk libtbb-dev  libtbb-doc libtbb2 libtbb2-dbg \
-    && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/oktal/pistache.git && cd pistache \
-    && git submodule update --init && mkdir build && cd build \
-    && cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DPISTACHE_BUILD_DOCS=false \
-       -DPISTACHE_USE_SSL=false -DPISTACHE_BUILD_TESTS=false -DCMAKE_INSTALL_PREFIX=/usr/local ../ \
-    && make -j && make install && ldconfig \
+    && apt-get install  -y python3 python3-pip python3-setuptools python3-wheel ninja-build \
+    && pip3 install  meson \
+    && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/pistacheio/pistache.git  && cd pistache \
+    && meson setup build  \
+       --buildtype=release -DPISTACHE_USE_SSL=false -DPISTACHE_BUILD_EXAMPLES=false  -DPISTACHE_BUILD_TESTS=false \
+        -DPISTACHE_BUILD_DOCS=false  --prefix=/usr/local \
+    && meson compile -C build  && meson install -C build  && ldconfig \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone -v https://github.com/jupp0r/prometheus-cpp.git \
     && cd prometheus-cpp && git submodule init && git submodule update && mkdir build && cd build \
     && cmake .. -DBUILD_SHARED_LIBS=OFF && make -j 4  && make install && ldconfig \

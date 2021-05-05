@@ -155,7 +155,7 @@ add_executable(sctpClient
         #RIC-E2-TERMINATION/TEST/T1/Test1.cpp
         #RIC-E2-TERMINATION/TEST/T1/
         )
-target_link_libraries(sctpClient libpistache.a)
+target_link_libraries(sctpClient libpistache.so)
 target_link_libraries(sctpClient librmr_si.a)
 
 add_executable(setUpMessages
