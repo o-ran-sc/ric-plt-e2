@@ -313,7 +313,7 @@ void startPrometheus(sctp_params_t &sctpParams) {
     sctpParams.prometheusExposer = new Exposer(prometheusPath, 1);
     sctpParams.prometheusExposer->RegisterCollectable(sctpParams.prometheusRegistry);
 }
-
+#ifndef UNIT_TEST
 int main(const int argc, char **argv) {
     sctp_params_t sctpParams;
 
@@ -417,7 +417,7 @@ int main(const int argc, char **argv) {
 
     return 0;
 }
-
+#endif
 void handleTermInit(sctp_params_t &sctpParams) {
     sendTermInit(sctpParams);
     //send to e2 manager init of e2 term
@@ -853,6 +853,7 @@ void handleEinprogressMessages(struct epoll_event &event,
     socklen_t retValLen = 0;
     auto rc = getsockopt(peerInfo->fileDescriptor, SOL_SOCKET, SO_ERROR, &retVal, &retValLen);
     if (rc != 0 || retVal != 0) {
+#ifndef UNIT_TEST
         if (rc != 0) {
             rmrMessageBuffer.sendMessage->len = snprintf((char *)rmrMessageBuffer.sendMessage->payload, 256,
                                                          "%s|Failed SCTP Connection, after EINPROGRESS the getsockopt%s",
@@ -870,6 +871,7 @@ void handleEinprogressMessages(struct epoll_event &event,
         if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer) != 0) {
             mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
         }
+#endif
         memset(peerInfo->asnData, 0, peerInfo->asnLength);
         peerInfo->asnLength = 0;
         peerInfo->mtype = 0;
@@ -914,6 +916,7 @@ void handlepoll_error(struct epoll_event &event,
         auto *peerInfo = (ConnectedCU_t *)event.data.ptr;
         mdclog_write(MDCLOG_ERR, "epoll error, events %0x on fd %d, RAN NAME : %s",
                      event.events, peerInfo->fileDescriptor, peerInfo->enodbName);
+#ifndef UNIT_TEST
 
         rmrMessageBuffer.sendMessage->len = snprintf((char *)rmrMessageBuffer.sendMessage->payload, 256,
                                                      "%s|Failed SCTP Connection",
@@ -926,7 +929,7 @@ void handlepoll_error(struct epoll_event &event,
         if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer) != 0) {
             mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
         }
-
+#endif
         close(peerInfo->fileDescriptor);
         params->sctpMap->erase(peerInfo->enodbName);
         cleanHashEntry((ConnectedCU_t *) event.data.ptr, params->sctpMap);
@@ -974,7 +977,9 @@ void cleanHashEntry(ConnectedCU_t *val, Sctp_Map_t *m) {
     m->erase(searchBuff);
 
     m->erase(val->enodbName);
+#ifndef UNIT_TEST
     free(val);
+#endif
 }
 
 /**
@@ -2646,5 +2651,3 @@ string translateRmrErrorMessages(int state) {
     }
     return str;
 }
-
-
