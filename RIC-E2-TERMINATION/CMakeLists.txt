@@ -170,6 +170,24 @@ add_executable(teste2
         RIC-E2-TERMINATION/TEST/e2test.cpp
         )
 
+
+# Locate GTest
+string(REPLACE " " ";" REPLACED_FLAGS ${CMAKE_CXX_FLAGS})
+string(CONCAT FINAL_FLAG ${REPLACED_FLAGS} ";-DUNIT_TEST")
+find_package(GTest REQUIRED)
+include_directories(${GTEST_INCLUDE_DIRS})
+# Link runTests with what we want to test and the GTest and pthread library
+add_executable(sctp_test /opt/e2/RIC-E2-TERMINATION/TEST/sctp_thread_test.cpp
+        RIC-E2-TERMINATION/sctpThread.h
+        RIC-E2-TERMINATION/sctpThread.cpp
+        RIC-E2-TERMINATION/base64.h
+        RIC-E2-TERMINATION/base64.cpp
+
+        )
+target_link_libraries(sctp_test ${GTEST_LIBRARIES} pthread)
+target_compile_options(sctp_test PRIVATE ${FINAL_FLAG})
+
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     LIST(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
     set(CMAKE_BUILD_TYPE "Debug")
@@ -177,15 +195,13 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_link_libraries(${PROJECT_TEST_NAME} gcov)
 
     set(LDFLAGS "--coverage -fprofile-arcs")
+    message("PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
 
     #    setup_target_for_coverage_lcov(${PROJECT_NAME}_coverage ${PROJECT_TEST_NAME} coverage)
-    set(COVERAGE_LCOV_EXCLUDES ${PROJECT_SOURCE_DIR}/config'
-            ${PROJECT_SOURCE_DIR}/log'
-            '${PROJECT_SOURCE_DIR}/docs'
-            '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/3rdparty'
-            '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/oranE2'
-            '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/TEST'
-            '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/config')
+     set(COVERAGE_LCOV_EXCLUDES "${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/3rdparty/*"
+            "${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/oranE2/*"
+            "${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/TEST/*"
+            "${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/config/*")
 
     set(COVERAGE_EXCLUDES '${PROJECT_SOURCE_DIR}/config'
             ${PROJECT_SOURCE_DIR}/log'
@@ -196,6 +212,6 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
             '${PROJECT_SOURCE_DIR}/RIC-E2-TERMINATION/config')
     append_coverage_compiler_flags()
     SETUP_TARGET_FOR_COVERAGE_LCOV(NAME e2_coverage
-            EXECUTABLE e2
-            DEPENDENCIES e2)
+            EXECUTABLE b64Test 
+            DEPENDENCIES b64Test)
 endif ()
