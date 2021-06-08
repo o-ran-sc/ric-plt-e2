@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "ae1732c9_bb48768b",
+        "filename": "RIC-E2-TERMINATION/sctpThread.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 170,
+      "author": {
+        "id": 1000475
+      },
+      "writtenOn": "2021-06-08T12:46:50Z",
+      "side": 1,
+      "message": "is \"debug\"  \"info\" and \"error\" more elaborative than \"0\" \"1\" and \"3\" ?",
+      "range": {
+        "startLine": 170,
+        "startChar": 25,
+        "endLine": 170,
+        "endChar": 30
+      },
+      "revId": "943db6bc0bbda1105b7f94b535fbf031f58071f9",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    }
+  ]
+}
