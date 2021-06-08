@@ -158,27 +158,52 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     sctpParams.rmrPort = (uint16_t)rmrPort;
     snprintf(sctpParams.rmrAddress, sizeof(sctpParams.rmrAddress), "%d", (int) (sctpParams.rmrPort));
 
-    auto tmpStr = conf.getStringValue("loglevel");
-    if (tmpStr.length() == 0) {
-        mdclog_write(MDCLOG_ERR, "illegal loglevel. Set loglevel to MDCLOG_INFO");
-        tmpStr = "info";
-    }
-    transform(tmpStr.begin(), tmpStr.end(), tmpStr.begin(), ::tolower);
+    string tmpStr;
+    if(std::getenv("loglevel"))
+    {
+        auto tmpStr = std::getenv("loglevel");
+        if (strlen(tmpStr) == 0) {
+             mdclog_write(MDCLOG_ERR, "illegal loglevel. Set loglevel to MDCLOG_ERR");
+             tmpStr = "3";
+        }
 
-    if ((tmpStr.compare("debug")) == 0) {
-        sctpParams.logLevel = MDCLOG_DEBUG;
-    } else if ((tmpStr.compare("info")) == 0) {
-        sctpParams.logLevel = MDCLOG_INFO;
-    } else if ((tmpStr.compare("warning")) == 0) {
-        sctpParams.logLevel = MDCLOG_WARN;
-    } else if ((tmpStr.compare("error")) == 0) {
-        sctpParams.logLevel = MDCLOG_ERR;
-    } else {
-        mdclog_write(MDCLOG_ERR, "illegal loglevel = %s. Set loglevel to MDCLOG_INFO", tmpStr.c_str());
-        sctpParams.logLevel = MDCLOG_INFO;
+        if (!strcmp(tmpStr,"0")) {
+            sctpParams.logLevel = MDCLOG_DEBUG;
+        } else if (!strcmp(tmpStr,"1")) {
+            sctpParams.logLevel = MDCLOG_INFO;
+        } else if (!strcmp(tmpStr,"2")) {
+            sctpParams.logLevel = MDCLOG_WARN;
+        } else if (!strcmp(tmpStr,"3")) {
+            sctpParams.logLevel = MDCLOG_ERR;
+        } else {
+            mdclog_write(MDCLOG_ERR, "illegal loglevel = %s. Set loglevel to MDCLOG_ERR", tmpStr);
+            sctpParams.logLevel = MDCLOG_ERR;
+        }
+    }
+    else
+    {
+        auto tmpStr = conf.getStringValue("loglevel");
+        if (tmpStr.length() == 0) {
+             mdclog_write(MDCLOG_ERR, "illegal loglevel. Set loglevel to MDCLOG_INFO");
+             tmpStr = "info";
+        }
+        transform(tmpStr.begin(), tmpStr.end(), tmpStr.begin(), ::tolower);
+
+        if ((tmpStr.compare("debug")) == 0) {
+            sctpParams.logLevel = MDCLOG_DEBUG;
+        } else if ((tmpStr.compare("info")) == 0) {
+            sctpParams.logLevel = MDCLOG_INFO;
+        } else if ((tmpStr.compare("warning")) == 0) {
+            sctpParams.logLevel = MDCLOG_WARN;
+        } else if ((tmpStr.compare("error")) == 0) {
+            sctpParams.logLevel = MDCLOG_ERR;
+        } else {
+            mdclog_write(MDCLOG_ERR, "illegal loglevel = %s. Set loglevel to MDCLOG_INFO", tmpStr.c_str());
+            sctpParams.logLevel = MDCLOG_INFO;
+        }
     }
     mdclog_level_set(sctpParams.logLevel);
-
+    
     tmpStr = conf.getStringValue("volume");
     if (tmpStr.length() == 0) {
         mdclog_write(MDCLOG_ERR, "illegal volume.");
