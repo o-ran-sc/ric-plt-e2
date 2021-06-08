@@ -22,6 +22,30 @@
       },
       "revId": "943db6bc0bbda1105b7f94b535fbf031f58071f9",
       "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "480f81ff_9245df73",
+        "filename": "RIC-E2-TERMINATION/sctpThread.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 170,
+      "author": {
+        "id": 1001119
+      },
+      "writtenOn": "2021-06-08T12:52:24Z",
+      "side": 1,
+      "message": "I have plan to provide the config map based , so I will encounter in upcoming review",
+      "parentUuid": "ae1732c9_bb48768b",
+      "range": {
+        "startLine": 170,
+        "startChar": 25,
+        "endLine": 170,
+        "endChar": 30
+      },
+      "revId": "943db6bc0bbda1105b7f94b535fbf031f58071f9",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
     }
   ]
 }
