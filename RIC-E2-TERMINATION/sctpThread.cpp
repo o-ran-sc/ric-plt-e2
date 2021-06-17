@@ -23,7 +23,8 @@
 #include <3rdparty/oranE2/RANfunctions-List.h>
 #include "sctpThread.h"
 #include "BuildRunName.h"
-
+#include <thread>
+#include <unistd.h>
 //#include "3rdparty/oranE2SM/E2SM-gNB-NRT-RANfunction-Definition.h"
 //#include "BuildXml.h"
 //#include "pugixml/src/pugixml.hpp"
@@ -55,10 +56,13 @@ double cpuClock = 0.0;
 bool jsonTrace = false;
 
 void init_log() {
+    int log_change_monitor = 1;
     mdclog_attr_t *attr;
     mdclog_attr_init(&attr);
     mdclog_attr_set_ident(attr, "E2Terminator");
     mdclog_init(attr);
+    if(mdclog_format_initialize(log_change_monitor)!=0)
+        mdclog_write(MDCLOG_ERR, "Failed to intialize MDC log format !!!");
     mdclog_attr_destroy(attr);
 }
 auto start_time = std::chrono::high_resolution_clock::now();
@@ -157,7 +161,7 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     }
     sctpParams.rmrPort = (uint16_t)rmrPort;
     snprintf(sctpParams.rmrAddress, sizeof(sctpParams.rmrAddress), "%d", (int) (sctpParams.rmrPort));
-
+/* Commenting as part Dynamic Log level Change
     string tmpStr;
     if(std::getenv("loglevel"))
     {
@@ -203,8 +207,8 @@ int buildConfiguration(sctp_params_t &sctpParams) {
         }
     }
     mdclog_level_set(sctpParams.logLevel);
-    
-    tmpStr = conf.getStringValue("volume");
+*/    
+    auto tmpStr = conf.getStringValue("volume");
     if (tmpStr.length() == 0) {
         mdclog_write(MDCLOG_ERR, "illegal volume.");
         return -1;
@@ -288,16 +292,15 @@ int buildConfiguration(sctp_params_t &sctpParams) {
                                             sctpParams.podName.c_str());
 
     if (mdclog_level_get() >= MDCLOG_INFO) {
-        mdclog_mdc_add("RMR Port", to_string(sctpParams.rmrPort).c_str());
-        mdclog_mdc_add("LogLevel", to_string(sctpParams.logLevel).c_str());
-        mdclog_mdc_add("volume", sctpParams.volume);
-        mdclog_mdc_add("tmpLogFilespec", tmpLogFilespec);
-        mdclog_mdc_add("my ip", sctpParams.myIP.c_str());
-        mdclog_mdc_add("pod name", sctpParams.podName.c_str());
+        mdclog_write(MDCLOG_DEBUG,"RMR Port: %s", to_string(sctpParams.rmrPort).c_str());
+        mdclog_write(MDCLOG_DEBUG,"LogLevel: %s", to_string(sctpParams.logLevel).c_str());
+        mdclog_write(MDCLOG_DEBUG,"volume: %s", sctpParams.volume);
+        mdclog_write(MDCLOG_DEBUG,"tmpLogFilespec: %s", tmpLogFilespec);
+        mdclog_write(MDCLOG_DEBUG,"my ip: %s", sctpParams.myIP.c_str());
+        mdclog_write(MDCLOG_DEBUG,"pod name: %s", sctpParams.podName.c_str());
 
         mdclog_write(MDCLOG_INFO, "running parameters for instance : %s", sctpParams.ka_message);
     }
-    mdclog_mdc_clean();
 
     // Files written to the current working directory
     boostLogger = logging::add_file_log(
@@ -339,6 +342,7 @@ void startPrometheus(sctp_params_t &sctpParams) {
     sctpParams.prometheusExposer->RegisterCollectable(sctpParams.prometheusRegistry);
 }
 #ifndef UNIT_TEST
+
 int main(const int argc, char **argv) {
     sctp_params_t sctpParams;
 
@@ -355,8 +359,6 @@ int main(const int argc, char **argv) {
 
     unsigned num_cpus = std::thread::hardware_concurrency();
     init_log();
-    mdclog_level_set(MDCLOG_INFO);
-
     if (std::signal(SIGINT, catch_function) == SIG_ERR) {
         mdclog_write(MDCLOG_ERR, "Error initializing SIGINT");
         exit(1);
@@ -562,11 +564,14 @@ int buildInotify(sctp_params_t &sctpParams) {
 void listener(sctp_params_t *params) {
     int num_of_SCTP_messages = 0;
     auto totalTime = 0.0;
-    mdclog_mdc_clean();
-    mdclog_level_set(params->logLevel);
-
     std::thread::id this_id = std::this_thread::get_id();
     //save cout
+    auto pod_name = std::getenv("POD_NAME");
+    auto container_name = std::getenv("CONTAINER_NAME");
+    auto service_name = std::getenv("SERVICE_NAME");
+    auto host_name = std::getenv("HOST_NAME");
+    auto system_name = std::getenv("SYSTEM_NAME");
+    auto pid = std::to_string(getpid()).c_str();
     streambuf *oldCout = cout.rdbuf();
     ostringstream memCout;
     // create new cout
@@ -578,7 +583,12 @@ void listener(sctp_params_t *params) {
     char tid[32];
     memcpy(tid, memCout.str().c_str(), memCout.str().length() < 32 ? memCout.str().length() : 31);
     tid[memCout.str().length()] = 0;
-    mdclog_mdc_add("thread id", tid);
+    mdclog_mdc_add("SYSTEM_NAME", system_name);
+    mdclog_mdc_add("HOST_NAME", host_name);
+    mdclog_mdc_add("SERVICE_NAME", service_name);
+    mdclog_mdc_add("CONTAINER_NAME", container_name);
+    mdclog_mdc_add("POD_NAME", pod_name);
+    mdclog_mdc_add("PID", pid);
 
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
         mdclog_write(MDCLOG_DEBUG, "started thread number %s", tid);
@@ -806,7 +816,7 @@ void handleConfigChange(sctp_params_t *sctpParams) {
                                  p.string().c_str(), strerror(errno));
                     return;
                 }
-
+                /* Commenting as a part of Dynamic log level change
                 auto tmpStr = conf.getStringValue("loglevel");
                 if (tmpStr.length() == 0) {
                     mdclog_write(MDCLOG_ERR, "illegal loglevel. Set loglevel to MDCLOG_INFO");
@@ -832,8 +842,8 @@ void handleConfigChange(sctp_params_t *sctpParams) {
                 }
                 mdclog_level_set(sctpParams->logLevel);
 
-
-                tmpStr = conf.getStringValue("trace");
+                */
+                auto tmpStr = conf.getStringValue("trace");
                 if (tmpStr.length() == 0) {
                     mdclog_write(MDCLOG_ERR, "illegal trace. Set trace to stop");
                     tmpStr = "stop";
@@ -971,17 +981,13 @@ int setSocketNoBlocking(int socket) {
     auto flags = fcntl(socket, F_GETFL, 0);
 
     if (flags == -1) {
-        mdclog_mdc_add("func", "fcntl");
         mdclog_write(MDCLOG_ERR, "%s, %s", __FUNCTION__, strerror(errno));
-        mdclog_mdc_clean();
         return -1;
     }
 
     flags = (unsigned) flags | (unsigned) O_NONBLOCK;
     if (fcntl(socket, F_SETFL, flags) == -1) {
-        mdclog_mdc_add("func", "fcntl");
         mdclog_write(MDCLOG_ERR, "%s, %s", __FUNCTION__, strerror(errno));
-        mdclog_mdc_clean();
         return -1;
     }
 
