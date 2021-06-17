@@ -43,10 +43,10 @@ RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/ && cat /opt/e2/RIC-E2-
     && dpkg -i rmr_4.7.4_amd64.deb \
     && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/rmr-dev_4.7.4_amd64.deb/download.deb \
     && dpkg -i rmr-dev_4.7.4_amd64.deb \
-    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog_0.0.4-1_amd64.deb/download.deb \
-    && dpkg -i mdclog_0.0.4-1_amd64.deb \
-    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog-dev_0.0.4-1_amd64.deb/download.deb \
-    && dpkg -i mdclog-dev_0.0.4-1_amd64.deb \
+    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog_0.1.1-1_amd64.deb/download.deb \
+    && dpkg -i mdclog_0.1.1-1_amd64.deb \
+    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog-dev_0.1.1-1_amd64.deb/download.deb \
+    && dpkg -i mdclog-dev_0.1.1-1_amd64.deb \
     && apt-get update && apt-get install -y libcurl4-gnutls-dev gawk libtbb-dev  libtbb-doc libtbb2 libtbb2-dbg \
     && apt-get install  -y python3 python3-pip python3-setuptools python3-wheel ninja-build \
     && pip3 install  meson \
@@ -96,9 +96,9 @@ COPY --from=ubuntu /usr/local/lib/librmr_si.so.4.7.4 /usr/local/lib/librmr_si.so
 COPY --from=ubuntu /usr/local/lib/librmr_si.so.4  /usr/local/lib/librmr_si.so.4
 COPY --from=ubuntu /usr/local/lib/librmr_si.so /usr/local/lib/librmr_si.so
 
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libmdclog.so /usr/local/lib/libmdclog.so
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libmdclog.so.0 /usr/local/lib/libmdclog.so.0
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libmdclog.so.0.0.4 /usr/local/lib/libmdclog.so.0.0.4
+COPY --from=ubuntu /usr/local/lib/libmdclog.so /usr/local/lib/libmdclog.so
+COPY --from=ubuntu /usr/local/lib/libmdclog.so.0 /usr/local/lib/libmdclog.so.0
+COPY --from=ubuntu /usr/local/lib/libmdclog.so.0.1.7 /usr/local/lib/libmdclog.so.0.1.7
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcgreen.so /usr/local/libcgreen.so
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcgreen.so.1 /usr/local/libcgreen.so.1
