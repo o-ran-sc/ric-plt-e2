@@ -411,6 +411,8 @@ void buildJsonMessage(ReportingMessages_t &message);
  */
 string translateRmrErrorMessages(int state);
 
+int buildConfiguration(sctp_params_t &sctpParams);
+void startPrometheus(sctp_params_t &sctpParams);
 
 static inline uint64_t rdtscp(uint32_t &aux) {
     uint64_t rax,rdx;
@@ -419,6 +421,11 @@ static inline uint64_t rdtscp(uint32_t &aux) {
 }
 #ifndef RIC_SCTP_CONNECTION_FAILURE
 #define RIC_SCTP_CONNECTION_FAILURE  10080
+#endif
+
+#ifdef UNIT_TEST
+int e2_test_main(const int argc, char **argv, sctp_params_t &sctpParams);
+int buildListeningPort(sctp_params_t &sctpParams);
 #endif
 
 #endif //X2_SCTP_THREAD_H
