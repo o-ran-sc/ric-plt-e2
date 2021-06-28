@@ -27,6 +27,13 @@
 //#include "3rdparty/oranE2SM/E2SM-gNB-NRT-RANfunction-Definition.h"
 //#include "BuildXml.h"
 //#include "pugixml/src/pugixml.hpp"
+#include <pthread.h>
+#include <sys/time.h>
+#include <sys/inotify.h>
+#include <errno.h>
+#include <sys/stat.h>
+
+
 
 using namespace std;
 //using namespace std::placeholders;
@@ -41,6 +48,7 @@ using namespace prometheus;
 
 // need to expose without the include of gcov
 extern "C" void __gcov_flush(void);
+#define LOG_FILE_CONFIG_MAP "CONFIG_MAP_NAME"
 
 static void catch_function(int signal) {
     __gcov_flush();
@@ -54,14 +62,187 @@ boost::shared_ptr<sinks::synchronous_sink<sinks::text_file_backend>> boostLogger
 double cpuClock = 0.0;
 bool jsonTrace = false;
 
+
+static int enable_log_change_notify(const char* fileName)
+{
+    int ret = -1;
+    struct stat fileInfo;
+    if ( lstat(fileName,&fileInfo) == 0 )
+    {
+        ret = register_log_change_notify(fileName);
+    }
+    return ret;
+}
+
+
+static int register_log_change_notify(const char *fileName)
+{
+    pthread_attr_t cb_attr;
+    pthread_t tid;
+    pthread_attr_init(&cb_attr);
+    pthread_attr_setdetachstate(&cb_attr,PTHREAD_CREATE_DETACHED);
+    return pthread_create(&tid, &cb_attr,&monitor_loglevel_change_handler,(void *)strdup(fileName));
+}
+
+
+static void * monitor_loglevel_change_handler(void* arg)
+{
+    char *fileName = (char*) arg;
+    int ifd;                   // the inotify file des
+    int wfd;                   // the watched file des
+    ssize_t n = 0;
+    char rbuf[4096];           // large read buffer as the event is var len
+    fd_set fds;
+    int res = 0;
+    struct timeval timeout;
+    char* dname=NULL;          // directory name
+    char* bname = NULL;        // basename
+    char* tok=NULL;
+    char* log_level=NULL;
+
+    dname = strdup( fileName); // defrock the file name into dir and basename
+    if( (tok = strrchr( dname, '/' )) != NULL ) {
+        *tok = '\0';
+        bname = strdup( tok+1 );
+    }
+
+
+    ifd = inotify_init1( 0 ); // initialise watcher setting blocking read (no option)
+    if( ifd < 0 ) {
+        fprintf( stderr, "### ERR ### unable to initialise file watch %s\n", strerror( errno ) );
+    } else {
+        wfd = inotify_add_watch( ifd, dname, IN_MOVED_TO | IN_CLOSE_WRITE ); // we only care about close write changes
+
+        if( wfd < 0 ) {
+            fprintf( stderr, "### ERR ### unable to add watch on config file %s: %s\n", fileName, strerror( errno ) );
+        } else {
+           
+
+            memset( &timeout, 0, sizeof(timeout) );
+            while( 1 ) {
+                FD_ZERO (&fds);
+                FD_SET (ifd, &fds);
+                timeout.tv_sec=1;
+                res = select (ifd + 1, &fds, NULL, NULL, &timeout);
+                if(res)
+                {
+                    n = read( ifd, rbuf, sizeof( rbuf ) ); // read the event
+                    if( n < 0  ) {
+                        if( errno == EAGAIN ) {
+                        } else {
+                            fprintf( stderr, "### CRIT ### config listener read err: %s\n", strerror( errno ) );
+                        }
+                        continue;
+                    }
+
+                    //Retrieving Log Level from configmap by parsing configmap file
+                    log_level = parse_file(fileName);
+                    update_mdc_log_level_severity(log_level); //setting log level
+                    free(log_level);
+                }
+            }
+            inotify_rm_watch(ifd,wfd);
+        }
+        close(ifd);
+    }
+    free(bname);
+    free(dname);
+
+    pthread_exit(NULL);
+}
+
+void  update_mdc_log_level_severity(char* log_level)
+{
+    mdclog_severity_t level = MDCLOG_ERR;
+
+    if(log_level == NULL)
+    {
+        printf("### ERR ### Invalid Log-Level Configuration in ConfigMap, Default Log-Level Applied:   %d\n",level);
+    }
+    else if(strcasecmp(log_level,"1")==0)
+    {
+        level = MDCLOG_ERR;
+    }
+    else if(strcasecmp(log_level,"2")==0)
+    {
+        level = MDCLOG_WARN;
+    }
+    else if(strcasecmp(log_level,"3")==0)
+    {
+        level = MDCLOG_INFO;
+    }
+    else if(strcasecmp(log_level,"4")==0)
+    {
+        level = MDCLOG_DEBUG;
+    }
+
+    mdclog_level_set(level);
+}
+static char* parse_file(char* filename)
+{
+    char *token=NULL;
+    char *search = ": ";
+    char *string_match = "log-level";
+    bool found = false;
+    FILE *file = fopen ( filename, "r" );
+    if ( file != NULL )
+    {
+        char line [ 128 ];
+        while ( fgets ( line, sizeof line, file ) != NULL )
+        {
+            token = strtok(line, search);
+            if(strcmp(token,string_match)==0)
+            {
+                found = true;
+                token = strtok(NULL, search);
+                token = strtok(token, "\n");//removing newline if any
+                break;
+            }
+        }
+        fclose ( file );
+     }
+     if(found)
+         return(strdup(token));
+     else
+         return(NULL);
+}
+
+char *read_env_param(const char*envkey)
+{
+    if(envkey)
+    {
+        char *value = getenv(envkey);
+        if(value)
+            return strdup(value);
+    }
+    return NULL;
+}
+
+void dynamic_log_level_change()
+{
+    char *logFile_Name = read_env_param(LOG_FILE_CONFIG_MAP);
+    char* log_level_init=NULL;
+    if(logFile_Name)
+    {
+        log_level_init = parse_file(logFile_Name);
+        update_mdc_log_level_severity(log_level_init); //setting log level
+        free(log_level_init);
+
+    }
+    enable_log_change_notify(logFile_Name);
+    free(logFile_Name);
+
+}
+
 void init_log() {
-    int log_change_monitor = 1;
+    int log_change_monitor = 0;
     mdclog_attr_t *attr;
     mdclog_attr_init(&attr);
     mdclog_attr_set_ident(attr, "E2Terminator");
     mdclog_init(attr);
     if(mdclog_format_initialize(log_change_monitor)!=0)
         mdclog_write(MDCLOG_ERR, "Failed to intialize MDC log format !!!");
+    dynamic_log_level_change();
     mdclog_attr_destroy(attr);
 }
 auto start_time = std::chrono::high_resolution_clock::now();

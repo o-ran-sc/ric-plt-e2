@@ -413,6 +413,12 @@ string translateRmrErrorMessages(int state);
 
 int buildConfiguration(sctp_params_t &sctpParams);
 void startPrometheus(sctp_params_t &sctpParams);
+static int enable_log_change_notify(const char* fileName);
+static int register_log_change_notify(const char *fileName);
+static void * monitor_loglevel_change_handler(void* arg);
+void  update_mdc_log_level_severity(char* log_level);
+static char* parse_file(char* filename);
+
 
 static inline uint64_t rdtscp(uint32_t &aux) {
     uint64_t rax,rdx;
