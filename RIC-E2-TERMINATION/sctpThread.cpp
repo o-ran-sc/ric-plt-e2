@@ -479,10 +479,6 @@ void startPrometheus(sctp_params_t &sctpParams) {
 
 int main(const int argc, char **argv) {
     sctp_params_t sctpParams;
-#else
-    int e2_test_main(const int argc, char **argv, sctp_params_t &sctpParams) {
-#endif
-
     {
         std::random_device device{};
         std::mt19937 generator(device());
@@ -532,9 +528,7 @@ int main(const int argc, char **argv) {
         mdclog_write(MDCLOG_ERR, "failed to open epoll descriptor");
         exit(-1);
     }
-#ifndef UNIT_TEST
     getRmrContext(sctpParams);
-#endif
     if (sctpParams.rmrCtx == nullptr) {
         close(sctpParams.epoll_fd);
         exit(-1);
@@ -582,6 +576,7 @@ int main(const int argc, char **argv) {
 
     return 0;
 }
+#endif
 void handleTermInit(sctp_params_t &sctpParams) {
     sendTermInit(sctpParams);
     //send to e2 manager init of e2 term
@@ -904,11 +899,17 @@ void handleConfigChange(sctp_params_t *sctpParams) {
     char buf[4096] __attribute__ ((aligned(__alignof__(struct inotify_event))));
     const struct inotify_event *event;
     char *ptr;
-
+#ifdef UNIT_TEST
+    struct inotify_event tmpEvent;
+#endif
     path p = (sctpParams->configFilePath + "/" + sctpParams->configFileName).c_str();
     auto endlessLoop = true;
     while (endlessLoop) {
-        auto len = read(sctpParams->inotifyFD, buf, sizeof buf);
+#ifndef UNIT_TEST
+    auto len = read(sctpParams->inotifyFD, buf, sizeof buf);
+#else
+    auto len=10;
+#endif
         if (len == -1) {
             if (errno != EAGAIN) {
                 mdclog_write(MDCLOG_ERR, "read %s ", strerror(errno));
@@ -922,7 +923,12 @@ void handleConfigChange(sctp_params_t *sctpParams) {
         }
 
         for (ptr = buf; ptr < buf + len; ptr += sizeof(struct inotify_event) + event->len) {
-            event = (const struct inotify_event *)ptr;
+#ifndef UNIT_TEST
+    event = (const struct inotify_event *)ptr;
+#else
+    tmpEvent.mask = (uint32_t)IN_CLOSE_WRITE;
+    event = &tmpEvent;
+#endif
             if (event->mask & (uint32_t)IN_ISDIR) {
                 continue;
             }
@@ -1006,6 +1012,9 @@ void handleConfigChange(sctp_params_t *sctpParams) {
 
                 endlessLoop = false;
             }
+#ifdef UNIT_TEST
+            break;
+#endif
         }
     }
 }
@@ -1488,8 +1497,9 @@ static void buildAndSendSetupRequest(ReportingMessages_t &message,
     static unsigned char tx[32];
     snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
     rmr_bytes2xact(rmrMsg, tx, strlen((const char *) tx));
-
+#ifndef UNIT_TEST
     rmrMsg = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMsg);
+#endif
     if (rmrMsg == nullptr) {
         mdclog_write(MDCLOG_ERR, "RMR failed to send returned nullptr");
     } else if (rmrMsg->state != 0) {
@@ -1499,7 +1509,9 @@ static void buildAndSendSetupRequest(ReportingMessages_t &message,
             rmrMsg->state = 0;
             mdclog_write(MDCLOG_INFO, "RETRY sending Message %d to Xapp from %s",
                          rmrMsg->mtype, rmr_get_meid(rmrMsg, (unsigned char *) meid));
+#ifndef UNIT_TEST
             rmrMsg = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMsg);
+#endif
             if (rmrMsg == nullptr) {
                 mdclog_write(MDCLOG_ERR, "RMR failed send returned nullptr");
             } else if (rmrMsg->state != 0) {
@@ -2282,6 +2294,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 
     // get message payload
     //auto msgData = msg->payload;
+#ifdef UNIT_TEST
+        rmrMessageBuffer.rcvMessage->state = 0;
+#endif
     if (rmrMessageBuffer.rcvMessage->state != 0) {
         mdclog_write(MDCLOG_ERR, "RMR Receiving message with stat = %d", rmrMessageBuffer.rcvMessage->state);
         return -1;
@@ -2508,7 +2523,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             static unsigned char tx[32];
             auto txLen = snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
             rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, txLen);
+#ifndef UNIT_TEST
             rmrMessageBuffer.sendMessage = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMessageBuffer.sendMessage);
+#endif
             if (rmrMessageBuffer.sendMessage == nullptr) {
                 rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
                 mdclog_write(MDCLOG_ERR, "Failed to send E2_TERM_KEEP_ALIVE_RESP RMR message returned NULL");
@@ -2703,9 +2720,11 @@ int modifyToEpoll(int epoll_fd,
 
 int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &message) {
     buildJsonMessage(message);
-
+#ifndef UNIT_TEST
     rmrMessageBuffer.sendMessage = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMessageBuffer.sendMessage);
-
+#else
+        rmrMessageBuffer.sendMessage->state = RMR_ERR_RETRY;
+#endif
     if (rmrMessageBuffer.sendMessage == nullptr) {
         rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
         mdclog_write(MDCLOG_ERR, "RMR failed send message returned with NULL pointer");
@@ -2720,7 +2739,9 @@ int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &m
             mdclog_write(MDCLOG_INFO, "RETRY sending Message type %d to Xapp from %s",
                          rmrMessageBuffer.sendMessage->mtype,
                          rmr_get_meid(rmrMessageBuffer.sendMessage, (unsigned char *)meid));
+#ifndef UNIT_TEST
             rmrMessageBuffer.sendMessage = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMessageBuffer.sendMessage);
+#endif
             if (rmrMessageBuffer.sendMessage == nullptr) {
                 mdclog_write(MDCLOG_ERR, "RMR failed send message returned with NULL pointer");
                 rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
@@ -2746,6 +2767,9 @@ int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &m
 }
 
 void buildJsonMessage(ReportingMessages_t &message) {
+#ifdef UNIT_TEST
+        jsonTrace = true;
+#endif
     if (jsonTrace) {
         message.outLen = sizeof(message.base64Data);
         base64::encode((const unsigned char *) message.message.asndata,

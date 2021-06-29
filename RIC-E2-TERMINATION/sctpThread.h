@@ -430,7 +430,8 @@ static inline uint64_t rdtscp(uint32_t &aux) {
 #endif
 
 #ifdef UNIT_TEST
-int e2_test_main(const int argc, char **argv, sctp_params_t &sctpParams);
+int buildConfiguration(sctp_params_t &sctpParams);
+void startPrometheus(sctp_params_t &sctpParams);
 int buildListeningPort(sctp_params_t &sctpParams);
 #endif
 
