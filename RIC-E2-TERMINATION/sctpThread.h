@@ -429,10 +429,6 @@ static inline uint64_t rdtscp(uint32_t &aux) {
 #define RIC_SCTP_CONNECTION_FAILURE  10080
 #endif
 
-#ifdef UNIT_TEST
-int buildConfiguration(sctp_params_t &sctpParams);
-void startPrometheus(sctp_params_t &sctpParams);
 int buildListeningPort(sctp_params_t &sctpParams);
-#endif
 
 #endif //X2_SCTP_THREAD_H
