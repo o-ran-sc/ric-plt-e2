@@ -25,6 +25,8 @@ typedef struct {
     unsigned char srcip[RMR_MAX_SRC];   // ip address and port of the source
 } uta_mhdr_t;
 
+void init_memories(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer, sctp_params_t &sctp_ut_params);
+
 TEST(sctp, TEST1) {
     mdclog_level_set(MDCLOG_DEBUG);
     string s;
@@ -109,7 +111,7 @@ TEST(sctp, TEST4) {
 TEST(sctp, TEST5) {
     sctp_params_t sctp_ut_params;
     sctp_params_t* sctp = &sctp_ut_params;
-    sctp->configFilePath.assign("/opt/e2/RIC-E2-TERMINATION/config/");
+    sctp->configFilePath.assign("/opt/e2/RIC-E2-TERMINATION/config");
     sctp->configFileName.assign("config.conf");
     handleConfigChange(sctp);
 }
@@ -300,12 +302,6 @@ void delete_memories_successfulOutcome(E2AP_PDU_t *pdu, RmrMessagesBuffer_t &rmr
         free(rmrMessageBuffer.sendMessage->payload);
         rmrMessageBuffer.sendMessage->payload = NULL;
     }
-#if 0
-    if(rmrMessageBuffer.rmrCtx) {
-        rmr_close(rmrMessageBuffer.rmrCtx);
-        rmrMessageBuffer.rmrCtx = NULL;
-    }
-#endif
     if(rmrMessageBuffer.sendMessage) {
         free(rmrMessageBuffer.sendMessage);
         rmrMessageBuffer.sendMessage = NULL;
@@ -434,12 +430,6 @@ void delete_memories_unsuccessfulOutcome(E2AP_PDU_t *pdu, RmrMessagesBuffer_t &r
         free(rmrMessageBuffer.sendMessage->payload);
         rmrMessageBuffer.sendMessage->payload = NULL;
     }
-#if 0
-    if(rmrMessageBuffer.rmrCtx) {
-        rmr_close(rmrMessageBuffer.rmrCtx);
-        rmrMessageBuffer.rmrCtx = NULL;
-    }
-#endif
     if(rmrMessageBuffer.sendMessage) {
         free(rmrMessageBuffer.sendMessage);
         rmrMessageBuffer.sendMessage = NULL;
@@ -731,6 +721,13 @@ void create_receiveXappMessages_E2_TERM_KEEP_ALIVE_REQ(Sctp_Map_t *sctpMap, Repo
     delete_memories_rcv(rmrMessageBuffer);
 }
 
+void create_receiveXappMessages_RIC_SUB_DEL_REQ(Sctp_Map_t *sctpMap, ReportingMessages_t &message,
+        RmrMessagesBuffer_t &rmrMessageBuffer) {
+        inti_buffers_rcv(message, rmrMessageBuffer);
+        rmrMessageBuffer.rcvMessage->mtype = E2_TERM_KEEP_ALIVE_REQ;
+        receiveXappMessages(sctpMap, rmrMessageBuffer, message.message.time);
+        delete_memories_rcv(rmrMessageBuffer);
+}        
 
 TEST(sctp, TEST13) {
     Sctp_Map_t *sctpMap = new Sctp_Map_t();
@@ -748,18 +745,102 @@ TEST(sctp, TEST13) {
     create_receiveXappMessages_RIC_HEALTH_CHECK_REQ(sctpMap, message, rmrMessageBuffer);
     create_receiveXappMessages_E2_TERM_KEEP_ALIVE_REQ(sctpMap, message, rmrMessageBuffer);
     create_receiveXappMessages_RIC_SCTP_CLEAR_ALL(sctpMap, message, rmrMessageBuffer);
-    create_receiveXappMessages_RIC_SCTP_CLEAR_ALL(sctpMap, message, rmrMessageBuffer);
     create_receiveXappMessages_RIC_E2_RESET_RESP(sctpMap, message, rmrMessageBuffer);
     create_receiveXappMessages_RIC_E2_RESET_REQ(sctpMap, message, rmrMessageBuffer);
     create_receiveXappMessages_RIC_SERVICE_UPDATE_FAILURE(sctpMap, message, rmrMessageBuffer);
     create_receiveXappMessages_RIC_SERVICE_UPDATE_ACK(sctpMap, message, rmrMessageBuffer);
     create_receiveXappMessages_RIC_SERVICE_QUERY(sctpMap, message, rmrMessageBuffer);
+    create_receiveXappMessages_RIC_SUB_DEL_REQ(sctpMap, message, rmrMessageBuffer);
 
     inti_buffers_rcv(message, rmrMessageBuffer);
-    rmrMessageBuffer.rcvMessage->mtype = 100;
+    rmrMessageBuffer.rcvMessage->mtype = 52345; /*Dummy Integer Value for default case*/
     receiveXappMessages(sctpMap, rmrMessageBuffer, message.message.time);
     delete_memories_rcv(rmrMessageBuffer);
 
+    if(sctpMap) {
+        delete sctpMap;
+        sctpMap = NULL;
+    }
+}
+/* TEST 14 Begin: */
+void receiveDataFromSctp_asnSuccessfulMsg_Procedure_Default( E2AP_PDU_t *pdu,
+        RmrMessagesBuffer_t &rmrMessageBuffer) {
+    pdu->present = E2AP_PDU_PR_successfulOutcome;
+    pdu->choice.successfulOutcome = (SuccessfulOutcome*) malloc(sizeof(SuccessfulOutcome));
+    memset( (void*)pdu->choice.successfulOutcome, 0, sizeof(pdu->choice.successfulOutcome));
+    pdu->choice.successfulOutcome->procedureCode = ((ProcedureCode_t)100);
+
+    rmrMessageBuffer.sendMessage->tp_buf = pdu;
+}
+
+void delete_pdu_memories(E2AP_PDU_t *pdu) {
+    if(pdu->choice.successfulOutcome) {
+        free(pdu->choice.successfulOutcome);
+        pdu->choice.successfulOutcome = NULL;
+    }
+    if(pdu->choice.unsuccessfulOutcome) {
+        free(pdu->choice.unsuccessfulOutcome);
+        pdu->choice.unsuccessfulOutcome = NULL;
+    }
+}
+
+void receiveDataFromSctp_asnUnSuccsesfulMsg_Procedure_Default(E2AP_PDU_t  *pdu,
+        RmrMessagesBuffer_t     &rmrMessageBuffer) {
+    pdu->present = E2AP_PDU_PR_unsuccessfulOutcome;
+    pdu->choice.unsuccessfulOutcome = (UnsuccessfulOutcome*) malloc(sizeof(UnsuccessfulOutcome));
+    memset( (void*)pdu->choice.unsuccessfulOutcome, 0, sizeof(pdu->choice.unsuccessfulOutcome));
+    pdu->choice.unsuccessfulOutcome->procedureCode = ((ProcedureCode_t)100);
+
+    rmrMessageBuffer.sendMessage->tp_buf = pdu;
+}
+
+TEST(sctp, TEST14) {
+    E2AP_PDU_t              pdu;
+    struct epoll_event      events;
+    Sctp_Map_t              *sctpMap  = new Sctp_Map_t();
+    int                     numOfMessages=0;
+    RmrMessagesBuffer_t     rmrMessageBuffer;
+    struct timespec         ts;
+    ConnectedCU_t           *peerInfo = (ConnectedCU_t *) calloc(1, sizeof(ConnectedCU_t));
+    events.data.ptr = peerInfo;
+    snprintf(peerInfo->enodbName, strlen("Nokia_enb "), "%s", (char*)"Nokia_enb");
+
+    rmrMessageBuffer.sendMessage = (rmr_mbuf_t*) malloc(sizeof(rmr_mbuf_t));
+    rmrMessageBuffer.sendMessage->header = (uta_mhdr_t*) malloc(sizeof(uta_mhdr_t));
+    rmrMessageBuffer.sendMessage->len = strlen("Saying Hello from NOKIA ");
+    rmrMessageBuffer.sendMessage->payload = (unsigned char*)strdup("Saying Hello from NOKIA");
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+
+    receiveDataFromSctp_asnSuccessfulMsg_Procedure_Default(&pdu, rmrMessageBuffer);
+    receiveDataFromSctp(&events, sctpMap, numOfMessages, rmrMessageBuffer, ts);
+    delete_pdu_memories(&pdu);
+
+    if(rmrMessageBuffer.sendMessage->payload) {
+        free(rmrMessageBuffer.sendMessage->payload);
+        rmrMessageBuffer.sendMessage->payload = NULL;
+    }
+
+    rmrMessageBuffer.sendMessage->payload = (unsigned char*)strdup("Saying Hello from NOKIA");
+    receiveDataFromSctp_asnUnSuccsesfulMsg_Procedure_Default(&pdu, rmrMessageBuffer);
+    receiveDataFromSctp(&events, sctpMap, numOfMessages, rmrMessageBuffer, ts);
+    delete_pdu_memories(&pdu);
+
+    if(rmrMessageBuffer.sendMessage->payload) {
+        free(rmrMessageBuffer.sendMessage->payload);
+        rmrMessageBuffer.sendMessage->payload = NULL;
+    }
+    if(rmrMessageBuffer.sendMessage->header) {
+        free(rmrMessageBuffer.sendMessage->header);
+        rmrMessageBuffer.sendMessage->header = NULL;
+    }
+    if(rmrMessageBuffer.sendMessage) {
+        free(rmrMessageBuffer.sendMessage);
+    }
+    if(peerInfo) {
+        free(peerInfo);
+        peerInfo = NULL;
+    }
     if(sctpMap) {
         delete sctpMap;
         sctpMap = NULL;
