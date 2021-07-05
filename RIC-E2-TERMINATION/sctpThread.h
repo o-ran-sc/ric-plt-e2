@@ -430,9 +430,9 @@ static inline uint64_t rdtscp(uint32_t &aux) {
 #endif
 
 #ifdef UNIT_TEST
-int buildConfiguration(sctp_params_t &sctpParams);
-void startPrometheus(sctp_params_t &sctpParams);
-int buildListeningPort(sctp_params_t &sctpParams);
+    #define FILE_DESCRIPTOR 53424 /*Dummy value for file descriptor only when UT is defined*/
 #endif
+
+int buildListeningPort(sctp_params_t &sctpParams);
 
 #endif //X2_SCTP_THREAD_H
