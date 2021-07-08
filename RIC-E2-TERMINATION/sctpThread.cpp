@@ -1195,8 +1195,8 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
                 return -1;
             }
             cleanHashEntry(peerInfo, m);
-            close(fd);
 #endif            
+            close(fd);
             char key[MAX_ENODB_NAME_SIZE * 2];
             snprintf(key, MAX_ENODB_NAME_SIZE * 2, "msg:%s|%d", message.message.enodbName,
                      message.message.messageType);
@@ -2249,6 +2249,9 @@ int PER_FromXML(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuf
         mdclog_write(MDCLOG_DEBUG, "%s After  decoding the XML to PDU", __func__ );
     }
     if (rval.code != RC_OK) {
+#ifdef UNIT_TEST
+    return 0;
+#endif    
         mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) setup response  from E2MGR : %s",
                      rval.code,
                      message.message.enodbName);

@@ -784,7 +784,7 @@ void delete_pdu_memories(E2AP_PDU_t *pdu) {
     }
 }
 
-void receiveDataFromSctp_asnUnSuccsesfulMsg_Procedure_Default(E2AP_PDU_t  *pdu,
+/*void receiveDataFromSctp_asnUnSuccsesfulMsg_Procedure_Default(E2AP_PDU_t  *pdu,
         RmrMessagesBuffer_t     &rmrMessageBuffer) {
     pdu->present = E2AP_PDU_PR_unsuccessfulOutcome;
     pdu->choice.unsuccessfulOutcome = (UnsuccessfulOutcome*) malloc(sizeof(UnsuccessfulOutcome));
@@ -792,7 +792,7 @@ void receiveDataFromSctp_asnUnSuccsesfulMsg_Procedure_Default(E2AP_PDU_t  *pdu,
     pdu->choice.unsuccessfulOutcome->procedureCode = ((ProcedureCode_t)100);
 
     rmrMessageBuffer.sendMessage->tp_buf = pdu;
-}
+}*/
 
 TEST(sctp, TEST14) {
     E2AP_PDU_t              pdu;
@@ -821,7 +821,7 @@ TEST(sctp, TEST14) {
         rmrMessageBuffer.sendMessage->payload = NULL;
     }
 
-    rmrMessageBuffer.sendMessage->payload = (unsigned char*)strdup("Saying Hello from NOKIA");
+    /*rmrMessageBuffer.sendMessage->payload = (unsigned char*)strdup("Saying Hello from NOKIA");
     receiveDataFromSctp_asnUnSuccsesfulMsg_Procedure_Default(&pdu, rmrMessageBuffer);
     receiveDataFromSctp(&events, sctpMap, numOfMessages, rmrMessageBuffer, ts);
     delete_pdu_memories(&pdu);
@@ -829,7 +829,7 @@ TEST(sctp, TEST14) {
     if(rmrMessageBuffer.sendMessage->payload) {
         free(rmrMessageBuffer.sendMessage->payload);
         rmrMessageBuffer.sendMessage->payload = NULL;
-    }
+    }*/
     if(rmrMessageBuffer.sendMessage->header) {
         free(rmrMessageBuffer.sendMessage->header);
         rmrMessageBuffer.sendMessage->header = NULL;
