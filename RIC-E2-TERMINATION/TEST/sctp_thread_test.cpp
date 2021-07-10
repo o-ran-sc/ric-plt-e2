@@ -724,10 +724,18 @@ void create_receiveXappMessages_E2_TERM_KEEP_ALIVE_REQ(Sctp_Map_t *sctpMap, Repo
 void create_receiveXappMessages_RIC_SUB_DEL_REQ(Sctp_Map_t *sctpMap, ReportingMessages_t &message,
         RmrMessagesBuffer_t &rmrMessageBuffer) {
         inti_buffers_rcv(message, rmrMessageBuffer);
-        rmrMessageBuffer.rcvMessage->mtype = E2_TERM_KEEP_ALIVE_REQ;
+        rmrMessageBuffer.rcvMessage->mtype = RIC_SUB_DEL_REQ;
         receiveXappMessages(sctpMap, rmrMessageBuffer, message.message.time);
         delete_memories_rcv(rmrMessageBuffer);
 }        
+
+void create_receiveXappMessages_RIC_E2_SETUP_RESP(Sctp_Map_t *sctpMap, ReportingMessages_t &message,
+        RmrMessagesBuffer_t &rmrMessageBuffer) {
+        inti_buffers_rcv(message, rmrMessageBuffer);
+        rmrMessageBuffer.rcvMessage->mtype = RIC_E2_SETUP_RESP;
+        receiveXappMessages(sctpMap, rmrMessageBuffer, message.message.time);
+        delete_memories_rcv(rmrMessageBuffer);
+}
 
 TEST(sctp, TEST13) {
     Sctp_Map_t *sctpMap = new Sctp_Map_t();
@@ -751,6 +759,7 @@ TEST(sctp, TEST13) {
     create_receiveXappMessages_RIC_SERVICE_UPDATE_ACK(sctpMap, message, rmrMessageBuffer);
     create_receiveXappMessages_RIC_SERVICE_QUERY(sctpMap, message, rmrMessageBuffer);
     create_receiveXappMessages_RIC_SUB_DEL_REQ(sctpMap, message, rmrMessageBuffer);
+    create_receiveXappMessages_RIC_E2_SETUP_RESP(sctpMap, message, rmrMessageBuffer);
 
     inti_buffers_rcv(message, rmrMessageBuffer);
     rmrMessageBuffer.rcvMessage->mtype = 52345; /*Dummy Integer Value for default case*/
