@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "cbe692b4_102d12af",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1001406
+      },
+      "writtenOn": "2021-07-10T05:03:43Z",
+      "side": 1,
+      "message": "Looks fine to me. Dhiraj can merge now!",
+      "revId": "93b6d9cd271359453e24a7ddf4158095287cbfc7",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    }
+  ]
+}
