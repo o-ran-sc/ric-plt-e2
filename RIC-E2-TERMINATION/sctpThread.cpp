@@ -79,7 +79,7 @@ static int register_log_change_notify(const char *fileName)
     pthread_t tid;
     pthread_attr_init(&cb_attr);
     pthread_attr_setdetachstate(&cb_attr,PTHREAD_CREATE_DETACHED);
-    return pthread_create(&tid, &cb_attr,&monitor_loglevel_change_handler,(void *)strdup(fileName));
+    return pthread_create(&tid, &cb_attr,&monitor_loglevel_change_handler,(void *)fileName);
 }
 
 
@@ -842,8 +842,12 @@ void listener(sctp_params_t *params) {
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))                        
                         if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                             /* We have processed all incoming connections. */
+                            if(peerInfo)
+                                free(peerInfo);
                             break;
                         } else {
+                            if(peerInfo)
+                                free(peerInfo);
                             mdclog_write(MDCLOG_ERR, "Accept error, errno = %s", strerror(errno));
                             break;
                         }
@@ -851,6 +855,8 @@ void listener(sctp_params_t *params) {
                     if (setSocketNoBlocking(peerInfo->fileDescriptor) == -1) {
                         mdclog_write(MDCLOG_ERR, "setSocketNoBlocking failed to set new connection %s on port %s\n", hostBuff, portBuff);
                         close(peerInfo->fileDescriptor);
+                        if(peerInfo)
+                            free(peerInfo);
                         break;
 #endif                        
                     }
@@ -860,6 +866,8 @@ void listener(sctp_params_t *params) {
                     if (ans < 0) {
                         mdclog_write(MDCLOG_ERR, "Failed to get info on connection request. %s\n", strerror(errno));
                         close(peerInfo->fileDescriptor);
+                        if(peerInfo)
+                            free(peerInfo);
                         break;
                     }
                     if (mdclog_level_get() >= MDCLOG_DEBUG) {
@@ -872,6 +880,8 @@ void listener(sctp_params_t *params) {
                                    (EPOLLIN | EPOLLET),
                                    params->sctpMap, nullptr,
                                    0) != 0) {
+                        if(peerInfo)
+                            free(peerInfo);
                         break;
                     }
                     break;
@@ -1388,6 +1398,10 @@ int receiveDataFromSctp(struct epoll_event *events,
         if (rval.code != RC_OK) {
             mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) E2AP PDU from RAN : %s", rval.code,
                          message.peerInfo->enodbName);
+            if (pdu != nullptr) {
+                ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
+                pdu = nullptr;
+            }
             break;
         }
 
@@ -1430,12 +1444,13 @@ int receiveDataFromSctp(struct epoll_event *events,
                          message.peerInfo->enodbName, end.tv_sec - decodeStart.tv_sec, end.tv_nsec - decodeStart.tv_nsec);
         }
         numOfMessages++;
+#ifndef UNIT_TEST
         if (pdu != nullptr) {
-            ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu);
-            //ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
-            //pdu = nullptr;
+            // ASN_STRUCT_RESET(asn_DEF_E2AP_PDU, pdu); /* With reset we were not freeing the memory and was causing the leak here. */
+            ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
+            pdu = nullptr;
         }
-#ifdef UNIT_TEST
+#else
     done = 1;
     break;
 #endif
@@ -1829,6 +1844,10 @@ int XML_From_PER(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBu
         mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) setup response  from E2MGR : %s",
                      rval.code,
                      message.message.enodbName);
+        if (pdu != nullptr) {
+            ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
+            pdu = nullptr;
+        }
         return -1;
     }
 
@@ -1837,6 +1856,10 @@ int XML_From_PER(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBu
                                    rmrMessageBuffer.sendMessage->payload, buff_size);
     if (er.encoded == -1) {
         mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
+        if (pdu != nullptr) {
+            ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
+            pdu = nullptr;
+        }
         return -1;
     } else if (er.encoded > (ssize_t)buff_size) {
         mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s, at %s line %d",
@@ -1844,9 +1867,17 @@ int XML_From_PER(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBu
                      asn_DEF_E2AP_PDU.name,
                      __func__,
                      __LINE__);
+        if (pdu != nullptr) {
+            ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
+            pdu = nullptr;
+        }
         return -1;
     }
     rmrMessageBuffer.sendMessage->len = er.encoded;
+    if (pdu != nullptr) {
+        ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
+        pdu = nullptr;
+    }
     return 0;
 
 }
@@ -2304,6 +2335,10 @@ int PER_FromXML(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuf
         mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) setup response  from E2MGR : %s",
                      rval.code,
                      message.message.enodbName);
+        if (pdu != nullptr) {
+            ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
+            pdu = nullptr;
+        }
         return -1;
     }
 
@@ -2315,6 +2350,10 @@ int PER_FromXML(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuf
     }
     if (er.encoded == -1) {
         mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
+        if (pdu != nullptr) {
+            ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
+            pdu = nullptr;
+        }
         return -1;
     } else if (er.encoded > (ssize_t)buff_size) {
         mdclog_write(MDCLOG_ERR, "Buffer of size %d is to small for %s, at %s line %d",
@@ -2322,9 +2361,17 @@ int PER_FromXML(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuf
                      asn_DEF_E2AP_PDU.name,
                      __func__,
                      __LINE__);
+        if (pdu != nullptr) {
+            ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
+            pdu = nullptr;
+        }
         return -1;
     }
     rmrMessageBuffer.rcvMessage->len = er.encoded;
+    if (pdu != nullptr) {
+        ASN_STRUCT_FREE(asn_DEF_E2AP_PDU, pdu);
+        pdu = nullptr;
+    }
     return 0;
 }
 
