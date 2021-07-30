@@ -593,8 +593,8 @@ void inti_buffers_rcv(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMess
 
     rmrMessageBuffer.rcvMessage = (rmr_mbuf_t*) malloc(sizeof(rmr_mbuf_t));
     rmrMessageBuffer.rcvMessage->header = (uta_mhdr_t*) malloc(sizeof(uta_mhdr_t));
-    rmrMessageBuffer.rcvMessage->len = strlen("Saying Hello from Ramji ");
-    rmrMessageBuffer.rcvMessage->payload = (unsigned char*)strdup("Saying Hello from Ramji");
+    rmrMessageBuffer.rcvMessage->len = strlen("Saying Hello from Nokia ");
+    rmrMessageBuffer.rcvMessage->payload = (unsigned char*)strdup("Saying Hello from Nokia");
 
     rmrMessageBuffer.sendMessage = (rmr_mbuf_t*) malloc(sizeof(rmr_mbuf_t));
     rmrMessageBuffer.sendMessage->header = (uta_mhdr_t*) malloc(sizeof(uta_mhdr_t));
