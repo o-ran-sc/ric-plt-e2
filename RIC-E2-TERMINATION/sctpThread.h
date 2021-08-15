@@ -148,6 +148,7 @@ typedef struct sctp_params {
     string prometheusPort {"8088"};
     Family<Counter> *prometheusFamily;
     Exposer *prometheusExposer = nullptr;
+    Counter *e2tCounters[6][2][ProcedureCode_id_RICsubscriptionDelete + 1] {};
 } sctp_params_t;
 
 // RAN to RIC
@@ -434,5 +435,6 @@ static inline uint64_t rdtscp(uint32_t &aux) {
 #endif
 
 int buildListeningPort(sctp_params_t &sctpParams);
+void buildE2TPrometheusCounters(sctp_params_t &sctpParams);
 
 #endif //X2_SCTP_THREAD_H

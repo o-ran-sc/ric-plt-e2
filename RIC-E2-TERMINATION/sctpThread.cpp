@@ -490,11 +490,20 @@ int buildConfiguration(sctp_params_t &sctpParams) {
 }
 
 void startPrometheus(sctp_params_t &sctpParams) {
+    auto podName = std::getenv("POD_NAME");
+    string metric = "e2t_beta";
+    if (strstr(podName, "alpha") != NULL) {
+        metric = "e2t_alpha";
+    }
+
     sctpParams.prometheusFamily = &BuildCounter()
-            .Name("E2T")
-            .Help("E2T message counter")
+            .Name(metric.c_str())
+            .Help("E2T instance metrics")
             .Labels({{"POD_NAME", sctpParams.podName}})
             .Register(*sctpParams.prometheusRegistry);
+
+    // Build E2T instance level metrics
+    buildE2TPrometheusCounters(sctpParams);
 
     string prometheusPath = sctpParams.prometheusPort + "," + "[::]:" + sctpParams.prometheusPort;
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
@@ -1714,6 +1723,68 @@ int collectServiceUpdate_RequestData(E2AP_PDU_t *pdu,
 #endif
 
 
+void buildE2TPrometheusCounters(sctp_params_t &sctpParams) {
+    sctpParams.e2tCounters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_E2setup)] = &sctpParams.prometheusFamily->Add({{"counter", "setup_request_messages_total"}});
+    sctpParams.e2tCounters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_E2setup)] = &sctpParams.prometheusFamily->Add({{"counter", "setup_request_bytes_total"}});
+
+    sctpParams.e2tCounters[OUT_SUCC][MSG_COUNTER][(ProcedureCode_id_E2setup)] = &sctpParams.prometheusFamily->Add({{"counter", "setup_response_messages_total"}});
+    sctpParams.e2tCounters[OUT_SUCC][BYTES_COUNTER][(ProcedureCode_id_E2setup)] = &sctpParams.prometheusFamily->Add({{"counter", "setup_response_bytes_total"}});
+
+    sctpParams.e2tCounters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_E2setup] = &sctpParams.prometheusFamily->Add({{"counter", "setup_request_failure_messages_total"}});
+    sctpParams.e2tCounters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_E2setup] = &sctpParams.prometheusFamily->Add({{"counter", "setup_request_failure_bytes_total"}});
+
+    sctpParams.e2tCounters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_ErrorIndication)] = &sctpParams.prometheusFamily->Add({{"counter", "error_indication_messages_total"}});
+    sctpParams.e2tCounters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_ErrorIndication)] = &sctpParams.prometheusFamily->Add({{"counter", "error_indication_bytes_total"}});
+
+    sctpParams.e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_Reset] = &sctpParams.prometheusFamily->Add({{"counter", "reset_request_messages_total"}});
+    sctpParams.e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_Reset] = &sctpParams.prometheusFamily->Add({{"counter", "reset_request_bytes_total"}});
+
+    sctpParams.e2tCounters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_Reset] = &sctpParams.prometheusFamily->Add({{"counter", "reset_ack_messages_total"}});
+    sctpParams.e2tCounters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_Reset] = &sctpParams.prometheusFamily->Add({{"counter", "reset_ack_bytes_total"}});
+
+    sctpParams.e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate] = &sctpParams.prometheusFamily->Add({{"counter", "ric_service_update_messages_total"}});
+    sctpParams.e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate] = &sctpParams.prometheusFamily->Add({{"counter", "ric_service_update_bytes_total"}});
+
+    sctpParams.e2tCounters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate] = &sctpParams.prometheusFamily->Add({{"counter", "ric_service_update_response_messages_total"}});
+    sctpParams.e2tCounters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate] = &sctpParams.prometheusFamily->Add({{"counter", "ric_service_update_response_bytes_total"}});
+
+    sctpParams.e2tCounters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate] = &sctpParams.prometheusFamily->Add({{"counter", "ric_service_update_failure_messages_total"}});
+    sctpParams.e2tCounters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate] = &sctpParams.prometheusFamily->Add({{"counter", "ric_service_update_failure_bytes_total"}});
+
+    sctpParams.e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICcontrol] = &sctpParams.prometheusFamily->Add({{"counter", "ric_control_messages_total"}});
+    sctpParams.e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICcontrol] = &sctpParams.prometheusFamily->Add({{"counter", "ric_control_bytes_total"}});
+
+    sctpParams.e2tCounters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICcontrol] = &sctpParams.prometheusFamily->Add({{"counter", "ric_control_ack_messages_total"}});
+    sctpParams.e2tCounters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICcontrol] = &sctpParams.prometheusFamily->Add({{"counter", "ric_control_ack_bytes_total"}});
+
+    sctpParams.e2tCounters[IN_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICcontrol] = &sctpParams.prometheusFamily->Add({{"counter", "ric_control_failure_messages_total"}});
+    sctpParams.e2tCounters[IN_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICcontrol] = &sctpParams.prometheusFamily->Add({{"counter", "ric_control_failure_bytes_total"}});
+
+    sctpParams.e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscription] = &sctpParams.prometheusFamily->Add({{"counter", "ric_subscription_messages_total"}});
+    sctpParams.e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscription] = &sctpParams.prometheusFamily->Add({{"counter", "ric_subscription_bytes_total"}});
+
+    sctpParams.e2tCounters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscription] = &sctpParams.prometheusFamily->Add({{"counter", "ric_subscription_ack_messages_total"}});
+    sctpParams.e2tCounters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscription] = &sctpParams.prometheusFamily->Add({{"counter", "ric_subscription_ack_bytes_total"}});
+
+    sctpParams.e2tCounters[IN_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscription] = &sctpParams.prometheusFamily->Add({{"counter", "ric_subscription_failure_messages_total"}});
+    sctpParams.e2tCounters[IN_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscription] = &sctpParams.prometheusFamily->Add({{"counter", "ric_subscription_failure_bytes_total"}});
+
+    sctpParams.e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete] = &sctpParams.prometheusFamily->Add({{"counter", "ric_subscription_delete_messages_total"}});
+    sctpParams.e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete] = &sctpParams.prometheusFamily->Add({{"counter", "ric_subscription_delete_bytes_total"}});
+
+    sctpParams.e2tCounters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete] = &sctpParams.prometheusFamily->Add({{"counter", "ric_subscription_delete_ack_messages_total"}});
+    sctpParams.e2tCounters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete] = &sctpParams.prometheusFamily->Add({{"counter", "ric_subscription_delete_ack_bytes_total"}});
+
+    sctpParams.e2tCounters[IN_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete] = &sctpParams.prometheusFamily->Add({{"counter", "ric_subscription_delete_failure_messages_total"}});
+    sctpParams.e2tCounters[IN_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete] = &sctpParams.prometheusFamily->Add({{"counter", "ric_subscription_delete_failure_bytes_total"}});
+
+    sctpParams.e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICindication] = &sctpParams.prometheusFamily->Add({{"counter", "ric_indication_messages_total"}});
+    sctpParams.e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICindication] = &sctpParams.prometheusFamily->Add({{"counter", "ric_indication_bytes_total"}});
+
+    sctpParams.e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICserviceQuery] = &sctpParams.prometheusFamily->Add({{"counter", "ric_service_query_messages_total"}});
+    sctpParams.e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICserviceQuery] = &sctpParams.prometheusFamily->Add({{"counter", "ric_service_query_bytes_total"}});
+}
+
 void buildPrometheusList(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFamily) {
     peerInfo->counters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_E2setup)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"SetupRequest", "Messages"}});
     peerInfo->counters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_E2setup)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"SetupRequest", "Bytes"}});
@@ -1786,6 +1857,7 @@ void buildPrometheusList(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFam
     peerInfo->counters[OUT_UN_SUCC][MSG_COUNTER][(ProcedureCode_id_RICserviceUpdate)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICserviceUpdateFailure", "Messages"}});
     peerInfo->counters[OUT_UN_SUCC][BYTES_COUNTER][(ProcedureCode_id_RICserviceUpdate)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICserviceUpdateFailure", "Bytes"}});
 }
+
 /**
  *
  * @param pdu
@@ -1918,6 +1990,11 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             message.message.messageType = RIC_E2_SETUP_REQ;
             message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
             message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment((double)message.message.asnLength);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment((double)message.message.asnLength);
+
             buildAndSendSetupRequest(message, rmrMessageBuffer, pdu);
             break;
         }
@@ -1940,6 +2017,10 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
             message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment((double)message.message.asnLength);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment((double)message.message.asnLength);
 #endif
             buildAndSendSetupRequest(message, rmrMessageBuffer, pdu);
             break;
@@ -1951,6 +2032,10 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_ErrorIndication]->Increment();
             message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_ErrorIndication]->Increment((double)message.message.asnLength);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_ErrorIndication]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_ErrorIndication]->Increment((double)message.message.asnLength);
 #endif
             if (sendRequestToXapp(message, RIC_ERROR_INDICATION, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "RIC_ERROR_INDICATION failed to send to xAPP");
@@ -1964,6 +2049,10 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
             message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment((double)message.message.asnLength);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment((double)message.message.asnLength);
 #endif
             if (XML_From_PER(message, rmrMessageBuffer) < 0) {
                 break;
@@ -2010,6 +2099,10 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))                        
                         message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICindication]->Increment();
                         message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICindication]->Increment((double)message.message.asnLength);
+
+                        // Update E2T instance level metrics
+                        message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICindication]->Increment();
+                        message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICindication]->Increment((double)message.message.asnLength);
 #endif
                         sendRmrMessage(rmrMessageBuffer, message);
                         messageSent = true;
@@ -2057,6 +2150,10 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
             message.peerInfo->counters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment((double)message.message.asnLength);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment((double)message.message.asnLength);
 #endif
             if (XML_From_PER(message, rmrMessageBuffer) < 0) {
                 break;
@@ -2096,6 +2193,10 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))                        
                         message.peerInfo->counters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICcontrol]->Increment();
                         message.peerInfo->counters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICcontrol]->Increment((double)message.message.asnLength);
+
+                        // Update E2T instance level metrics
+                        message.peerInfo->sctpParams->e2tCounters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICcontrol]->Increment();
+                        message.peerInfo->sctpParams->e2tCounters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICcontrol]->Increment((double)message.message.asnLength);
 #endif
                         sendRmrMessage(rmrMessageBuffer, message);
                         messageSent = true;
@@ -2117,6 +2218,10 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscription]->Increment();
             message.peerInfo->counters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscription]->Increment((double)message.message.asnLength);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscription]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscription]->Increment((double)message.message.asnLength);
 #endif
             if (sendRequestToXapp(message, RIC_SUB_RESP, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "Subscription successful message failed to send to xAPP");
@@ -2130,6 +2235,10 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
             message.peerInfo->counters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment((double)message.message.asnLength);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment((double)message.message.asnLength);
 #endif
             if (sendRequestToXapp(message, RIC_SUB_DEL_RESP, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "Subscription delete successful message failed to send to xAPP");
@@ -2190,6 +2299,10 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))                        
                         message.peerInfo->counters[IN_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICcontrol]->Increment();
                         message.peerInfo->counters[IN_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICcontrol]->Increment((double)message.message.asnLength);
+
+                        // Update E2T instance level metrics
+                        message.peerInfo->sctpParams->e2tCounters[IN_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICcontrol]->Increment();
+                        message.peerInfo->sctpParams->e2tCounters[IN_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICcontrol]->Increment((double)message.message.asnLength);
 #endif
                         sendRmrMessage(rmrMessageBuffer, message);
                         messageSent = true;
@@ -2210,6 +2323,10 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[IN_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscription]->Increment();
             message.peerInfo->counters[IN_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscription]->Increment((double)message.message.asnLength);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[IN_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscription]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[IN_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscription]->Increment((double)message.message.asnLength);
 #endif
             if (sendRequestToXapp(message, RIC_SUB_FAILURE, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "Subscription unsuccessful message failed to send to xAPP");
@@ -2223,6 +2340,10 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[IN_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
             message.peerInfo->counters[IN_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment((double)message.message.asnLength);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[IN_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[IN_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment((double)message.message.asnLength);
 #endif
             if (sendRequestToXapp(message, RIC_SUB_FAILURE, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "Subscription Delete unsuccessful message failed to send to xAPP");
@@ -2448,6 +2569,10 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
             message.peerInfo->counters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment(rmrMessageBuffer.rcvMessage->len);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif            
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_SETUP_RESP");
@@ -2465,6 +2590,10 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
             message.peerInfo->counters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment(rmrMessageBuffer.rcvMessage->len);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif            
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_SETUP_FAILURE");
@@ -2479,6 +2608,10 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_ErrorIndication]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_ErrorIndication]->Increment(rmrMessageBuffer.rcvMessage->len);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_ErrorIndication]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_ErrorIndication]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif            
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_ERROR_INDICATION");
@@ -2493,6 +2626,10 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscription]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscription]->Increment(rmrMessageBuffer.rcvMessage->len);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscription]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscription]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif            
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SUB_REQ");
@@ -2507,6 +2644,10 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment(rmrMessageBuffer.rcvMessage->len);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif            
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SUB_DEL_REQ");
@@ -2521,6 +2662,10 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICcontrol]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICcontrol]->Increment(rmrMessageBuffer.rcvMessage->len);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICcontrol]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICcontrol]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif            
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_CONTROL_REQ");
@@ -2538,6 +2683,10 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICserviceQuery]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICserviceQuery]->Increment(rmrMessageBuffer.rcvMessage->len);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICserviceQuery]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICserviceQuery]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif            
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SERVICE_QUERY");
@@ -2556,6 +2705,10 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
             message.peerInfo->counters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif            
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Before sending to CU");
@@ -2576,6 +2729,10 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
             message.peerInfo->counters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif            
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SERVICE_UPDATE_FAILURE");
@@ -2593,6 +2750,10 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment(rmrMessageBuffer.rcvMessage->len);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif            
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_RESET");
@@ -2610,6 +2771,10 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
             message.peerInfo->counters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
             message.peerInfo->counters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment(rmrMessageBuffer.rcvMessage->len);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif            
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_RESET_RESP");
