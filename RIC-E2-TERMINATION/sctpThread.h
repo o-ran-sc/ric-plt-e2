@@ -41,6 +41,8 @@
 #include <atomic>
 #include <sys/param.h>
 #include <sys/file.h>
+#include <sys/types.h>
+#include <ifaddrs.h>
 #include <ctime>
 #include <netdb.h>
 #include <sys/epoll.h>
@@ -418,6 +420,7 @@ static int enable_log_change_notify(const char* fileName);
 static int register_log_change_notify(const char *fileName);
 static void * monitor_loglevel_change_handler(void* arg);
 void  update_mdc_log_level_severity(char* log_level);
+char* getinterfaceip();
 static char* parse_file(char* filename);
 
 
