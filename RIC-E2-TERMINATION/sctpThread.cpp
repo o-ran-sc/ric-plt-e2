@@ -60,6 +60,22 @@ boost::shared_ptr<sinks::synchronous_sink<sinks::text_file_backend>> boostLogger
 double cpuClock = 0.0;
 bool jsonTrace = false;
 
+char* getinterfaceip()
+{
+   char host[256];
+   char *IP;
+   struct hostent *host_entry;
+   int hostname;
+   hostname = gethostname(host, sizeof(host));
+   if ( hostname == -1 )
+       return NULL;
+   host_entry = gethostbyname(host);
+   if ( host_entry == NULL )
+       return NULL;
+   IP = inet_ntoa(*((struct in_addr*) host_entry->h_addr_list[0]));
+   return IP;
+}
+
 
 static int enable_log_change_notify(const char* fileName)
 {
@@ -129,7 +145,7 @@ static void * monitor_loglevel_change_handler(void* arg)
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))                        
                         if( errno == EAGAIN ) {
                         } else {
-                            fprintf( stderr, "### CRIT ### config listener read err: %s\n", strerror( errno ) );
+                            printf(  "### CRIT ### config listener read err: %s\n", strerror( errno ) );
                         }
                         continue;
 #endif                        
@@ -495,6 +511,10 @@ void startPrometheus(sctp_params_t &sctpParams) {
     if (strstr(podName, "alpha") != NULL) {
         metric = "E2TAlpha";
     }
+	//Get eth0 interface IP
+	char* host = getinterfaceip();
+
+	string hostip = host;
 
     sctpParams.prometheusFamily = &BuildCounter()
             .Name(metric.c_str())
@@ -505,7 +525,12 @@ void startPrometheus(sctp_params_t &sctpParams) {
     // Build E2T instance level metrics
     buildE2TPrometheusCounters(sctpParams);
 
-    string prometheusPath = sctpParams.prometheusPort + "," + "[::]:" + sctpParams.prometheusPort;
+    string prometheusPath;
+    if (host)
+        prometheusPath = hostip + ":" + sctpParams.prometheusPort;
+    else
+        prometheusPath = sctpParams.prometheusPort + "," + "[::]:" + sctpParams.prometheusPort;
+
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
         mdclog_write(MDCLOG_DEBUG, "Start Prometheus Pull mode on %s", prometheusPath.c_str());
     }
