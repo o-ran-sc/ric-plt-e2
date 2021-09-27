@@ -1,6 +1,23 @@
 {
   "comments": [
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "7abbc4c3_4a3966aa",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000475
+      },
+      "writtenOn": "2021-09-27T11:51:32Z",
+      "side": 1,
+      "message": "I have added some comments for the code formatting. Please check it once.",
+      "revId": "7af551f1861b16475a3724acbebf3dec42048c1d",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "f81971ce_3989fd20",
