@@ -1,0 +1,90 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "f81971ce_3989fd20",
+        "filename": "RIC-E2-TERMINATION/sctpThread.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 77,
+      "author": {
+        "id": 1000475
+      },
+      "writtenOn": "2021-09-27T11:50:26Z",
+      "side": 1,
+      "message": "Could we remove space from end of line and replace tab character with space.",
+      "range": {
+        "startLine": 69,
+        "startChar": 0,
+        "endLine": 77,
+        "endChar": 1
+      },
+      "revId": "7af551f1861b16475a3724acbebf3dec42048c1d",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "72ee3185_6e32e06f",
+        "filename": "RIC-E2-TERMINATION/sctpThread.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 287,
+      "author": {
+        "id": 1000475
+      },
+      "writtenOn": "2021-09-27T11:50:26Z",
+      "side": 1,
+      "message": "Could we remove empty lines",
+      "revId": "7af551f1861b16475a3724acbebf3dec42048c1d",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "b43fd95e_027b158b",
+        "filename": "RIC-E2-TERMINATION/sctpThread.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 535,
+      "author": {
+        "id": 1000475
+      },
+      "writtenOn": "2021-09-27T11:50:26Z",
+      "side": 1,
+      "message": "Please add indentation.",
+      "range": {
+        "startLine": 530,
+        "startChar": 0,
+        "endLine": 535,
+        "endChar": 0
+      },
+      "revId": "7af551f1861b16475a3724acbebf3dec42048c1d",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "4b93f46d_da86f973",
+        "filename": "RIC-E2-TERMINATION/sctpThread.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 614,
+      "author": {
+        "id": 1000475
+      },
+      "writtenOn": "2021-09-27T11:50:26Z",
+      "side": 1,
+      "message": "Could we replace tab character with space and give indentation",
+      "range": {
+        "startLine": 609,
+        "startChar": 0,
+        "endLine": 614,
+        "endChar": 0
+      },
+      "revId": "7af551f1861b16475a3724acbebf3dec42048c1d",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    }
+  ]
+}
