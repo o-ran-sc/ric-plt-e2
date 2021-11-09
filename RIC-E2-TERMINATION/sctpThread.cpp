@@ -836,6 +836,10 @@ void listener(sctp_params_t *params) {
                 continue;
             }
             mdclog_write(MDCLOG_ERR, "Epoll wait failed, errno = %s", strerror(errno));
+            if(events)
+            {
+                free(events);
+            }
             return;
 #endif            
         }
@@ -2885,7 +2889,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             } else if (rmrMessageBuffer.rcvMessage->state != 0)  {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_HEALTH_CHECK_RESP, on RMR state = %d ( %s)",
                              rmrMessageBuffer.rcvMessage->state, translateRmrErrorMessages(rmrMessageBuffer.rcvMessage->state).c_str());
-            } else if (loglevel >= MDCLOG_DEBUG && ++counter % 100 == 0) {
+            } else if (loglevel >= MDCLOG_DEBUG && (++counter % 100 == 0)) {
                 mdclog_write(MDCLOG_DEBUG, "Got %d RIC_HEALTH_CHECK_REQ Request send : OK", counter);
             }
 

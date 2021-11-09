@@ -148,7 +148,7 @@ private:
         return str;
     }
 
-    inline static std::string& trim(basic_string<char> str, const std::string& chars = "\t\n\v\f\r ") {
+    inline static std::string& trim(std::string str, const std::string& chars = "\t\n\v\f\r ") {
         return ltrim(rtrim(str, chars), chars);
     }
 };
