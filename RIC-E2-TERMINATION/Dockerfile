@@ -20,7 +20,7 @@
 #   This source code is part of the near-RT RIC (RAN Intelligent Controller)
 #   platform project (RICP).
 #
-FROM nexus3.o-ran-sc.org:10002/o-ran-sc/bldr-ubuntu18-c-go:1.9.0 as ubuntu
+FROM nexus3.o-ran-sc.org:10002/o-ran-sc/bldr-ubuntu20-c-go:1.0.0 as ubuntu
 
 WORKDIR /opt/e2/
 
@@ -34,8 +34,11 @@ RUN mkdir -p /opt/e2/RIC-E2-TERMINATION/ \
 
 COPY . /opt/e2/RIC-E2-TERMINATION/
 RUN apt-get install -y libgtest-dev
-RUN cd /usr/src/gtest &&  /usr/local/bin/cmake  CMakeLists.txt && make && cp *.a /usr/lib
-
+RUN cd /usr/src/gtest && cmake CMakeLists.txt && make && cp lib/*.a /usr/lib
+RUN apt-get install -y google-mock
+RUN cd /usr/src/googletest/googlemock  && cmake CMakeLists.txt && make && cp lib/*.a /usr/lib
+RUN cp -rf /usr/src/googletest/googlemock/include/gmock /usr/include/
+ 
 RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/ && cat /opt/e2/RIC-E2-TERMINATION/config/config.conf \
     && wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
     && dpkg -i cgreen_1.2.0_amd64.deb \
@@ -47,7 +50,8 @@ RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/ && cat /opt/e2/RIC-E2-
     && dpkg -i mdclog_0.1.1-1_amd64.deb \
     && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog-dev_0.1.1-1_amd64.deb/download.deb \
     && dpkg -i mdclog-dev_0.1.1-1_amd64.deb \
-    && apt-get update && apt-get install -y libcurl4-gnutls-dev gawk libtbb-dev  libtbb-doc libtbb2 libtbb2-dbg \
+    && apt-get update && apt-get install -y libcurl4-gnutls-dev gawk libtbb-dev libtbb-doc \
+    && apt-get update && apt-get -y install libtbb2 \
     && apt-get install  -y python3 python3-pip python3-setuptools python3-wheel ninja-build \
     && pip3 install  meson \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/pistacheio/pistache.git  && cd pistache \
@@ -62,7 +66,7 @@ RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/ && cat /opt/e2/RIC-E2-
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/Tencent/rapidjson.git \
     && cd /opt/e2/RIC-E2-TERMINATION/3rdparty && git clone https://github.com/zeux/pugixml.git \
     && cd /opt/e2/ && git clone https://github.com/bilke/cmake-modules.git \
-    && cd /opt/e2/ && /usr/local/bin/cmake -D CMAKE_BUILD_TYPE=$BUILD_TYPE . && make \
+    && cd /opt/e2/ && /usr/bin/cmake -D CMAKE_BUILD_TYPE=$BUILD_TYPE . && make \
     && echo "3" > /opt/e2/rmr.verbose
 
 
@@ -79,7 +83,7 @@ RUN if [$BUILD_TYPE == "Debug"] ; then make e2_coverage ; fi
 #    && cd /usr/local/lib/ && find / -type f -name "libyaml-cpp.a" -exec cp {} libyaml-cpp.a \; \
 #    && find / -type f -name "libopentracing.a" -exec cp {} libopentracing.a \; && cd /opt/e2/RIC-E2-TERMINATION && ls nlohmann  \
 
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 RUN apt-get update && apt-get install -y net-tools iputils-ping curl tcpdump && mkdir -p /opt/e2/config
 
 COPY --from=ubuntu /opt/e2/e2 /opt/e2/e2
@@ -113,41 +117,43 @@ COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libtbbmalloc.so.2 /usr/local/libtbb
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libtbbmalloc_proxy.so /usr/local/libtbbmalloc_proxy.so
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libtbbmalloc_proxy.so.2 /usr/local/libtbbmalloc_proxy.so.2
 
-COPY --from=ubuntu /usr/lib/libboost_log_setup.so /usr/lib/libboost_log_setup.so
-COPY --from=ubuntu /usr/lib/libboost_log_setup.so.1.69.0 /usr/lib/libboost_log_setup.so.1.69.0
-
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_log_setup.so /usr/lib/libboost_log_setup.so
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_log_setup.so.1.71.0 /usr/lib/libboost_log_setup.so.1.71.0
 #COPY --from=ubuntu /usr/local/lib/libpistache.so  /usr/local/lib/libpistache.so
 #COPY --from=ubuntu /usr/local/lib/libpistache.so.0  /usr/local/lib/libpistache.so.0
 #COPY --from=ubuntu /usr/local/lib/libpistache.so.0.0.001-git20191031  /usr/local/lib/libpistache.so.0.0.001-git20191031
 
+ARG DEBIAN_FRONTEND=noninteractive
+ENV TZ='Asia/Kolkata'
+RUN apt-get install -y libboost-all-dev
 
-COPY --from=ubuntu /usr/lib/libboost_log.so /usr/lib/libboost_log.so
-COPY --from=ubuntu /usr/lib/libboost_log.so.1.69.0 /usr/lib/libboost_log.so.1.69.0
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_log.so /usr/lib/libboost_log.so
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_log.so.1.71.0 /usr/lib/libboost_log.so.1.71.0
 
-COPY --from=ubuntu /usr/lib/libboost_thread.so /usr/lib/libboost_thread.so
-COPY --from=ubuntu /usr/lib/libboost_thread.so.1.69.0 /usr/lib/libboost_thread.so.1.69.0
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_thread.so /usr/lib/libboost_thread.so
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_thread.so.1.71.0 /usr/lib/libboost_thread.so.1.71.0
 
-COPY --from=ubuntu /usr/lib/libboost_filesystem.so /usr/lib/libboost_filesystem.so
-COPY --from=ubuntu /usr/lib/libboost_filesystem.so.1.69.0 /usr/lib/libboost_filesystem.so.1.69.0
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_filesystem.so /usr/lib/libboost_filesystem.so
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_filesystem.so.1.71.0 /usr/lib/libboost_filesystem.so.1.71.0
 
-COPY --from=ubuntu /usr/lib/libboost_regex.so /usr/lib/libboost_regex.so
-COPY --from=ubuntu /usr/lib/libboost_regex.so.1.69.0 /usr/lib/libboost_regex.so.1.69.0
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_regex.so /usr/lib/libboost_regex.so
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_regex.so.1.71.0 /usr/lib/libboost_regex.so.1.71.0
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicui18n.so /usr/lib/libicui18n.so
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicui18n.so.60.2 /usr/lib/libicui18n.so.60.2
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicui18n.so.60 /usr/lib/libicui18n.so.60
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicui18n.so.66.1 /usr/lib/libicui18n.so.66.1
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicui18n.so.66 /usr/lib/libicui18n.so.66
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicuuc.so /usr/lib/libicuuc.so
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicuuc.so.60.2 /usr/lib/libicuuc.so.60.2
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicuuc.so.60 /usr/lib/libicuuc.so.60
-
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicuuc.so.66.1 /usr/lib/libicuuc.so.66.1
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicuuc.so.66 /usr/lib/libicuuc.so.66
+ 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicudata.so /usr/lib/libicudata.so
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicudata.so.60.2 /usr/lib/libicudata.so.60.2
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicudata.so.60 /usr/lib/libicudata.so.60
-
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicudata.so.66.1 /usr/lib/libicudata.so.66.1
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicudata.so.66 /usr/lib/libicudata.so.66
+ 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/libstdc++.so.6
-
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so.4.5.0 /usr/lib/libcurl-gnutls.so.4.5.0
+ 
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so.4.6.0 /usr/lib/libcurl-gnutls.so.4.6.0
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so.4 /usr/lib/libcurl-gnutls.so.4
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so /usr/lib/libcurl-gnutls.so
 
