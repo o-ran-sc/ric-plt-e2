@@ -39,6 +39,7 @@ RUN apt-get install -y google-mock
 RUN cd /usr/src/googletest/googlemock  && cmake CMakeLists.txt && make && cp lib/*.a /usr/lib
 RUN cp -rf /usr/src/googletest/googlemock/include/gmock /usr/include/
  
+RUN apt-get install -y libboost-all-dev
 RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/ && cat /opt/e2/RIC-E2-TERMINATION/config/config.conf \
     && wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
     && dpkg -i cgreen_1.2.0_amd64.deb \
@@ -125,7 +126,6 @@ COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_log_setup.so.1.71.0 /usr/l
 
 ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ='Asia/Kolkata'
-RUN apt-get install -y libboost-all-dev
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_log.so /usr/lib/libboost_log.so
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_log.so.1.71.0 /usr/lib/libboost_log.so.1.71.0
