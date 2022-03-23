@@ -100,10 +100,10 @@ int buildRanName(char *ranName, E2setupRequestIEs_t *ie) {
         case GlobalE2node_ID_PR_en_gNB: {
             auto *enGnb = ie->value.choice.GlobalE2node_ID.choice.en_gNB;
             translatePlmnId(ranName,
-                            (const unsigned char *)enGnb->global_gNB_ID.pLMN_Identity.buf,
+                            (const unsigned char *)enGnb->global_en_gNB_ID.pLMN_Identity.buf,
                             (const char *)"en_gnb_");
-            if (enGnb->global_gNB_ID.gNB_ID.present == ENGNB_ID_PR_gNB_ID) {
-                translateBitStringToChar(ranName, enGnb->global_gNB_ID.gNB_ID.choice.gNB_ID);
+            if (enGnb->global_en_gNB_ID.gNB_ID.present == ENGNB_ID_PR_gNB_ID) {
+                translateBitStringToChar(ranName, enGnb->global_en_gNB_ID.gNB_ID.choice.gNB_ID);
             }
             break;
         }
