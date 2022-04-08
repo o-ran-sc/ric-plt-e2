@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "9e4d42a8_079ac17e",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1001119
+      },
+      "writtenOn": "2022-04-08T05:42:39Z",
+      "side": 1,
+      "message": "Since these are ASN.1 generated source code , so not much of review would need ",
+      "revId": "0eb7f35ed6efa5f166a5910c8bf78cacc1111e2e",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    }
+  ]
+}
