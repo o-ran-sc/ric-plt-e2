@@ -53,7 +53,7 @@ static void catch_function(int signal) {
     exit(signal);
 }
 
-
+char *logFile_Name = NULL;
 BOOST_LOG_INLINE_GLOBAL_LOGGER_DEFAULT(my_logger, src::logger_mt)
 
 boost::shared_ptr<sinks::synchronous_sink<sinks::text_file_backend>> boostLogger;
@@ -101,7 +101,6 @@ static int register_log_change_notify(const char *fileName)
 
 static void * monitor_loglevel_change_handler(void* arg)
 {
-    char *fileName = (char*) arg;
     int ifd;                   // the inotify file des
     int wfd;                   // the watched file des
     ssize_t n = 0;
@@ -114,7 +113,7 @@ static void * monitor_loglevel_change_handler(void* arg)
     char* tok=NULL;
     char* log_level=NULL;
 
-    dname = strdup( fileName); // defrock the file name into dir and basename
+    dname = strdup( logFile_Name); // defrock the file name into dir and basename
     if( (tok = strrchr( dname, '/' )) != NULL ) {
         *tok = '\0';
         bname = strdup( tok+1 );
@@ -125,13 +124,13 @@ static void * monitor_loglevel_change_handler(void* arg)
     if( ifd < 0 ) {
         fprintf( stderr, "### ERR ### unable to initialise file watch %s\n", strerror( errno ) );
     } else {
-        wfd = inotify_add_watch( ifd, dname, IN_MOVED_TO | IN_CLOSE_WRITE ); // we only care about close write changes
+        wfd = inotify_add_watch( ifd, dname, IN_MODIFY | IN_MOVED_TO | IN_CLOSE_WRITE ); // we only care about close write changes
 
         if( wfd < 0 ) {
-            fprintf( stderr, "### ERR ### unable to add watch on config file %s: %s\n", fileName, strerror( errno ) );
+            fprintf( stderr, "### ERR ### unable to add watch on config file %s: %s\n", logFile_Name, strerror( errno ) );
         } else {
            
-
+            printf( "### info ### watching on config file %s\n", logFile_Name);
             memset( &timeout, 0, sizeof(timeout) );
             while( 1 ) {
                 FD_ZERO (&fds);
@@ -152,7 +151,7 @@ static void * monitor_loglevel_change_handler(void* arg)
                     }
 
                     //Retrieving Log Level from configmap by parsing configmap file
-                    log_level = parse_file(fileName);
+                    log_level = parse_file(logFile_Name);
                     update_mdc_log_level_severity(log_level); //setting log level
                     free(log_level);
                 }
@@ -193,6 +192,7 @@ void  update_mdc_log_level_severity(char* log_level)
     }
 
     mdclog_level_set(level);
+    printf("### info  ### loglevel changed to :   %d\n",level);
 }
 static char* parse_file(char* filename)
 {
@@ -236,7 +236,6 @@ char *read_env_param(const char*envkey)
 
 void dynamic_log_level_change()
 {
-    char *logFile_Name = read_env_param(LOG_FILE_CONFIG_MAP);
     char* log_level_init=NULL;
     if(logFile_Name)
     {
@@ -252,6 +251,7 @@ void dynamic_log_level_change()
 
 void init_log() {
     int log_change_monitor = 0;
+    logFile_Name = read_env_param(LOG_FILE_CONFIG_MAP);
     mdclog_attr_t *attr;
     mdclog_attr_init(&attr);
     mdclog_attr_set_ident(attr, "E2Terminator");
