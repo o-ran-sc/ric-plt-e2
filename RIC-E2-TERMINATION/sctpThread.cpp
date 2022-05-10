@@ -1761,6 +1761,15 @@ void buildE2TPrometheusCounters(sctp_params_t &sctpParams) {
     sctpParams.e2tCounters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_E2setup] = &sctpParams.prometheusFamily->Add({{"counter", "SetupRequestFailureMsgs"}});
     sctpParams.e2tCounters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_E2setup] = &sctpParams.prometheusFamily->Add({{"counter", "SetupRequestFailureBytes"}});
 
+    sctpParams.e2tCounters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_E2nodeConfigurationUpdate)] = &sctpParams.prometheusFamily->Add({{"counter", "E2NodeConfigUpdateMsgs"}});
+    sctpParams.e2tCounters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_E2nodeConfigurationUpdate)] = &sctpParams.prometheusFamily->Add({{"counter", "E2NodeConfigUpdateBytes"}});
+
+    sctpParams.e2tCounters[OUT_SUCC][MSG_COUNTER][(ProcedureCode_id_E2nodeConfigurationUpdate)] = &sctpParams.prometheusFamily->Add({{"counter", "E2NodeConfigUpdateResponseMsgs"}});
+    sctpParams.e2tCounters[OUT_SUCC][BYTES_COUNTER][(ProcedureCode_id_E2nodeConfigurationUpdate)] = &sctpParams.prometheusFamily->Add({{"counter", "E2NodeConfigUpdateResponseBytes"}});
+
+    sctpParams.e2tCounters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate] = &sctpParams.prometheusFamily->Add({{"counter", "E2NodeConfigUpdateFailureMsgs"}});
+    sctpParams.e2tCounters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate] = &sctpParams.prometheusFamily->Add({{"counter", "E2NodeConfigUpdateFailureBytes"}});
+
     sctpParams.e2tCounters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_ErrorIndication)] = &sctpParams.prometheusFamily->Add({{"counter", "ErrorIndicationMsgs"}});
     sctpParams.e2tCounters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_ErrorIndication)] = &sctpParams.prometheusFamily->Add({{"counter", "ErrorIndicationBytes"}});
 
@@ -1816,6 +1825,9 @@ void buildE2TPrometheusCounters(sctp_params_t &sctpParams) {
 void buildPrometheusList(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFamily) {
     peerInfo->counters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_E2setup)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"SetupRequest", "Messages"}});
     peerInfo->counters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_E2setup)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"SetupRequest", "Bytes"}});
+
+    peerInfo->counters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_E2nodeConfigurationUpdate)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"E2NodeConfigUpdate", "Messages"}});
+    peerInfo->counters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_E2nodeConfigurationUpdate)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"E2NodeConfigUpdate", "Bytes"}});
 
     peerInfo->counters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_ErrorIndication)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"ErrorIndication", "Messages"}});
     peerInfo->counters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_ErrorIndication)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"ErrorIndication", "Bytes"}});
@@ -1873,6 +1885,9 @@ void buildPrometheusList(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFam
     peerInfo->counters[OUT_SUCC][MSG_COUNTER][(ProcedureCode_id_E2setup)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"SetupResponse", "Messages"}});
     peerInfo->counters[OUT_SUCC][BYTES_COUNTER][(ProcedureCode_id_E2setup)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"SetupResponse", "Bytes"}});
 
+    peerInfo->counters[OUT_SUCC][MSG_COUNTER][(ProcedureCode_id_E2nodeConfigurationUpdate)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"E2NodeConfigUpdateSuccess", "Messages"}});
+    peerInfo->counters[OUT_SUCC][BYTES_COUNTER][(ProcedureCode_id_E2nodeConfigurationUpdate)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"E2NodeConfigUpdateSuccess", "Bytes"}});
+
     peerInfo->counters[OUT_SUCC][MSG_COUNTER][(ProcedureCode_id_Reset)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"ResetACK", "Messages"}});
     peerInfo->counters[OUT_SUCC][BYTES_COUNTER][(ProcedureCode_id_Reset)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"ResetACK", "Bytes"}});
 
@@ -1881,6 +1896,9 @@ void buildPrometheusList(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFam
     //----------------------------------------------------------------------------------------------------------------
     peerInfo->counters[OUT_UN_SUCC][MSG_COUNTER][(ProcedureCode_id_E2setup)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"SetupRequestFailure", "Messages"}});
     peerInfo->counters[OUT_UN_SUCC][BYTES_COUNTER][(ProcedureCode_id_E2setup)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"SetupRequestFailure", "Bytes"}});
+
+    peerInfo->counters[OUT_UN_SUCC][MSG_COUNTER][(ProcedureCode_id_E2nodeConfigurationUpdate)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"E2NodeConfigUpdateFailure", "Messages"}});
+    peerInfo->counters[OUT_UN_SUCC][BYTES_COUNTER][(ProcedureCode_id_E2nodeConfigurationUpdate)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"E2NodeConfigUpdateFailure", "Bytes"}});
 
     peerInfo->counters[OUT_UN_SUCC][MSG_COUNTER][(ProcedureCode_id_RICserviceUpdate)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICserviceUpdateFailure", "Messages"}});
     peerInfo->counters[OUT_UN_SUCC][BYTES_COUNTER][(ProcedureCode_id_RICserviceUpdate)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICserviceUpdateFailure", "Bytes"}});
@@ -2053,6 +2071,27 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             buildAndSendSetupRequest(message, rmrMessageBuffer, pdu);
             break;
         }
+
+case ProcedureCode_id_E2nodeConfigurationUpdate: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got E2nodeConfigurationUpdate %s", message.message.enodbName);
+            }
+
+            string messageName("RICE2nodeConfigurationUpdate");
+            string ieName("RICE2nodeConfigurationUpdateIEs");
+            message.message.messageType = RIC_E2NODE_CONFIG_UPDATE;
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
+            message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment();
+            message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment((double)message.message.asnLength);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment((double)message.message.asnLength);
+#endif
+            buildAndSendSetupRequest(message, rmrMessageBuffer, pdu);
+            break;
+        }
+
         case ProcedureCode_id_ErrorIndication: {
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got ErrorIndication %s", message.message.enodbName);
@@ -2629,6 +2668,51 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             }
             break;
         }
+
+        case RIC_E2NODE_CONFIG_UPDATE_ACK: {
+            if (loglevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "RIC_E2NODE_CONFIG_UPDATE_ACK");
+            }
+            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+                break;
+            }
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
+            message.peerInfo->counters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment();
+            message.peerInfo->counters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
+#endif
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+                mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2NODE_CONFIG_UPDATE_ACK");
+                return -6;
+            }
+            break;
+        }
+
+        case RIC_E2NODE_CONFIG_UPDATE_FAILURE: {
+            if (loglevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "RIC_E2NODE_CONFIG_UPDATE_FAILURE");
+            }
+            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+                break;
+            }
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
+            message.peerInfo->counters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment();
+            message.peerInfo->counters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
+
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
+#endif
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+                mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2NODE_CONFIG_UPDATE_FAILURE");
+                return -6;
+            }
+            break;
+        }
+
         case RIC_ERROR_INDICATION: {
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_ERROR_INDICATION");
