@@ -156,7 +156,7 @@ COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/libstdc++.s
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so.4.6.0 /usr/lib/libcurl-gnutls.so.4.6.0
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so.4 /usr/lib/libcurl-gnutls.so.4
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so /usr/lib/libcurl-gnutls.so
-
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libsctp.so.1 /usr/lib/libsctp.so.1
 COPY --from=ubuntu /usr/local/bin/rmr_probe /opt/e2/rmr_probe
 
 WORKDIR /opt/e2/
