@@ -166,6 +166,8 @@ typedef struct sctp_params {
 #define MSG_COUNTER 0
 #define BYTES_COUNTER 1
 
+#define INVALID_STREAM_ID -1
+
 typedef struct ConnectedCU {
     int fileDescriptor = 0;
     char hostName[NI_MAXHOST] {};
@@ -178,6 +180,8 @@ typedef struct ConnectedCU {
     bool gotSetup = false;
     sctp_params_t *sctpParams = nullptr;
     Counter *counters[6][2][ProcedureCode_id_RICsubscriptionDelete + 1] {};
+    bool isSingleStream = false;
+    int singleStreamId = 0;
 } ConnectedCU_t ;
 
 
@@ -346,7 +350,7 @@ int sendDirectionalSctpMsg(RmrMessagesBuffer_t &messageBuffer,
 void asnInitiatingRequest(E2AP_PDU_t *pdu,
                           Sctp_Map_t *sctpMap,
                           ReportingMessages_t &message,
-                          RmrMessagesBuffer_t &rmrMessageBuffer);
+                          RmrMessagesBuffer_t &rmrMessageBuffer,int streamId);
 /**
  *
  * @param pdu
@@ -440,4 +444,5 @@ static inline uint64_t rdtscp(uint32_t &aux) {
 int buildListeningPort(sctp_params_t &sctpParams);
 void buildE2TPrometheusCounters(sctp_params_t &sctpParams);
 
+int fetchStreamId(ConnectedCU_t *peerInfo, ReportingMessages_t &message);
 #endif //X2_SCTP_THREAD_H

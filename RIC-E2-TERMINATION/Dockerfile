@@ -43,10 +43,10 @@ RUN apt-get install -y libboost-all-dev
 RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/ && cat /opt/e2/RIC-E2-TERMINATION/config/config.conf \
     && wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
     && dpkg -i cgreen_1.2.0_amd64.deb \
-    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/rmr_4.8.0_amd64.deb/download.deb \
-    && dpkg -i rmr_4.8.0_amd64.deb \
-    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/rmr-dev_4.8.0_amd64.deb/download.deb \
-    && dpkg -i rmr-dev_4.8.0_amd64.deb \
+    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/rmr_4.8.3_amd64.deb/download.deb \
+    && dpkg -i rmr_4.8.3_amd64.deb \
+    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/rmr-dev_4.8.3_amd64.deb/download.deb \
+    && dpkg -i rmr-dev_4.8.3_amd64.deb \
     && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog_0.1.1-1_amd64.deb/download.deb \
     && dpkg -i mdclog_0.1.1-1_amd64.deb \
     && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog-dev_0.1.1-1_amd64.deb/download.deb \
@@ -97,7 +97,7 @@ COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/startup.sh /opt/e2/startup.sh
 #COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/tracelibcpp/build/libtracelibcpp.so.0.0.2 /usr/local/lib/libtracelibcpp.so.0.0.2
 
 
-COPY --from=ubuntu /usr/local/lib/librmr_si.so.4.8.0 /usr/local/lib/librmr_si.so.4.8.0
+COPY --from=ubuntu /usr/local/lib/librmr_si.so.4.8.3 /usr/local/lib/librmr_si.so.4.8.3
 COPY --from=ubuntu /usr/local/lib/librmr_si.so.4  /usr/local/lib/librmr_si.so.4
 COPY --from=ubuntu /usr/local/lib/librmr_si.so /usr/local/lib/librmr_si.so
 
@@ -156,7 +156,7 @@ COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/libstdc++.s
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so.4.6.0 /usr/lib/libcurl-gnutls.so.4.6.0
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so.4 /usr/lib/libcurl-gnutls.so.4
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so /usr/lib/libcurl-gnutls.so
-
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libsctp.so.1 /usr/lib/libsctp.so.1
 COPY --from=ubuntu /usr/local/bin/rmr_probe /opt/e2/rmr_probe
 
 WORKDIR /opt/e2/
