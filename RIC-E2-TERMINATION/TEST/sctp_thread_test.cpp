@@ -184,8 +184,9 @@ void create_asnInitiatingReq_Procedure_RICserviceUpdate(E2AP_PDU_t *pdu,
     /* Sending E2AP_PDU_PR_initiatingMessage and procedure code as: ProcedureCode_id_RICserviceUpdate */
     pdu->choice.initiatingMessage->procedureCode = ProcedureCode_id_RICserviceUpdate; 
     pdu->choice.initiatingMessage->value.present = InitiatingMessage__value_PR_RICserviceUpdate;
-    
-    asnInitiatingRequest(pdu, sctpMap, message, rmrMessageBuffer);
+   
+    int streamId = 0; 
+    asnInitiatingRequest(pdu, sctpMap, message, rmrMessageBuffer,streamId);
     delete_memories_initiatingMessage(pdu, rmrMessageBuffer);
 }
 
@@ -208,8 +209,8 @@ void create_asnInitiatingReq_Procedure_RICindication(E2AP_PDU_t *pdu,
     ie->value.present = RICindication_IEs__value_PR_RICrequestID;
     ie->value.choice.RICrequestID.ricRequestorID = 12345;
     ie->value.choice.RICrequestID.ricInstanceID = 1;
-
-    asnInitiatingRequest(pdu, sctpMap, message, rmrMessageBuffer);
+    int streamId = 0;
+    asnInitiatingRequest(pdu, sctpMap, message, rmrMessageBuffer,streamId);
     delete_memories_initiatingMessage(pdu, rmrMessageBuffer);
 }
 
@@ -223,7 +224,8 @@ void create_asnInitiatingReq_Procedure_ErrorIndication(E2AP_PDU_t *pdu,
     /* Sending E2AP_PDU_PR_initiatingMessage and procedure code as: ProcedureCode_id_ErrorIndication */
     pdu->choice.initiatingMessage->procedureCode = ProcedureCode_id_ErrorIndication; 
     pdu->choice.initiatingMessage->value.present = InitiatingMessage__value_PR_ErrorIndication;
-    asnInitiatingRequest(pdu, sctpMap, message, rmrMessageBuffer);
+    int streamId = 0;
+    asnInitiatingRequest(pdu, sctpMap, message, rmrMessageBuffer, streamId);
     delete_memories_initiatingMessage(pdu, rmrMessageBuffer);
 }
 
@@ -237,7 +239,8 @@ void create_asnInitiatingReq_Procedure_Reset(E2AP_PDU_t *pdu,
     /* Sending E2AP_PDU_PR_initiatingMessage and procedure code as: ProcedureCode_id_Reset */
     pdu->choice.initiatingMessage->procedureCode = ProcedureCode_id_Reset; 
     pdu->choice.initiatingMessage->value.present = InitiatingMessage__value_PR_ResetRequest;
-    asnInitiatingRequest(pdu, sctpMap, message, rmrMessageBuffer);
+    int streamId =0;
+    asnInitiatingRequest(pdu, sctpMap, message, rmrMessageBuffer,streamId);
     delete_memories_initiatingMessage(pdu, rmrMessageBuffer);
 }
 
@@ -267,7 +270,8 @@ TEST(sctp, TEST7) {
     create_asnInitiatingReq_Procedure_Reset(&pdu, sctpMap, message, rmrMessageBuffer, sctp_ut_params);
     /* For Procedure's Default case. */
     pdu.choice.initiatingMessage->procedureCode = ((ProcedureCode_t)100);
-    asnInitiatingRequest(&pdu, sctpMap, message, rmrMessageBuffer);
+    int streamId =0;
+    asnInitiatingRequest(&pdu, sctpMap, message, rmrMessageBuffer,streamId);
     
     if(pdu.choice.initiatingMessage) {
         free(pdu.choice.initiatingMessage);

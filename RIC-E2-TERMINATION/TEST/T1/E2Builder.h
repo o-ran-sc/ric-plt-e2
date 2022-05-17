@@ -502,16 +502,16 @@ void buildSetupRequesteenGNB(E2AP_PDU_t *pdu, int mcc, int mnc) {
     auto *globalE2NodeEN_GNb = e2SetupRequestIEs->value.choice.GlobalE2node_ID.choice.en_gNB;
     ASN_STRUCT_RESET(asn_DEF_GlobalE2node_en_gNB_ID, globalE2NodeEN_GNb);
 
-    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.present = ENGNB_ID_PR_gNB_ID;
-    createPLMN_IDByMCCandMNC(&globalE2NodeEN_GNb->global_gNB_ID.pLMN_Identity, mcc, mnc);
-    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.size = 4;
-    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.buf =
-            (uint8_t *) calloc(1, globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.size); //22..32 bits
-    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.buf[0] = 0xC5;
-    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.buf[1] = 0xC6;
-    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.buf[2] = 0xC7;
-    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.buf[3] = 0xF8;
-    globalE2NodeEN_GNb->global_gNB_ID.gNB_ID.choice.gNB_ID.bits_unused = 0;
+    globalE2NodeEN_GNb->global_en_gNB_ID.gNB_ID.present = ENGNB_ID_PR_gNB_ID;
+    createPLMN_IDByMCCandMNC(&globalE2NodeEN_GNb->global_en_gNB_ID.pLMN_Identity, mcc, mnc);
+    globalE2NodeEN_GNb->global_en_gNB_ID.gNB_ID.choice.gNB_ID.size = 4;
+    globalE2NodeEN_GNb->global_en_gNB_ID.gNB_ID.choice.gNB_ID.buf =
+            (uint8_t *) calloc(1, globalE2NodeEN_GNb->global_en_gNB_ID.gNB_ID.choice.gNB_ID.size); //22..32 bits
+    globalE2NodeEN_GNb->global_en_gNB_ID.gNB_ID.choice.gNB_ID.buf[0] = 0xC5;
+    globalE2NodeEN_GNb->global_en_gNB_ID.gNB_ID.choice.gNB_ID.buf[1] = 0xC6;
+    globalE2NodeEN_GNb->global_en_gNB_ID.gNB_ID.choice.gNB_ID.buf[2] = 0xC7;
+    globalE2NodeEN_GNb->global_en_gNB_ID.gNB_ID.choice.gNB_ID.buf[3] = 0xF8;
+    globalE2NodeEN_GNb->global_en_gNB_ID.gNB_ID.choice.gNB_ID.bits_unused = 0;
     e2SetupRequestIEs->criticality = Criticality_reject;
     e2SetupRequestIEs->id = ProtocolIE_ID_id_GlobalE2node_ID;
     e2SetupRequestIEs->value.present = E2setupRequestIEs__value_PR_GlobalE2node_ID;
