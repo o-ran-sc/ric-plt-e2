@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "1552ce4b_734908e4",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000475
+      },
+      "writtenOn": "2022-05-17T17:27:10Z",
+      "side": 1,
+      "message": "Change and review history can be tracked here : https://gerrit.o-ran-sc.org/r/gitweb?p\u003dric-plt%2Fe2.git;a\u003dshortlog;h\u003drefs%2Fheads%2Fe2ap-v02.00",
+      "revId": "2175dd3d66734da687e7c7eb8e57e12b9f2c69f2",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    }
+  ]
+}
