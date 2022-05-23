@@ -150,7 +150,7 @@ typedef struct sctp_params {
     string prometheusPort {"8088"};
     Family<Counter> *prometheusFamily;
     Exposer *prometheusExposer = nullptr;
-    Counter *e2tCounters[6][2][ProcedureCode_id_RICsubscriptionDelete + 1] {};
+    Counter *e2tCounters[6][2][ProcedureCode_id_RICsubscriptionDeleteRequired + 1] {};
 } sctp_params_t;
 
 // RAN to RIC
@@ -179,7 +179,7 @@ typedef struct ConnectedCU {
     bool isConnected = false;
     bool gotSetup = false;
     sctp_params_t *sctpParams = nullptr;
-    Counter *counters[6][2][ProcedureCode_id_RICsubscriptionDelete + 1] {};
+    Counter *counters[6][2][ProcedureCode_id_RICsubscriptionDeleteRequired + 1] {};
     bool isSingleStream = false;
     int singleStreamId = 0;
 } ConnectedCU_t ;
