@@ -74,12 +74,19 @@ static int translateBitStringToChar(char *ranName, BIT_STRING_t &data) {
 
     unsigned b1 = 0;
     unsigned b2 = 0;
+    unsigned tmp_digit=0;
     for (auto i = 0; i < (int)data.size; i++) {
-        b1 = data.buf[i] & (unsigned)0xF0;
+        //
+        // we need to shift trailing zeros in the bit string (from asn1c) to leading zeros
+        //
+        tmp_digit = (0==i ? (uint8_t) 0: (uint8_t) data.buf[i-1])<<(8-data.bits_unused);
+        tmp_digit = tmp_digit | ((unsigned) data.buf[i] >> data.bits_unused);
+
+	b1 = tmp_digit & (unsigned)0xF0;
         b1 = b1 >> (unsigned)4;
         j = snprintf(buffer, 256, "%s%1x", ranName, b1);
         memcpy(ranName, buffer, j);
-        b2 = data.buf[i] & (unsigned)0x0F;
+        b2 = tmp_digit & (unsigned)0x0F;
         j = snprintf(buffer, 256, "%s%1x", ranName, b2);
         memcpy(ranName, buffer, j);
     }
