@@ -36,17 +36,17 @@ static int translatePlmnId(char * plmnId, const unsigned char *data, const char*
     ///auto mcc3 = (unsigned char)((data[1] & (unsigned char)0xF0) >> (unsigned char)4);
     auto mcc3 = (unsigned char)((unsigned char)(data[1] & (unsigned char)0x0F));
 
-    auto mnc1 = (unsigned char)(data[2] & (unsigned char)0x0F);
-    auto mnc2 =  (unsigned char)(((unsigned char)(data[2] & (unsigned char)0xF0) >> (unsigned char)4));
+    auto mnc1 = (unsigned char)(((unsigned char)((unsigned char)data[1] & (unsigned char)0xF0)) >> (unsigned char)4);
+    auto mnc2 =  (unsigned char)((unsigned char)data[2] & (unsigned char)0x0F) ;
     //auto mnc3 = (unsigned char)(((unsigned char)(data[1] & (unsigned char)0x0F) >> (unsigned char)4) );
-    auto mnc3 = (unsigned char)((data[1] & (unsigned char)0xF0) >> (unsigned char)4);
+    auto mnc3 = (unsigned char)(((unsigned char)((unsigned char)data[2] & (unsigned char)0xF0)) >> (unsigned char)4);
 
     int j = 0;
-    if (mnc3 != 15) {
+    if (mnc1 != 15) {
         j = snprintf(plmnId, 20, "%s%1d%1d%1d_%1d%1d%1d", type, mcc1, mcc2, mcc3, mnc1, mnc2, mnc3);
     }
     else {
-        j = snprintf(plmnId, 20, "%s%1d%1d%1d_0%1d%1d", type, mcc1, mcc2, mcc3, mnc1, mnc2);
+        j = snprintf(plmnId, 20, "%s%1d%1d%1d_0%1d%1d", type, mcc1, mcc2, mcc3, mnc2, mnc3);
     }
 
     return j;

@@ -283,6 +283,7 @@ double approx_CPU_MHz(unsigned sleepTime) {
 std::atomic<int64_t> num_of_messages{0};
 std::atomic<int64_t> num_of_XAPP_messages{0};
 static long transactionCounter = 0;
+pthread_mutex_t thread_lock;
 
 int buildListeningPort(sctp_params_t &sctpParams) {
     sctpParams.listenFD = socket(AF_INET6, SOCK_STREAM, IPPROTO_SCTP);
@@ -617,6 +618,10 @@ int main(const int argc, char **argv) {
 
     sctpParams.sctpMap = new mapWrapper();
 
+    if (pthread_mutex_init(&thread_lock, NULL) != 0) {
+        mdclog_write(MDCLOG_ERR, "failed to init thread lock");
+        exit(-1);
+    }
     std::vector<std::thread> threads(num_cpus);
 //    std::vector<std::thread> threads;
 
@@ -640,7 +645,7 @@ int main(const int argc, char **argv) {
     for (auto &t : threads) {
         t.join();
     }
-
+    pthread_mutex_destroy(&thread_lock);
     return 0;
 }
 #endif
@@ -845,6 +850,7 @@ void listener(sctp_params_t *params) {
             if(events)
             {
                 free(events);
+                events = nullptr;
             }
             return;
 #endif            
@@ -887,10 +893,12 @@ void listener(sctp_params_t *params) {
                             /* We have processed all incoming connections. */
                             if(peerInfo)
                                 free(peerInfo);
+                                peerInfo = nullptr;
                             break;
                         } else {
                             if(peerInfo)
                                 free(peerInfo);
+                                peerInfo = nullptr;
                             mdclog_write(MDCLOG_ERR, "Accept error, errno = %s", strerror(errno));
                             break;
                         }
@@ -900,6 +908,7 @@ void listener(sctp_params_t *params) {
                         close(peerInfo->fileDescriptor);
                         if(peerInfo)
                             free(peerInfo);
+                            peerInfo = nullptr;
                         break;
 #endif                        
                     }
@@ -916,6 +925,7 @@ void listener(sctp_params_t *params) {
                         close(peerInfo->fileDescriptor);
                         if(peerInfo)
                             free(peerInfo);
+                            peerInfo = nullptr;
                         break;
                     }
                     if (mdclog_level_get() >= MDCLOG_DEBUG) {
@@ -930,6 +940,7 @@ void listener(sctp_params_t *params) {
                                    0) != 0) {
                         if(peerInfo)
                             free(peerInfo);
+                            peerInfo = nullptr;
                         break;
                     }
                     break;
@@ -1195,7 +1206,7 @@ void handlepoll_error(struct epoll_event &event,
                       ReportingMessages_t &message,
                       RmrMessagesBuffer_t &rmrMessageBuffer,
                       sctp_params_t *params) {
-    if (event.data.fd != params->rmrListenFd) {
+    if ((event.data.fd != params->rmrListenFd) && (event.data.ptr != nullptr)) {
         auto *peerInfo = (ConnectedCU_t *)event.data.ptr;
         mdclog_write(MDCLOG_ERR, "epoll error, events %0x on fd %d, RAN NAME : %s",
                      event.events, peerInfo->fileDescriptor, peerInfo->enodbName);
@@ -1213,7 +1224,7 @@ void handlepoll_error(struct epoll_event &event,
         }
 #endif
         close(peerInfo->fileDescriptor);
-        params->sctpMap->erase(peerInfo->enodbName);
+        //params->sctpMap->erase(peerInfo->enodbName);
         cleanHashEntry((ConnectedCU_t *) event.data.ptr, params->sctpMap);
     } else {
         mdclog_write(MDCLOG_ERR, "epoll error, events %0x on RMR FD", event.events);
@@ -1247,17 +1258,30 @@ int setSocketNoBlocking(int socket) {
  * @param m
  */
 void cleanHashEntry(ConnectedCU_t *val, Sctp_Map_t *m) {
+    if(val != nullptr)
+    {
     char *dummy;
     auto port = (uint16_t) strtol(val->portNumber, &dummy, 10);
     char searchBuff[2048]{};
 
     snprintf(searchBuff, sizeof searchBuff, "host:%s:%d", val->hostName, port);
+    if(m->find(searchBuff))
+    {
     m->erase(searchBuff);
+    }
 
+    if(m->find(val->enodbName))
+    {
+    mdclog_write(MDCLOG_DEBUG, "remove key enodbName = %s from %s at line %d", val->enodbName, __FUNCTION__, __LINE__);
     m->erase(val->enodbName);
+    }
 #ifndef UNIT_TEST
-    free(val);
+    if(val) {
+       free(val);
+       val = nullptr;
+    }
 #endif
+    }
 }
 
 /**
@@ -1309,6 +1333,7 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
             auto tmp = m->find(key);
             if (tmp) {
                 free(tmp);
+                tmp = nullptr;
             }
             m->erase(key);
 #ifndef UNIT_TEST
@@ -1371,7 +1396,9 @@ int receiveDataFromSctp(struct epoll_event *events,
     int streamId;
 
     // get the identity of the interface
+    if (events->data.ptr != nullptr){
     message.peerInfo = (ConnectedCU_t *)events->data.ptr;
+    }
 
     struct timespec start{0, 0};
     struct timespec decodeStart{0, 0};
@@ -1531,8 +1558,18 @@ int receiveDataFromSctp(struct epoll_event *events,
 #endif        
 
         /* Closing descriptor make epoll remove it from the set of descriptors which are monitored. */
+#ifndef UNIT_TEST
+        pthread_mutex_lock(&thread_lock);
+        if (fcntl(message.peerInfo->fileDescriptor, F_GETFD) != -1) {
+            mdclog_write(MDCLOG_DEBUG, "Closing connection - descriptor = %d", message.peerInfo->fileDescriptor);
+            close(message.peerInfo->fileDescriptor);
+            cleanHashEntry((ConnectedCU_t *) events->data.ptr, sctpMap);
+        }
+        pthread_mutex_unlock(&thread_lock);
+#else
         close(message.peerInfo->fileDescriptor);
         cleanHashEntry((ConnectedCU_t *) events->data.ptr, sctpMap);
+#endif        
     }
     if (loglevel >= MDCLOG_DEBUG) {
         clock_gettime(CLOCK_MONOTONIC, &end);
@@ -1586,6 +1623,7 @@ static void buildAndSendSetupRequest(ReportingMessages_t &message,
                 // out of memory
                 mdclog_write(MDCLOG_ERR, "Reallocating buffer for %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
                 free(buffer);
+                buffer = nullptr;
                 return;
             }
             buffer = newBuffer;
@@ -1670,6 +1708,7 @@ static void buildAndSendSetupRequest(ReportingMessages_t &message,
         rmr_free_msg(rmrMsg);
     }
     free(buffer);
+    buffer = nullptr;
 
     return;
 }
@@ -2963,6 +3002,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
                         mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
                     }
                     free(peerInfo);
+                    peerInfo = nullptr;
                 }
             }
 
@@ -3121,6 +3161,7 @@ int addToEpoll(int epoll_fd,
             auto tmp = sctpMap->find(key);
             if (tmp) {
                 free(tmp);
+                tmp = nullptr;
                 sctpMap->erase(key);
             }
         } else {
@@ -3168,8 +3209,9 @@ int modifyToEpoll(int epoll_fd,
         auto tmp = sctpMap->find(key);
         if (tmp) {
             free(tmp);
-        }
+            tmp = nullptr;
         sctpMap->erase(key);
+        }
         mdclog_write(MDCLOG_ERR, "epoll_ctl EPOLL_CTL_ADD (may check not to quit here)");
         return -1;
     }
