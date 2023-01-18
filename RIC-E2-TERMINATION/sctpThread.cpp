@@ -1878,6 +1878,10 @@ void buildE2TPrometheusCounters(sctp_params_t &sctpParams) {
 
     sctpParams.e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICserviceQuery] = &sctpParams.prometheusFamily->Add({{"counter", "RICServiceQueryMsgs"}});
     sctpParams.e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICserviceQuery] = &sctpParams.prometheusFamily->Add({{"counter", "RICServiceQueryBytes"}});
+
+    sctpParams.e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDeleteRequired] = &sctpParams.prometheusFamily->Add({{"counter", "RICSubscriptionDeleteRequiredMsgs"}});
+    sctpParams.e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDeleteRequired] = &sctpParams.prometheusFamily->Add({{"counter", "RICSubscriptionDeleteRequiredBytes"}});
+
 }
 
 void buildPrometheusList(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFamily) {
@@ -1960,6 +1964,11 @@ void buildPrometheusList(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFam
 
     peerInfo->counters[OUT_UN_SUCC][MSG_COUNTER][(ProcedureCode_id_RICserviceUpdate)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICserviceUpdateFailure", "Messages"}});
     peerInfo->counters[OUT_UN_SUCC][BYTES_COUNTER][(ProcedureCode_id_RICserviceUpdate)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"RICserviceUpdateFailure", "Bytes"}});
+
+
+    peerInfo->counters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_RICsubscriptionDeleteRequired)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICsubscriptionDeleteRequired", "Messages"}});
+    peerInfo->counters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_RICsubscriptionDeleteRequired)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICsubscriptionDeleteRequired", "Bytes"}});
+
 }
 
 /**
@@ -2263,6 +2272,24 @@ case ProcedureCode_id_E2nodeConfigurationUpdate: {
             }
             break;
         }
+        case ProcedureCode_id_RICsubscriptionDeleteRequired: {
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Got RICsubscriptionDeleteRequired %s", message.message.enodbName);
+            }
+        #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
+                    message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDeleteRequired]->Increment();
+                    message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDeleteRequired]->Increment((double)message.message.asnLength);
+
+                    // Update E2T instance level metrics
+                    message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDeleteRequired]->Increment();
+                    message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDeleteRequired]->Increment((double)message.message.asnLength);
+        #endif
+            if (sendRequestToXapp(message, RIC_SUB_DEL_REQUIRED, rmrMessageBuffer) != 0) {
+                mdclog_write(MDCLOG_ERR, "Subscription Delete Required message failed to send to xAPP");
+            }
+            break;
+        }
+
         default: {
             mdclog_write(MDCLOG_ERR, "Undefined or not supported message = %ld", procedureCode);
             message.message.messageType = 0; // no RMR message type yet
