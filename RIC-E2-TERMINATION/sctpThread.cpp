@@ -32,6 +32,7 @@
 #include <sys/inotify.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <arpa/inet.h>
 
 using namespace std;
 //using namespace std::placeholders;
@@ -47,6 +48,7 @@ using namespace prometheus;
 // need to expose without the include of gcov
 extern "C" void __gcov_flush(void);
 #define LOG_FILE_CONFIG_MAP "CONFIG_MAP_NAME"
+#define E2AP_PPID 70 // as per E2GAP chapter 6.1
 
 static void catch_function(int signal) {
     __gcov_flush();
@@ -1309,7 +1311,7 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
     }
 
     while (true) {
-        if (sctp_sendmsg(fd,message.message.asndata, message.message.asnLength,(struct sockaddr *) NULL, 0, 0, 0,streamId,0,0) < 0) {
+        if (sctp_sendmsg(fd,message.message.asndata, message.message.asnLength,(struct sockaddr *) NULL, 0, htonl(E2AP_PPID), 0,streamId,0,0) < 0) {
             if (errno == EINTR) {
                 continue;
             }
