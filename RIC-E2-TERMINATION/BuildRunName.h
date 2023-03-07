@@ -138,6 +138,7 @@ int buildRanName(char *ranName, E2setupRequestIEs_t *ie) {
                 default:
                     break;
             }
+	    break;
         }
         case GlobalE2node_ID_PR_eNB: {
             auto *enb = ie->value.choice.GlobalE2node_ID.choice.eNB;
@@ -169,6 +170,7 @@ int buildRanName(char *ranName, E2setupRequestIEs_t *ie) {
                     break;
                 }
             }
+	    break;
         }
         case GlobalE2node_ID_PR_NOTHING:
         default:
