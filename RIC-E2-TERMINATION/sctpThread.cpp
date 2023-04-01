@@ -110,18 +110,16 @@ static void * monitor_loglevel_change_handler(void* arg)
     char rbuf[4096];           // large read buffer as the event is var len
     fd_set fds;
     int res = 0;
-    struct timeval timeout;
     char* dname=NULL;          // directory name
     char* bname = NULL;        // basename
     char* tok=NULL;
     char* log_level=NULL;
 
-    dname = strdup( fileName); // defrock the file name into dir and basename
+    dname = strdup( fileName ); // defrock the file name into dir and basename
     if( (tok = strrchr( dname, '/' )) != NULL ) {
         *tok = '\0';
         bname = strdup( tok+1 );
     }
-
 
     ifd = inotify_init1( 0 ); // initialise watcher setting blocking read (no option)
     if( ifd < 0 ) {
@@ -132,31 +130,31 @@ static void * monitor_loglevel_change_handler(void* arg)
         if( wfd < 0 ) {
             fprintf( stderr, "### ERR ### unable to add watch on config file %s: %s\n", fileName, strerror( errno ) );
         } else {
-           
 
-            memset( &timeout, 0, sizeof(timeout) );
+            FD_ZERO (&fds);
+            FD_SET (ifd, &fds);
             while( 1 ) {
-                FD_ZERO (&fds);
-                FD_SET (ifd, &fds);
-                timeout.tv_sec=1;
-                res = select (ifd + 1, &fds, NULL, NULL, &timeout);
+                res = select (ifd + 1, &fds, NULL, NULL, NULL);
                 if(res)
                 {
                     n = read( ifd, rbuf, sizeof( rbuf ) ); // read the event
                     if( n < 0  ) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))                        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
                         if( errno == EAGAIN ) {
                         } else {
-                            printf(  "### CRIT ### config listener read err: %s\n", strerror( errno ) );
+                            fprintf( stderr, "### CRIT ### config listener read err: %s\n", strerror( errno ) );
                         }
                         continue;
-#endif                        
+#endif
                     }
 
                     //Retrieving Log Level from configmap by parsing configmap file
                     log_level = parse_file(fileName);
                     update_mdc_log_level_severity(log_level); //setting log level
-                    free(log_level);
+                    if(log_level != NULL) {
+                        mdclog_write(MDCLOG_INFO, "MDC log level updated to %s", log_level);
+                        free(log_level);
+                    }
                 }
             }
             inotify_rm_watch(ifd,wfd);
@@ -165,6 +163,7 @@ static void * monitor_loglevel_change_handler(void* arg)
     }
     free(bname);
     free(dname);
+    free(fileName);
 
     pthread_exit(NULL);
 }
@@ -196,24 +195,52 @@ void  update_mdc_log_level_severity(char* log_level)
 
     mdclog_level_set(level);
 }
+
+/**
+ * @brief Remove leading and trailing spaces from s.
+ *
+ * If the string was allocated dynamically, the caller cannot
+ * overwrite the returned pointer.
+ *
+ * @param s the string we want to remove spaces.
+ * @return Returns a null-terminated substring of "s".
+ */
+static inline char *trim(char *s)
+{
+    char *end;
+    /* skip leading spaces */
+    while (isspace(*s)) s++;
+
+    /* all spaces */
+    if (*s == '\0') return s;
+
+    /* skip trailing spaces */
+    end = s + strlen(s) - 1;
+    while (end > s && isspace(*end)) end--;
+
+    /* write null character */
+    *(end+1) = '\0';
+
+    return s;
+}
+
 static char* parse_file(char* filename)
 {
     char *token=NULL;
-    char *search = ": ";
-    char *string_match = "log-level";
     bool found = false;
     FILE *file = fopen ( filename, "r" );
+
     if ( file != NULL )
     {
         char line [ 128 ];
-        while ( fgets ( line, sizeof line, file ) != NULL )
+        while ( fgets ( line, sizeof(line), file ) != NULL )
         {
-            token = strtok(line, search);
-            if(strcmp(token,string_match)==0)
-            {
+            token = strtok(line, ":");
+            token = trim(token);
+            if (strcmp(token,"log-level") == 0) {
                 found = true;
-                token = strtok(NULL, search);
-                token = strtok(token, "\n");//removing newline if any
+                token = strtok(NULL, "\n");
+                token = trim(token);
                 break;
             }
         }
@@ -244,12 +271,11 @@ void dynamic_log_level_change()
     {
         log_level_init = parse_file(logFile_Name);
         update_mdc_log_level_severity(log_level_init); //setting log level
+        mdclog_write(MDCLOG_INFO, "MDC log level set to %s", log_level_init);
         free(log_level_init);
 
     }
     enable_log_change_notify(logFile_Name);
-    free(logFile_Name);
-
 }
 
 void init_log() {
@@ -290,10 +316,10 @@ pthread_mutex_t thread_lock;
 int buildListeningPort(sctp_params_t &sctpParams) {
     sctpParams.listenFD = socket(AF_INET6, SOCK_STREAM, IPPROTO_SCTP);
     if (sctpParams.listenFD <= 0) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         mdclog_write(MDCLOG_ERR, "Error Opening socket, %s", strerror(errno));
         return -1;
-#endif        
+#endif
     }
     struct sctp_initmsg initmsg;
     memset (&initmsg, 0, sizeof (initmsg));
@@ -307,10 +333,10 @@ int buildListeningPort(sctp_params_t &sctpParams) {
     serverAddress.sin6_addr   = in6addr_any;
     serverAddress.sin6_port = htons(sctpParams.sctpPort);
     if (bind(sctpParams.listenFD, (SA *)&serverAddress, sizeof(serverAddress)) < 0 ) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         mdclog_write(MDCLOG_ERR, "Error binding port %d. %s", sctpParams.sctpPort, strerror(errno));
         return -1;
-#endif        
+#endif
     }
     if (setSocketNoBlocking(sctpParams.listenFD) == -1) {
         //mdclog_write(MDCLOG_ERR, "Error binding. %s", strerror(errno));
@@ -326,10 +352,10 @@ int buildListeningPort(sctp_params_t &sctpParams) {
     }
 
     if (listen(sctpParams.listenFD, SOMAXCONN) < 0) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))     
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         mdclog_write(MDCLOG_ERR, "Error listening. %s\n", strerror(errno));
         return -1;
-#endif        
+#endif
     }
     struct epoll_event event {};
     event.events = EPOLLIN | EPOLLET;
@@ -341,7 +367,7 @@ int buildListeningPort(sctp_params_t &sctpParams) {
         printf("Failed to add descriptor to epoll\n");
         mdclog_write(MDCLOG_ERR, "Failed to add descriptor to epoll. %s\n", strerror(errno));
         return -1;
-#endif        
+#endif
     }
 
     return 0;
@@ -353,41 +379,41 @@ int buildConfiguration(sctp_params_t &sctpParams) {
         const int size = 2048;
         auto fileSize = file_size(p);
         if (fileSize > size) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             mdclog_write(MDCLOG_ERR, "File %s larger than %d", p.string().c_str(), size);
             return -1;
-#endif            
+#endif
         }
     } else {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         mdclog_write(MDCLOG_ERR, "Configuration File %s not exists", p.string().c_str());
         return -1;
-#endif        
+#endif
     }
 
     ReadConfigFile conf;
     if (conf.openConfigFile(p.string()) == -1) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         mdclog_write(MDCLOG_ERR, "Filed to open config file %s, %s",
                      p.string().c_str(), strerror(errno));
         return -1;
-#endif        
+#endif
     }
     int rmrPort = conf.getIntValue("nano");
     if (rmrPort == -1) {
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         mdclog_write(MDCLOG_ERR, "illegal RMR port ");
         return -1;
-#endif        
+#endif
     }
     sctpParams.rmrPort = (uint16_t)rmrPort;
     snprintf(sctpParams.rmrAddress, sizeof(sctpParams.rmrAddress), "%d", (int) (sctpParams.rmrPort));
     auto tmpStr = conf.getStringValue("volume");
     if (tmpStr.length() == 0) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         mdclog_write(MDCLOG_ERR, "illegal volume.");
         return -1;
-#endif        
+#endif
     }
 
     char tmpLogFilespec[VOLUME_URL_SIZE];
@@ -403,27 +429,27 @@ int buildConfiguration(sctp_params_t &sctpParams) {
 
     sctpParams.myIP = conf.getStringValue("local-ip");
     if (sctpParams.myIP.length() == 0) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         mdclog_write(MDCLOG_ERR, "illegal local-ip.");
         return -1;
-#endif        
+#endif
     }
 
     int sctpPort = conf.getIntValue("sctp-port");
     if (sctpPort == -1) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         mdclog_write(MDCLOG_ERR, "illegal SCTP port ");
         return -1;
-#endif        
+#endif
     }
     sctpParams.sctpPort = (uint16_t)sctpPort;
 
     sctpParams.fqdn = conf.getStringValue("external-fqdn");
     if (sctpParams.fqdn.length() == 0) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         mdclog_write(MDCLOG_ERR, "illegal external-fqdn");
         return -1;
-#endif        
+#endif
     }
 
     std::string pod = conf.getStringValue("pod_name");
@@ -448,18 +474,18 @@ int buildConfiguration(sctp_params_t &sctpParams) {
     tmpStr = conf.getStringValue("trace");
     transform(tmpStr.begin(), tmpStr.end(), tmpStr.begin(), ::tolower);
     if ((tmpStr.compare("start")) == 0) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         mdclog_write(MDCLOG_INFO, "Trace set to: start");
         sctpParams.trace = true;
-#endif        
+#endif
     } else if ((tmpStr.compare("stop")) == 0) {
         mdclog_write(MDCLOG_INFO, "Trace set to: stop");
         sctpParams.trace = false;
     } else {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))      
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         mdclog_write(MDCLOG_ERR, "Trace was set to wrong value %s, set to stop", tmpStr.c_str());
         sctpParams.trace = false;
-#endif        
+#endif
     }
     jsonTrace = sctpParams.trace;
 
@@ -480,7 +506,6 @@ int buildConfiguration(sctp_params_t &sctpParams) {
 
     if (mdclog_level_get() >= MDCLOG_INFO) {
         mdclog_write(MDCLOG_DEBUG,"RMR Port: %s", to_string(sctpParams.rmrPort).c_str());
-        mdclog_write(MDCLOG_DEBUG,"LogLevel: %s", to_string(sctpParams.logLevel).c_str());
         mdclog_write(MDCLOG_DEBUG,"volume: %s", sctpParams.volume);
         mdclog_write(MDCLOG_DEBUG,"tmpLogFilespec: %s", tmpLogFilespec);
         mdclog_write(MDCLOG_DEBUG,"my ip: %s", sctpParams.myIP.c_str());
@@ -836,7 +861,7 @@ void listener(sctp_params_t *params) {
         auto numOfEvents = 1;
 #endif
         if (numOfEvents == 0) { // time out
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             if (mdclog_level_get() >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "got epoll timeout");
             }
@@ -855,7 +880,7 @@ void listener(sctp_params_t *params) {
                 events = nullptr;
             }
             return;
-#endif            
+#endif
         }
         for (auto i = 0; i < numOfEvents; i++) {
             if (mdclog_level_get() >= MDCLOG_DEBUG) {
@@ -890,7 +915,7 @@ void listener(sctp_params_t *params) {
                     peerInfo->sctpParams = params;
                     peerInfo->fileDescriptor = accept(params->listenFD, &in_addr, &in_len);
                     if (peerInfo->fileDescriptor == -1) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))                        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
                         if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                             /* We have processed all incoming connections. */
                             if(peerInfo)
@@ -912,7 +937,7 @@ void listener(sctp_params_t *params) {
                             free(peerInfo);
                             peerInfo = nullptr;
                         break;
-#endif                        
+#endif
                     }
                     struct sctp_event_subscribe sctpevents;
                     memset( (void *)&sctpevents, 0, sizeof(sctpevents) );
@@ -1008,13 +1033,13 @@ void handleConfigChange(sctp_params_t *sctpParams) {
     path p = (sctpParams->configFilePath + "/" + sctpParams->configFileName).c_str();
     auto endlessLoop = true;
     while (endlessLoop) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))    
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         auto len = read(sctpParams->inotifyFD, buf, sizeof buf);
 #else
     auto len=10;
 #endif
         if (len == -1) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             if (errno != EAGAIN) {
                 mdclog_write(MDCLOG_ERR, "read %s ", strerror(errno));
                 endlessLoop = false;
@@ -1024,7 +1049,7 @@ void handleConfigChange(sctp_params_t *sctpParams) {
                 endlessLoop = false;
                 continue;
             }
-#endif            
+#endif
         }
 
         for (ptr = buf; ptr < buf + len; ptr += sizeof(struct inotify_event) + event->len) {
@@ -1043,12 +1068,12 @@ void handleConfigChange(sctp_params_t *sctpParams) {
                 // not the directory
             }
             if (event->len) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))                
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
                 auto  retVal = strcmp(sctpParams->configFileName.c_str(), event->name);
                 if (retVal != 0) {
                     continue;
                 }
-#endif                
+#endif
             }
             // only the file we want
             if (event->mask & (uint32_t)IN_CLOSE_WRITE) {
@@ -1073,34 +1098,7 @@ void handleConfigChange(sctp_params_t *sctpParams) {
                                  p.string().c_str(), strerror(errno));
                     return;
                 }
-                auto tmpStr = conf.getStringValue("loglevel");
-                if (tmpStr.length() == 0) {
-                    mdclog_write(MDCLOG_ERR, "illegal loglevel. Set loglevel to MDCLOG_INFO");
-                    tmpStr = "info";
-                }
-                transform(tmpStr.begin(), tmpStr.end(), tmpStr.begin(), ::tolower);
-
-                if ((tmpStr.compare("debug")) == 0) {
-                    mdclog_write(MDCLOG_INFO, "Log level set to MDCLOG_DEBUG");
-                    sctpParams->logLevel = MDCLOG_DEBUG;
-                } 
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))                
-                else if ((tmpStr.compare("info")) == 0) {
-                    mdclog_write(MDCLOG_INFO, "Log level set to MDCLOG_INFO");
-                    sctpParams->logLevel = MDCLOG_INFO;
-                } else if ((tmpStr.compare("warning")) == 0) {
-                    mdclog_write(MDCLOG_INFO, "Log level set to MDCLOG_WARN");
-                    sctpParams->logLevel = MDCLOG_WARN;
-                } else if ((tmpStr.compare("error")) == 0) {
-                    mdclog_write(MDCLOG_INFO, "Log level set to MDCLOG_ERR");
-                    sctpParams->logLevel = MDCLOG_ERR;
-                } else {
-                    mdclog_write(MDCLOG_ERR, "illegal loglevel = %s. Set loglevel to MDCLOG_INFO", tmpStr.c_str());
-                    sctpParams->logLevel = MDCLOG_INFO;
-                }
-#endif                
-                mdclog_level_set(sctpParams->logLevel);
-                tmpStr = conf.getStringValue("trace");
+                auto tmpStr = conf.getStringValue("trace");
                 if (tmpStr.length() == 0) {
                     mdclog_write(MDCLOG_ERR, "illegal trace. Set trace to stop");
                     tmpStr = "stop";
@@ -1148,7 +1146,7 @@ void handleEinprogressMessages(struct epoll_event &event,
     socklen_t retValLen = 0;
     auto rc = getsockopt(peerInfo->fileDescriptor, SOL_SOCKET, SO_ERROR, &retVal, &retValLen);
     if (rc != 0 || retVal != 0) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         if (rc != 0) {
             rmrMessageBuffer.sendMessage->len = snprintf((char *)rmrMessageBuffer.sendMessage->payload, 256,
                                                          "%s|Failed SCTP Connection, after EINPROGRESS the getsockopt%s",
@@ -1200,7 +1198,7 @@ void handleEinprogressMessages(struct epoll_event &event,
     memset(peerInfo->asnData, 0, peerInfo->asnLength);
     peerInfo->asnLength = 0;
     peerInfo->mtype = 0;
-#endif    
+#endif
 }
 
 
@@ -1298,13 +1296,13 @@ void cleanHashEntry(ConnectedCU_t *val, Sctp_Map_t *m) {
  */
 int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_t *m) {
     auto loglevel = mdclog_level_get();
-#ifndef UNIT_TEST    
+#ifndef UNIT_TEST
     int fd = peerInfo->fileDescriptor;
     int streamId = fetchStreamId(peerInfo,message);
 #else
     int fd = FILE_DESCRIPTOR;
     int streamId = 0;
-#endif    
+#endif
     if (loglevel >= MDCLOG_DEBUG) {
         mdclog_write(MDCLOG_DEBUG, "Send SCTP message for CU %s, %s",
                      message.message.enodbName, __FUNCTION__);
@@ -1316,16 +1314,16 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
                 continue;
             }
             mdclog_write(MDCLOG_ERR, "error writing to CU a message, %s ", strerror(errno));
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             if (!peerInfo->isConnected) {
                 mdclog_write(MDCLOG_ERR, "connection to CU %s is still in progress.", message.message.enodbName);
                 return -1;
             }
 #endif
-#ifndef UNIT_TEST            
+#ifndef UNIT_TEST
             cleanHashEntry(peerInfo, m);
             close(fd);
-#endif            
+#endif
             char key[MAX_ENODB_NAME_SIZE * 2];
             snprintf(key, MAX_ENODB_NAME_SIZE * 2, "msg:%s|%d", message.message.enodbName,
                      message.message.messageType);
@@ -1415,7 +1413,7 @@ int receiveDataFromSctp(struct epoll_event *events,
         }
         // read the buffer directly to rmr payload
         message.message.asndata = rmrMessageBuffer.sendMessage->payload;
-#ifndef UNIT_TEST        
+#ifndef UNIT_TEST
         message.message.asnLength = rmrMessageBuffer.sendMessage->len =
                 sctp_recvmsg(message.peerInfo->fileDescriptor, rmrMessageBuffer.sendMessage->payload, RECEIVE_SCTP_BUFFER_SIZE,(struct sockaddr *) NULL, 0, &sndrcvinfo, &flags);
         mdclog_write(MDCLOG_DEBUG, "Start Read from SCTP fd %d stream %d ", message.peerInfo->fileDescriptor, sndrcvinfo.sinfo_stream);
@@ -1551,13 +1549,13 @@ int receiveDataFromSctp(struct epoll_event *events,
                          "%s|CU disconnected unexpectedly",
                          message.peerInfo->enodbName);
         message.message.asndata = rmrMessageBuffer.sendMessage->payload;
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         if (sendRequestToXapp(message,
                               RIC_SCTP_CONNECTION_FAILURE,
                               rmrMessageBuffer) != 0) {
             mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
         }
-#endif        
+#endif
 
         /* Closing descriptor make epoll remove it from the set of descriptors which are monitored. */
 #ifndef UNIT_TEST
@@ -1571,7 +1569,7 @@ int receiveDataFromSctp(struct epoll_event *events,
 #else
         close(message.peerInfo->fileDescriptor);
         cleanHashEntry((ConnectedCU_t *) events->data.ptr, sctpMap);
-#endif        
+#endif
     }
     if (loglevel >= MDCLOG_DEBUG) {
         clock_gettime(CLOCK_MONOTONIC, &end);
@@ -1598,21 +1596,21 @@ static void buildAndSendSetupRequest(ReportingMessages_t &message,
     buffer = (unsigned char *) calloc(buffer_size, sizeof(unsigned char));
     if(!buffer)
     {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         mdclog_write(MDCLOG_ERR, "Allocating buffer for %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
         return;
-#endif        
+#endif
     }
     while (true) {
         er = asn_encode_to_buffer(nullptr, ATS_BASIC_XER, &asn_DEF_E2AP_PDU, pdu, buffer, buffer_size);
         if (er.encoded == -1) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))     
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             mdclog_write(MDCLOG_ERR, "encoding of %s failed, %s", asn_DEF_E2AP_PDU.name, strerror(errno));
             return;
-#endif            
+#endif
         } else if (er.encoded > (ssize_t) buffer_size) {
             buffer_size = er.encoded + 128;
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             mdclog_write(MDCLOG_WARN, "Buffer of size %d is to small for %s. Reallocate buffer of size %d",
                          (int) buffer_size,
                          asn_DEF_E2AP_PDU.name, buffer_size);
@@ -1630,7 +1628,7 @@ static void buildAndSendSetupRequest(ReportingMessages_t &message,
             }
             buffer = newBuffer;
             continue;
-#endif            
+#endif
         }
         buffer[er.encoded] = '\0';
         break;
@@ -2151,7 +2149,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             string messageName("RICserviceUpdate");
             string ieName("RICserviceUpdateIEs");
             message.message.messageType = RIC_SERVICE_UPDATE;
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
             message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment((double)message.message.asnLength);
 
@@ -2187,7 +2185,7 @@ case ProcedureCode_id_E2nodeConfigurationUpdate: {
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got ErrorIndication %s", message.message.enodbName);
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_ErrorIndication]->Increment();
             message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_ErrorIndication]->Increment((double)message.message.asnLength);
 
@@ -2204,7 +2202,7 @@ case ProcedureCode_id_E2nodeConfigurationUpdate: {
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got Reset %s", message.message.enodbName);
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
             message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment((double)message.message.asnLength);
 
@@ -2254,7 +2252,7 @@ case ProcedureCode_id_E2nodeConfigurationUpdate: {
                                          ie->value.choice.RICrequestID.ricInstanceID,
                                          ie->value.choice.RICrequestID.ricRequestorID);
                         }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))                        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
                         message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICindication]->Increment();
                         message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICindication]->Increment((double)message.message.asnLength);
 
@@ -2323,7 +2321,7 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got Reset %s", message.message.enodbName);
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
             message.peerInfo->counters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment((double)message.message.asnLength);
 
@@ -2366,7 +2364,7 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
                         rmr_bytes2meid(rmrMessageBuffer.sendMessage,
                                        (unsigned char *)message.message.enodbName,
                                        strlen(message.message.enodbName));
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))                        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
                         message.peerInfo->counters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICcontrol]->Increment();
                         message.peerInfo->counters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICcontrol]->Increment((double)message.message.asnLength);
 
@@ -2391,7 +2389,7 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICsubscription %s", message.message.enodbName);
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscription]->Increment();
             message.peerInfo->counters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscription]->Increment((double)message.message.asnLength);
 
@@ -2408,7 +2406,7 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICsubscriptionDelete %s", message.message.enodbName);
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
             message.peerInfo->counters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment((double)message.message.asnLength);
 
@@ -2472,7 +2470,7 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
                         rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, strlen((const char *) tx));
                         rmr_bytes2meid(rmrMessageBuffer.sendMessage, (unsigned char *) message.message.enodbName,
                                        strlen(message.message.enodbName));
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))                        
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
                         message.peerInfo->counters[IN_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICcontrol]->Increment();
                         message.peerInfo->counters[IN_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICcontrol]->Increment((double)message.message.asnLength);
 
@@ -2496,7 +2494,7 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICsubscription %s", message.message.enodbName);
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[IN_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscription]->Increment();
             message.peerInfo->counters[IN_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscription]->Increment((double)message.message.asnLength);
 
@@ -2513,7 +2511,7 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICsubscriptionDelete %s", message.message.enodbName);
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[IN_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
             message.peerInfo->counters[IN_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment((double)message.message.asnLength);
 
@@ -2529,9 +2527,9 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
         default: {
             mdclog_write(MDCLOG_WARN, "Undefined or not supported message = %ld", procedureCode);
             message.message.messageType = 0; // no RMR message type yet
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             buildJsonMessage(message);
-#endif            
+#endif
             break;
         }
     }
@@ -2628,7 +2626,7 @@ int PER_FromXML(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuf
     if (rval.code != RC_OK) {
 #ifdef UNIT_TEST
     return 0;
-#endif    
+#endif
         mdclog_write(MDCLOG_ERR, "Error %d Decoding (unpack) setup response  from E2MGR : %s",
                      rval.code,
                      message.message.enodbName);
@@ -2724,7 +2722,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             default:
 #ifdef UNIT_TEST
     break;
-#endif    
+#endif
                 mdclog_write(MDCLOG_ERR, "Failed to send message no CU entry %s", message.message.enodbName);
                 return -1;
         }
@@ -2742,14 +2740,14 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
             message.peerInfo->counters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment(rmrMessageBuffer.rcvMessage->len);
 
             // Update E2T instance level metrics
             message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment(rmrMessageBuffer.rcvMessage->len);
-#endif            
+#endif
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_SETUP_RESP");
                 return -6;
@@ -2763,14 +2761,14 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
             message.peerInfo->counters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment(rmrMessageBuffer.rcvMessage->len);
 
             // Update E2T instance level metrics
             message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment(rmrMessageBuffer.rcvMessage->len);
-#endif            
+#endif
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_SETUP_FAILURE");
                 return -6;
@@ -2826,14 +2824,14 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_ERROR_INDICATION");
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_ErrorIndication]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_ErrorIndication]->Increment(rmrMessageBuffer.rcvMessage->len);
 
             // Update E2T instance level metrics
             message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_ErrorIndication]->Increment();
             message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_ErrorIndication]->Increment(rmrMessageBuffer.rcvMessage->len);
-#endif            
+#endif
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_ERROR_INDICATION");
                 return -6;
@@ -2844,14 +2842,14 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_SUB_REQ");
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscription]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscription]->Increment(rmrMessageBuffer.rcvMessage->len);
 
             // Update E2T instance level metrics
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscription]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscription]->Increment(rmrMessageBuffer.rcvMessage->len);
-#endif            
+#endif
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SUB_REQ");
                 return -6;
@@ -2862,14 +2860,14 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_SUB_DEL_REQ");
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment(rmrMessageBuffer.rcvMessage->len);
 
             // Update E2T instance level metrics
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment(rmrMessageBuffer.rcvMessage->len);
-#endif            
+#endif
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SUB_DEL_REQ");
                 return -6;
@@ -2880,14 +2878,14 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_CONTROL_REQ");
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICcontrol]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICcontrol]->Increment(rmrMessageBuffer.rcvMessage->len);
 
             // Update E2T instance level metrics
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICcontrol]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICcontrol]->Increment(rmrMessageBuffer.rcvMessage->len);
-#endif            
+#endif
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_CONTROL_REQ");
                 return -6;
@@ -2901,14 +2899,14 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICserviceQuery]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICserviceQuery]->Increment(rmrMessageBuffer.rcvMessage->len);
 
             // Update E2T instance level metrics
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICserviceQuery]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICserviceQuery]->Increment(rmrMessageBuffer.rcvMessage->len);
-#endif            
+#endif
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SERVICE_QUERY");
                 return -6;
@@ -2923,14 +2921,14 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
                 mdclog_write(MDCLOG_ERR, "error in PER_FromXML");
                 break;
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
             message.peerInfo->counters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
 
             // Update E2T instance level metrics
             message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
-#endif            
+#endif
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Before sending to CU");
             }
@@ -2947,14 +2945,14 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
             message.peerInfo->counters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
 
             // Update E2T instance level metrics
             message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
-#endif            
+#endif
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SERVICE_UPDATE_FAILURE");
                 return -6;
@@ -2968,14 +2966,14 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment(rmrMessageBuffer.rcvMessage->len);
 
             // Update E2T instance level metrics
             message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
             message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment(rmrMessageBuffer.rcvMessage->len);
-#endif            
+#endif
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_RESET");
                 return -6;
@@ -2989,14 +2987,14 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (PER_FromXML(message, rmrMessageBuffer) != 0) {
                 break;
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
             message.peerInfo->counters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment(rmrMessageBuffer.rcvMessage->len);
 
             // Update E2T instance level metrics
             message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment(rmrMessageBuffer.rcvMessage->len);
-#endif            
+#endif
             if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_RESET_RESP");
                 return -6;
@@ -3049,7 +3047,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             static unsigned char tx[32];
             auto txLen = snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
             rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, txLen);
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))            
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             rmrMessageBuffer.sendMessage = rmr_send_msg(rmrMessageBuffer.rmrCtx, rmrMessageBuffer.sendMessage);
 #endif
             if (rmrMessageBuffer.sendMessage == nullptr) {
@@ -3174,7 +3172,7 @@ int addToEpoll(int epoll_fd,
     event.data.ptr = peerInfo;
     event.events = events;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, peerInfo->fileDescriptor, &event) < 0) {
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST)) 
+#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
             mdclog_write(MDCLOG_DEBUG, "epoll_ctl EPOLL_CTL_ADD (may check not to quit here), %s, %s %d",
                          strerror(errno), __func__, __LINE__);

@@ -138,7 +138,6 @@ typedef struct sctp_params {
     char      ka_message[KA_MESSAGE_SIZE] {};
     int       ka_message_length = 0;
     char       rmrAddress[256] {}; // "tcp:port number" "tcp:5566" listen to all address on port 5566
-    mdclog_severity_t logLevel = MDCLOG_INFO;
     char volume[VOLUME_URL_SIZE];
     string myIP {};
     string fqdn {};
