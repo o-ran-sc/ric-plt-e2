@@ -918,14 +918,16 @@ void listener(sctp_params_t *params) {
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
                         if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                             /* We have processed all incoming connections. */
-                            if(peerInfo)
+                            if(peerInfo) {
                                 free(peerInfo);
                                 peerInfo = nullptr;
+                            }
                             break;
                         } else {
-                            if(peerInfo)
+                            if(peerInfo) {
                                 free(peerInfo);
                                 peerInfo = nullptr;
+                            }
                             mdclog_write(MDCLOG_ERR, "Accept error, errno = %s", strerror(errno));
                             break;
                         }
@@ -933,9 +935,10 @@ void listener(sctp_params_t *params) {
                     if (setSocketNoBlocking(peerInfo->fileDescriptor) == -1) {
                         mdclog_write(MDCLOG_ERR, "setSocketNoBlocking failed to set new connection %s on port %s\n", hostBuff, portBuff);
                         close(peerInfo->fileDescriptor);
-                        if(peerInfo)
+                        if(peerInfo) {
                             free(peerInfo);
                             peerInfo = nullptr;
+                        }
                         break;
 #endif
                     }
@@ -950,9 +953,10 @@ void listener(sctp_params_t *params) {
                     if (ans < 0) {
                         mdclog_write(MDCLOG_ERR, "Failed to get info on connection request. %s\n", strerror(errno));
                         close(peerInfo->fileDescriptor);
-                        if(peerInfo)
+                        if(peerInfo) {
                             free(peerInfo);
                             peerInfo = nullptr;
+                        }
                         break;
                     }
                     if (mdclog_level_get() >= MDCLOG_DEBUG) {
@@ -965,9 +969,10 @@ void listener(sctp_params_t *params) {
                                    (EPOLLIN | EPOLLET),
                                    params->sctpMap, nullptr,
                                    0) != 0) {
-                        if(peerInfo)
+                        if(peerInfo) {
                             free(peerInfo);
                             peerInfo = nullptr;
+                        }
                         break;
                     }
                     break;
@@ -1258,28 +1263,25 @@ int setSocketNoBlocking(int socket) {
  * @param m
  */
 void cleanHashEntry(ConnectedCU_t *val, Sctp_Map_t *m) {
-    if(val != nullptr)
-    {
-    char *dummy;
-    auto port = (uint16_t) strtol(val->portNumber, &dummy, 10);
-    char searchBuff[2048]{};
+    if(val != nullptr) {
+        char *dummy;
+        auto port = (uint16_t) strtol(val->portNumber, &dummy, 10);
+        char searchBuff[2048]{};
 
-    snprintf(searchBuff, sizeof searchBuff, "host:%s:%d", val->hostName, port);
-    if(m->find(searchBuff))
-    {
-    m->erase(searchBuff);
-    }
+        snprintf(searchBuff, sizeof searchBuff, "host:%s:%d", val->hostName, port);
+        if(m->find(searchBuff)) {
+            m->erase(searchBuff);
+        }
 
-    if(m->find(val->enodbName))
-    {
-    mdclog_write(MDCLOG_DEBUG, "remove key enodbName = %s from %s at line %d", val->enodbName, __FUNCTION__, __LINE__);
-    m->erase(val->enodbName);
-    }
+        if(m->find(val->enodbName)) {
+            mdclog_write(MDCLOG_DEBUG, "remove key enodbName = %s from %s at line %d", val->enodbName, __FUNCTION__, __LINE__);
+            m->erase(val->enodbName);
+        }
 #ifndef UNIT_TEST
-    if(val) {
-       free(val);
-       val = nullptr;
-    }
+        if(val) {
+            free(val);
+            val = nullptr;
+        }
 #endif
     }
 }
@@ -1397,7 +1399,7 @@ int receiveDataFromSctp(struct epoll_event *events,
 
     // get the identity of the interface
     if (events->data.ptr != nullptr){
-    message.peerInfo = (ConnectedCU_t *)events->data.ptr;
+        message.peerInfo = (ConnectedCU_t *)events->data.ptr;
     }
 
     struct timespec start{0, 0};
@@ -2277,12 +2279,12 @@ case ProcedureCode_id_E2nodeConfigurationUpdate: {
                 mdclog_write(MDCLOG_DEBUG, "Got RICsubscriptionDeleteRequired %s", message.message.enodbName);
             }
         #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
-                    message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDeleteRequired]->Increment();
-                    message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDeleteRequired]->Increment((double)message.message.asnLength);
+            message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDeleteRequired]->Increment();
+            message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDeleteRequired]->Increment((double)message.message.asnLength);
 
-                    // Update E2T instance level metrics
-                    message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDeleteRequired]->Increment();
-                    message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDeleteRequired]->Increment((double)message.message.asnLength);
+            // Update E2T instance level metrics
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDeleteRequired]->Increment();
+            message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDeleteRequired]->Increment((double)message.message.asnLength);
         #endif
             if (sendRequestToXapp(message, RIC_SUB_DEL_REQUIRED, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "Subscription Delete Required message failed to send to xAPP");
@@ -3237,7 +3239,7 @@ int modifyToEpoll(int epoll_fd,
         if (tmp) {
             free(tmp);
             tmp = nullptr;
-        sctpMap->erase(key);
+            sctpMap->erase(key);
         }
         mdclog_write(MDCLOG_ERR, "epoll_ctl EPOLL_CTL_ADD (may check not to quit here)");
         return -1;
