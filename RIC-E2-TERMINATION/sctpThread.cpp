@@ -59,7 +59,7 @@ static void catch_function(int signal) {
 BOOST_LOG_INLINE_GLOBAL_LOGGER_DEFAULT(my_logger, src::logger_mt)
 
 boost::shared_ptr<sinks::synchronous_sink<sinks::text_file_backend>> boostLogger;
-double cpuClock = 0.0;
+// double cpuClock = 0.0;
 bool jsonTrace = false;
 
 char* getinterfaceip()
@@ -292,20 +292,23 @@ void init_log() {
 auto start_time = std::chrono::high_resolution_clock::now();
 typedef std::chrono::duration<double, std::ratio<1,1>> seconds_t;
 
-double age() {
-    return seconds_t(std::chrono::high_resolution_clock::now() - start_time).count();
-}
+//double age() {
+//    return seconds_t(std::chrono::high_resolution_clock::now() - start_time).count();
+//}
 
-double approx_CPU_MHz(unsigned sleepTime) {
-    using namespace std::chrono_literals;
-    uint32_t aux = 0;
-    uint64_t cycles_start = rdtscp(aux);
-    double time_start = age();
-    std::this_thread::sleep_for(sleepTime * 1ms);
-    uint64_t elapsed_cycles = rdtscp(aux) - cycles_start;
-    double elapsed_time = age() - time_start;
-    return elapsed_cycles / elapsed_time;
-}
+// If model name in "/proc/cpuinfo" is happens to be "Common KVM processor" then
+// approx_CPU_MHz() results in "SIGILL - Illegal Instruction" signal.
+//
+// double approx_CPU_MHz(unsigned sleepTime) {
+//    using namespace std::chrono_literals;
+//    uint32_t aux = 0;
+//    uint64_t cycles_start = rdtscp(aux);
+//    double time_start = age();
+//    std::this_thread::sleep_for(sleepTime * 1ms);
+//    uint64_t elapsed_cycles = rdtscp(aux) - cycles_start;
+//    double elapsed_time = age() - time_start;
+//    return elapsed_cycles / elapsed_time;
+//}
 
 //std::atomic<int64_t> rmrCounter{0};
 std::atomic<int64_t> num_of_messages{0};
@@ -600,9 +603,9 @@ int main(const int argc, char **argv) {
         exit(1);
     }
 
-    cpuClock = approx_CPU_MHz(100);
+//    cpuClock = approx_CPU_MHz(100);
 
-    mdclog_write(MDCLOG_DEBUG, "CPU speed %11.11f", cpuClock);
+//    mdclog_write(MDCLOG_DEBUG, "CPU speed %11.11f", cpuClock);
 
     auto result = parse(argc, argv, sctpParams);
 
