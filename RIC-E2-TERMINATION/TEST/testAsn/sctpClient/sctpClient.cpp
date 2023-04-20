@@ -159,6 +159,39 @@ __attribute_warn_unused_result__ int createListeningTcpConnection(SctpClient *sc
         return -1;
     }
 
+    char *sctp_hb_interval = std::getenv("SCTP_HB_INTERVAL");
+    if (sctp_hb_interval) {
+	    // Setting the heartbeat interval timeout value
+	    struct sctp_paddrparams sckt_parms;
+	    memset(&sckt_parms, 0, sizeof(sckt_parms));
+	    unsigned int sckt_parms_size = sizeof(sckt_parms);
+	    sckt_parms.spp_address.ss_family = AF_INET;
+	    sckt_parms.spp_flags |= SPP_HB_ENABLE;
+	    sctp_opt_info(sctpClient->sctpSock, 0, SCTP_PEER_PARAMS, &sckt_parms, &sckt_parms_size);
+	    if (sckt_parms_size != sizeof(sckt_parms)) {
+		    fprintf(stderr, "Invalid size of sctp_paddrparams socket option: {} / {}", sckt_parms_size, (socklen_t)sizeof(sckt_parms));
+	    } else {
+		    sckt_parms.spp_hbinterval = atoi(sctp_hb_interval);
+		    setsockopt(sctpClient->sctpSock, SOL_SOCKET, SCTP_PEER_PARAMS, &sckt_parms, sizeof(sckt_parms));
+	    }
+    }
+
+    char *sctp_max_retries = std::getenv("SCTP_MAX_RETRIES");
+    if (sctp_max_retries) {
+	    // Setting the max retries config for the socket if rechability loss
+	    struct sctp_assocparams sckt_assoc;
+	    memset(&sckt_assoc, 0, sizeof(sckt_assoc));
+	    unsigned int str_assoc_size = sizeof(sckt_assoc);
+	    sctp_opt_info(sctpClient->sctpSock, 0, SCTP_ASSOCINFO, &sckt_assoc, &str_assoc_size);
+	    if (str_assoc_size != sizeof(sckt_assoc)) {
+		    fprintf(stderr, "Invalid size of sctp_assocparams socket option: {} / {}", str_assoc_size, (socklen_t)sizeof(sckt_assoc));
+	    } else {
+		    sckt_assoc.sasoc_asocmaxrxt = atoi(sctp_max_retries);
+		    setsockopt(sctpClient->sctpSock, SOL_SOCKET, SCTP_ASSOCINFO, &sckt_assoc, sizeof(sckt_assoc));
+	    }
+    }
+
+
     struct epoll_event event{};
     event.data.fd = sctpClient->httpBaseSocket;
     event.events = (EPOLLIN | EPOLLET);

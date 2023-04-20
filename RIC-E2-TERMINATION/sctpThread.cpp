@@ -354,6 +354,40 @@ int buildListeningPort(sctp_params_t &sctpParams) {
         mdclog_write(MDCLOG_DEBUG, "My address: %s, port %d\n", buff, htons(clientAddress.sin6_port));
     }
 
+    // SCTP_HB_INTERVAL is in milisec
+    char *sctp_hb_interval = std::getenv("SCTP_HB_INTERVAL");
+    if (sctp_hb_interval) {
+        // Setting the heartbeat interval timeout value
+        struct sctp_paddrparams sckt_parms;
+        memset(&sckt_parms, 0, sizeof(sckt_parms));
+        unsigned int sckt_parms_size = sizeof(sckt_parms);
+        sckt_parms.spp_address.ss_family = AF_INET6;
+        sckt_parms.spp_flags |= SPP_HB_ENABLE;
+        sctp_opt_info(sctpParams.listenFD, 0, SCTP_PEER_ADDR_PARAMS, &sckt_parms, &sckt_parms_size);
+        if (sckt_parms_size != sizeof(sckt_parms)) {
+            fprintf(stderr, "Invalid size of sctp_paddrparams socket option: {} / {}", sckt_parms_size, (socklen_t)sizeof(sckt_parms));
+        } else {
+            sckt_parms.spp_hbinterval = atoi(sctp_hb_interval);
+            setsockopt(sctpParams.listenFD, IPPROTO_SCTP, SCTP_PEER_ADDR_PARAMS, &sckt_parms, sizeof(sckt_parms));
+        }
+    }
+
+    char *sctp_max_retries = std::getenv("SCTP_MAX_RETRIES");
+    if (sctp_max_retries) {
+        // Setting the max retries config for the socket if rechability loss
+        struct sctp_assocparams sckt_assoc;
+        memset(&sckt_assoc, 0, sizeof(sckt_assoc));
+        unsigned int str_assoc_size = sizeof(sckt_assoc);
+        sctp_opt_info(sctpParams.listenFD, 0, SCTP_ASSOCINFO, &sckt_assoc, &str_assoc_size);
+        if (str_assoc_size != sizeof(sckt_assoc)) {
+            fprintf(stderr, "Invalid size of sctp_assocparams socket option: {} / {}", str_assoc_size, (socklen_t)sizeof(sckt_assoc));
+        } else {
+            sckt_assoc.sasoc_asocmaxrxt = atoi(sctp_max_retries);
+            setsockopt(sctpParams.listenFD, IPPROTO_SCTP, SCTP_ASSOCINFO, &sckt_assoc, sizeof(sckt_assoc));
+        }
+    }
+
+
     if (listen(sctpParams.listenFD, SOMAXCONN) < 0) {
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         mdclog_write(MDCLOG_ERR, "Error listening. %s\n", strerror(errno));
