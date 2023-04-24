@@ -1,0 +1,78 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "4a71744b_fdcc24b2",
+        "filename": "RIC-E2-TERMINATION/sctpThread.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 357,
+      "author": {
+        "id": 1000108
+      },
+      "writtenOn": "2023-04-24T09:36:08Z",
+      "side": 1,
+      "message": "pls. add a comment about the unit of this value (sec/ms)",
+      "revId": "a068d94f14779200fd0478de617dc8ce602d4d7e",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "f4b884bd_21fc4671",
+        "filename": "RIC-E2-TERMINATION/sctpThread.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 363,
+      "author": {
+        "id": 1000108
+      },
+      "writtenOn": "2023-04-24T09:36:08Z",
+      "side": 1,
+      "message": "this seems to be a mismatch to AF_INET6 being used earlier. Not sure if it matters, though.",
+      "revId": "a068d94f14779200fd0478de617dc8ce602d4d7e",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "29879373_3a367341",
+        "filename": "RIC-E2-TERMINATION/sctpThread.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 364,
+      "author": {
+        "id": 1000108
+      },
+      "writtenOn": "2023-04-24T09:36:08Z",
+      "side": 1,
+      "message": "is this the correct place? I wonder why it\u0027s not in line 369",
+      "revId": "a068d94f14779200fd0478de617dc8ce602d4d7e",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "92238e62_a15674cb",
+        "filename": "RIC-E2-TERMINATION/sctpThread.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 384,
+      "author": {
+        "id": 1000108
+      },
+      "writtenOn": "2023-04-24T09:36:08Z",
+      "side": 1,
+      "message": "probably should be atoi(sctp_max_retries)",
+      "range": {
+        "startLine": 384,
+        "startChar": 41,
+        "endLine": 384,
+        "endChar": 44
+      },
+      "revId": "a068d94f14779200fd0478de617dc8ce602d4d7e",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    }
+  ]
+}
