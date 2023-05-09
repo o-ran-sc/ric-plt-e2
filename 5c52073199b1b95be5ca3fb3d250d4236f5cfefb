@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "8cf593bb_e9a14c3f",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 3
+      },
+      "lineNbr": 10,
+      "author": {
+        "id": 1000475
+      },
+      "writtenOn": "2023-05-09T13:36:42Z",
+      "side": 1,
+      "message": "I would suggest to follow the best practices for commit message : \nhttps://gerrit-review.googlesource.com/Documentation/dev-crafting-changes.html#commit-message",
+      "range": {
+        "startLine": 7,
+        "startChar": 0,
+        "endLine": 10,
+        "endChar": 55
+      },
+      "revId": "5c52073199b1b95be5ca3fb3d250d4236f5cfefb",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    }
+  ]
+}
