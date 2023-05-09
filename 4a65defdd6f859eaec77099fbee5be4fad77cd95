@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "b775e5f2_7dfd27c7",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 5
+      },
+      "lineNbr": 9,
+      "author": {
+        "id": 1000475
+      },
+      "writtenOn": "2023-05-09T14:04:04Z",
+      "side": 1,
+      "message": "you could add one more white line after description\n\ne.g.\nSubject (72 char and one liner)\n\nDescription (multiple lines)\n\nIssue-ID: RIC-XXX\nChange-ID:\nSigned-off-by:",
+      "range": {
+        "startLine": 9,
+        "startChar": 0,
+        "endLine": 9,
+        "endChar": 52
+      },
+      "revId": "4a65defdd6f859eaec77099fbee5be4fad77cd95",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    }
+  ]
+}
