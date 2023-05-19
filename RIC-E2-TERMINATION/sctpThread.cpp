@@ -130,7 +130,6 @@ static void * monitor_loglevel_change_handler(void* arg)
         if( wfd < 0 ) {
             fprintf( stderr, "### ERR ### unable to add watch on config file %s: %s\n", fileName, strerror( errno ) );
         } else {
-
             FD_ZERO (&fds);
             FD_SET (ifd, &fds);
             while( 1 ) {
@@ -983,6 +982,22 @@ void listener(sctp_params_t *params) {
                     memset( (void *)&sctpevents, 0, sizeof(sctpevents) );
                     sctpevents.sctp_data_io_event = 1;
                     setsockopt(peerInfo->fileDescriptor, SOL_SCTP, SCTP_EVENTS,(const void *)&sctpevents, sizeof(sctpevents) );
+
+                    {
+                        char *value = getenv("SCTP_ASSOC_MAX_RETRANS");
+                        if (value)
+                        {
+                            int int_val = atoi(value);
+                            mdclog_write(MDCLOG_INFO, "Changing sctp_association_max_retrans to %s, %d\n", value, int_val);
+                            if (int_val > 0)
+                            {
+                                struct sctp_assocparams sctpassocparams;
+                                memset((void *)&sctpassocparams, 0, sizeof(sctpassocparams));
+                                sctpassocparams.sasoc_asocmaxrxt = int_val;
+                                setsockopt(peerInfo->fileDescriptor, SOL_SCTP, SCTP_ASSOCINFO, (const void *)&sctpassocparams, sizeof(sctpassocparams));
+                            }
+                        }
+                    }
 
                     auto  ans = getnameinfo(&in_addr, in_len,
                                             peerInfo->hostName, NI_MAXHOST,
