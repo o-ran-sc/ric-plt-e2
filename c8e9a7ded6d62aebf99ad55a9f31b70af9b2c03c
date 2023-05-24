@@ -1,0 +1,67 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "5f76a0b9_cfc414c8",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1001074
+      },
+      "writtenOn": "2023-05-24T18:06:59Z",
+      "side": 1,
+      "message": "I have added a few comments in this review.\n\nFrom where this env variable will come from? Dockerfile, helmcharts?\n\nIt would be great if a description of the reason why this change is needed could be added in the Jira ticket RIC-984 to document this change. Could you please add that comment?\n\nThanks,",
+      "revId": "c8e9a7ded6d62aebf99ad55a9f31b70af9b2c03c",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "25d1d86d_01fdfcf4",
+        "filename": "RIC-E2-TERMINATION/sctpThread.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 987,
+      "author": {
+        "id": 1001074
+      },
+      "writtenOn": "2023-05-24T18:06:59Z",
+      "side": 1,
+      "message": "Please change this environment variable to uppercase to conform as the other environment variables of this project.",
+      "range": {
+        "startLine": 987,
+        "startChar": 46,
+        "endLine": 987,
+        "endChar": 69
+      },
+      "revId": "c8e9a7ded6d62aebf99ad55a9f31b70af9b2c03c",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "237bf7b4_7f866c72",
+        "filename": "RIC-E2-TERMINATION/sctpThread.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 991,
+      "author": {
+        "id": 1001074
+      },
+      "writtenOn": "2023-05-24T18:06:59Z",
+      "side": 1,
+      "message": "It seems this should be MDCLOG_INFO as it is a successful message.",
+      "range": {
+        "startLine": 991,
+        "startChar": 41,
+        "endLine": 991,
+        "endChar": 51
+      },
+      "revId": "c8e9a7ded6d62aebf99ad55a9f31b70af9b2c03c",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    }
+  ]
+}
