@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "de5f8015_e60b49c6",
+        "filename": "RIC-E2-TERMINATION/sctpThread.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 987,
+      "author": {
+        "id": 1000108
+      },
+      "writtenOn": "2023-05-25T04:44:06Z",
+      "side": 1,
+      "message": "Could we name this SCTP_ASSOC_MAX_RETRANS so as to make sure the link to SCTP is clear from the name? Generally it goes hand-in-hand with the parameters from the previous commit in E2T and can be used to tune E2T for faster \"dead-peer discovery\".\n\nWe could later just add new defaults into the ric-dep\u0027s helm/e2term/templates/env.yaml if needed.",
+      "range": {
+        "startLine": 987,
+        "startChar": 47,
+        "endLine": 987,
+        "endChar": 61
+      },
+      "revId": "5f38462c07ab4358a3ba80592e557da9811cfb61",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    }
+  ]
+}
