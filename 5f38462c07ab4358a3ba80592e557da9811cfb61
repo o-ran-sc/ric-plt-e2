@@ -22,6 +22,30 @@
       },
       "revId": "5f38462c07ab4358a3ba80592e557da9811cfb61",
       "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "15ccb7b5_116ecd8d",
+        "filename": "RIC-E2-TERMINATION/sctpThread.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 987,
+      "author": {
+        "id": 1000108
+      },
+      "writtenOn": "2023-05-25T12:02:49Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "de5f8015_e60b49c6",
+      "range": {
+        "startLine": 987,
+        "startChar": 47,
+        "endLine": 987,
+        "endChar": 61
+      },
+      "revId": "5f38462c07ab4358a3ba80592e557da9811cfb61",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
     }
   ]
 }
