@@ -1,6 +1,7 @@
 /*
  * Copyright 2020 AT&T Intellectual Property
  * Copyright 2020 Nokia
+ * Copyright 2023 Capgemini
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,12 +53,11 @@ static int translatePlmnId(char * plmnId, const unsigned char *data, const char*
     return j;
 }
 
-static int translateBitStringToChar(char *ranName, BIT_STRING_t &data) {
+static int translateBitStringToChar(char *ranName, BIT_STRING_t &data, long cuid, long duid) {
     // dont care of last unused bits
     char buffer[256] {};
-    auto j = snprintf(buffer, 256, "%s_", ranName);
-
-    memcpy(ranName, buffer, j);
+    // auto j = snprintf(buffer, 256, "%s_", ranName);
+    int j = 0;
 /*
  // ran name decimal
     unsigned long bitValue = 0;
@@ -70,11 +70,13 @@ static int translateBitStringToChar(char *ranName, BIT_STRING_t &data) {
 
     memcpy(ranName, buffer, j);
 */
-
+   
 
     unsigned b1 = 0;
     unsigned b2 = 0;
     unsigned tmp_digit=0;
+    j = snprintf(buffer, 256, "%s_", ranName);
+    memcpy(ranName, buffer, j);
     for (auto i = 0; i < (int)data.size; i++) {
         //
         // we need to shift trailing zeros in the bit string (from asn1c) to leading zeros
@@ -90,6 +92,27 @@ static int translateBitStringToChar(char *ranName, BIT_STRING_t &data) {
         j = snprintf(buffer, 256, "%s%1x", ranName, b2);
         memcpy(ranName, buffer, j);
     }
+
+    /*Note: Deployment where CU-UP and DU are combined
+    (but do not include the CP-CP) and have a single E2 connection
+     is not supported. The combination of CU-CP, CU-UP, and DU will be
+     treated as a single gNB and expect it to have only the
+     global gNB ID in its E2 Setup ID*/
+
+    if ( cuid >= 0 && duid >= 0){
+           j= snprintf(buffer, 256, "%s", ranName);
+       } else if ( cuid >= 0 ){
+           j= snprintf(buffer, 256, "%s_%lx", ranName,cuid);
+       }else if ( duid >= 0 ){
+           j= snprintf(buffer, 256, "%s_%lx", ranName,duid);
+       }else{
+           j= snprintf(buffer, 256, "%s", ranName);
+       }
+       printf("cuupid =%ld\n",cuid);
+       printf("duid =%ld\n",duid);
+       printf("ranName =%s\n",ranName);
+       memcpy(ranName, buffer, j);
+
     return j;
 }
 
@@ -98,9 +121,30 @@ int buildRanName(char *ranName, E2setupRequestIEs_t *ie) {
     switch (ie->value.choice.GlobalE2node_ID.present) {
         case GlobalE2node_ID_PR_gNB: {
             auto *gnb = ie->value.choice.GlobalE2node_ID.choice.gNB;
-            translatePlmnId(ranName, (const unsigned char *)gnb->global_gNB_ID.plmn_id.buf, (const char *)"gnb_");
+            long cuupid = -1;
+            long duid = -1;
+           
             if (gnb->global_gNB_ID.gnb_id.present == GNB_ID_Choice_PR_gnb_ID) {
-                translateBitStringToChar(ranName, gnb->global_gNB_ID.gnb_id.choice.gnb_ID);
+                if (gnb->gNB_CU_UP_ID != NULL && gnb->gNB_DU_ID != NULL){
+                    printf("\ngNB_CU_UP_ID and gNB_DU_ID is not null\n");
+                    asn_INTEGER2long(gnb->gNB_CU_UP_ID,&cuupid);
+                    asn_INTEGER2long(gnb->gNB_DU_ID,&duid);
+                    translatePlmnId(ranName, (const unsigned char *)gnb->global_gNB_ID.plmn_id.buf, (const char *)"gnb_");
+                }else if (gnb->gNB_DU_ID == NULL && gnb->gNB_CU_UP_ID == NULL ){
+                    printf("\ngNB_CU_UP_ID and gNB_DU_ID is null\n");
+                    translatePlmnId(ranName, (const unsigned char *)gnb->global_gNB_ID.plmn_id.buf, (const char *)"gnb_");
+                }else if (gnb->gNB_CU_UP_ID != NULL ){
+                    printf("\ngNB_CU_UP_ID is not null\n");
+                    asn_INTEGER2long(gnb->gNB_CU_UP_ID,&cuupid);
+                    translatePlmnId(ranName, (const unsigned char *)gnb->global_gNB_ID.plmn_id.buf, (const char *)"gnbc_");
+                }else if (gnb->gNB_DU_ID != NULL ){
+                    printf("\ngNB_DU_ID is not null\n");
+                    asn_INTEGER2long(gnb->gNB_DU_ID,&duid);
+                    translatePlmnId(ranName, (const unsigned char *)gnb->global_gNB_ID.plmn_id.buf, (const char *)"gnbd_");
+                }
+                translateBitStringToChar(ranName, gnb->global_gNB_ID.gnb_id.choice.gnb_ID,cuupid,duid);
+            }else{
+                translatePlmnId(ranName, (const unsigned char *)gnb->global_gNB_ID.plmn_id.buf, (const char *)"gnb_");
             }
             break;
         }
@@ -110,7 +154,7 @@ int buildRanName(char *ranName, E2setupRequestIEs_t *ie) {
                             (const unsigned char *)enGnb->global_en_gNB_ID.pLMN_Identity.buf,
                             (const char *)"en_gnb_");
             if (enGnb->global_en_gNB_ID.gNB_ID.present == ENGNB_ID_PR_gNB_ID) {
-                translateBitStringToChar(ranName, enGnb->global_en_gNB_ID.gNB_ID.choice.gNB_ID);
+                translateBitStringToChar(ranName, enGnb->global_en_gNB_ID.gNB_ID.choice.gNB_ID,-1,-1);
             }
             break;
         }
@@ -119,17 +163,17 @@ int buildRanName(char *ranName, E2setupRequestIEs_t *ie) {
             switch (ngEnb->global_ng_eNB_ID.enb_id.present) {
                 case ENB_ID_Choice_PR_enb_ID_macro: {
                     translatePlmnId(ranName, (const unsigned char *)ngEnb->global_ng_eNB_ID.plmn_id.buf, (const char *)"ng_enB_macro_");
-                    translateBitStringToChar(ranName, ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_macro);
+                    translateBitStringToChar(ranName, ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_macro,-1,-1);
                     break;
                 }
                 case ENB_ID_Choice_PR_enb_ID_shortmacro: {
                     translatePlmnId(ranName, (const unsigned char *)ngEnb->global_ng_eNB_ID.plmn_id.buf, (const char *)"ng_enB_shortmacro_");
-                    translateBitStringToChar(ranName, ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_shortmacro);
+                    translateBitStringToChar(ranName, ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_shortmacro,-1,-1);
                     break;
                 }
                 case ENB_ID_Choice_PR_enb_ID_longmacro: {
                     translatePlmnId(ranName, (const unsigned char *)ngEnb->global_ng_eNB_ID.plmn_id.buf, (const char *)"ng_enB_longmacro_");
-                    translateBitStringToChar(ranName, ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_longmacro);
+                    translateBitStringToChar(ranName, ngEnb->global_ng_eNB_ID.enb_id.choice.enb_ID_longmacro,-1,-1);
                     break;
                 }
                 case ENB_ID_Choice_PR_NOTHING: {
@@ -145,22 +189,22 @@ int buildRanName(char *ranName, E2setupRequestIEs_t *ie) {
             switch (enb->global_eNB_ID.eNB_ID.present) {
                 case ENB_ID_PR_macro_eNB_ID: {
                     translatePlmnId(ranName, (const unsigned char *)enb->global_eNB_ID.pLMN_Identity.buf, (const char *)"enB_macro_");
-                    translateBitStringToChar(ranName, enb->global_eNB_ID.eNB_ID.choice.macro_eNB_ID);
+                    translateBitStringToChar(ranName, enb->global_eNB_ID.eNB_ID.choice.macro_eNB_ID,-1,-1);
                     break;
                 }
                 case ENB_ID_PR_home_eNB_ID: {
                     translatePlmnId(ranName, (const unsigned char *)enb->global_eNB_ID.pLMN_Identity.buf, (const char *)"enB_home_");
-                    translateBitStringToChar(ranName, enb->global_eNB_ID.eNB_ID.choice.home_eNB_ID);
+                    translateBitStringToChar(ranName, enb->global_eNB_ID.eNB_ID.choice.home_eNB_ID,-1,-1);
                     break;
                 }
                 case ENB_ID_PR_short_Macro_eNB_ID: {
                     translatePlmnId(ranName, (const unsigned char *)enb->global_eNB_ID.pLMN_Identity.buf, (const char *)"enB_shortmacro_");
-                    translateBitStringToChar(ranName, enb->global_eNB_ID.eNB_ID.choice.short_Macro_eNB_ID);
+                    translateBitStringToChar(ranName, enb->global_eNB_ID.eNB_ID.choice.short_Macro_eNB_ID,-1,-1);
                     break;
                 }
                 case ENB_ID_PR_long_Macro_eNB_ID: {
                     translatePlmnId(ranName, (const unsigned char *)enb->global_eNB_ID.pLMN_Identity.buf, (const char *)"enB_longmacro_");
-                    translateBitStringToChar(ranName, enb->global_eNB_ID.eNB_ID.choice.long_Macro_eNB_ID);
+                    translateBitStringToChar(ranName, enb->global_eNB_ID.eNB_ID.choice.long_Macro_eNB_ID,-1,-1);
                     break;
                 }
                 case ENB_ID_PR_NOTHING: {
