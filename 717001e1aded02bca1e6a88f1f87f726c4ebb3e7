@@ -1,0 +1,73 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "38b25f35_4e700dd6",
+        "filename": "RIC-E2-TERMINATION/BuildRunName.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 73,
+      "author": {
+        "id": 1000108
+      },
+      "writtenOn": "2023-08-08T12:30:33Z",
+      "side": 1,
+      "message": "My best guess is that CUID \u003d 0 and/or DUID \u003d 0 would be valid IDs. So if we need this special value then it should be \"-1\", for example.",
+      "range": {
+        "startLine": 73,
+        "startChar": 9,
+        "endLine": 73,
+        "endChar": 31
+      },
+      "revId": "717001e1aded02bca1e6a88f1f87f726c4ebb3e7",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "4c63c79d_6fcda032",
+        "filename": "RIC-E2-TERMINATION/BuildRunName.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 74,
+      "author": {
+        "id": 1000108
+      },
+      "writtenOn": "2023-08-08T12:30:33Z",
+      "side": 1,
+      "message": "I\u0027d prefer hex output for CU and DU ID (aligned with the GNB ID). A matter of taste, though. If easily possible, let\u0027s use hex (it\u0027s a bit more dense and easier for humans to translate back and forth to bits).",
+      "range": {
+        "startLine": 74,
+        "startChar": 41,
+        "endLine": 74,
+        "endChar": 43
+      },
+      "revId": "717001e1aded02bca1e6a88f1f87f726c4ebb3e7",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "40039926_72a5bd21",
+        "filename": "RIC-E2-TERMINATION/BuildRunName.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 78,
+      "author": {
+        "id": 1000108
+      },
+      "writtenOn": "2023-08-08T12:30:33Z",
+      "side": 1,
+      "message": "I would have liked to be able to distinguish between the \"only CU-UP ID\" and the \"only DU case\". Could we add some kind of identifier for that? E.g., \n\ngnb_208_092_0BAD34_cAB3AA2AA_dAA44EE33 (\"small c and d indicating CU/DU) \ngnb_208_092_0BAD34_cuAB3AA2AA_duAA44EE33\ngnbcd_208_092_0BAD34_AB3AA2AA_AA44EE33\n\nand then format for single DU only and CUI only\ngnb_208_092_0BAD34_cAB3AA2AA\ngnb_208_092_0BAD34_cuAB3AA2AA\ngnbc_208_092_0BAD34_AB3AA2AA\n\nOr some other way.",
+      "range": {
+        "startLine": 76,
+        "startChar": 39,
+        "endLine": 78,
+        "endChar": 39
+      },
+      "revId": "717001e1aded02bca1e6a88f1f87f726c4ebb3e7",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    }
+  ]
+}
