@@ -68,6 +68,30 @@
       },
       "revId": "717001e1aded02bca1e6a88f1f87f726c4ebb3e7",
       "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "96d15390_8ecf5ca9",
+        "filename": "RIC-E2-TERMINATION/BuildRunName.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 78,
+      "author": {
+        "id": 1002076
+      },
+      "writtenOn": "2023-08-09T02:57:37Z",
+      "side": 1,
+      "message": "length for MEID is defined as 32 in rmr-lib\n#define RMR_MAX_MEID\t\t32\n\nRAN Name Format (to be used): gnb_MCC_MNC_CUID/DUID_GNBID\nMax length of MCC (appended as decimal value in ranname, as per current implementation) : 3\nMax length of MNC (appended as decimal value in ranname, as per current implementation) : 3\nMax length of CUID/DUID (appended as decimal value in ranname, as per current implementation) : 11  {{INTEGER(0 .. 2^36-1)}}\nMax length of GNBID (appended as HEX in ranname, as per current implementation):  8 {{ (SIZE(22..32)) 22 to 32 bits }}\nRest strings (gnb,_) : 7\nTotal length \u003d 3+3+11+8+7 \u003d 32\n\nwhich means  additional characters cannot be appended to existing string.\n\nIf length of MEID (in our case RANName) increases then as per rmr implementation it truncate values after length 32",
+      "parentUuid": "40039926_72a5bd21",
+      "range": {
+        "startLine": 76,
+        "startChar": 39,
+        "endLine": 78,
+        "endChar": 39
+      },
+      "revId": "717001e1aded02bca1e6a88f1f87f726c4ebb3e7",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
     }
   ]
 }
