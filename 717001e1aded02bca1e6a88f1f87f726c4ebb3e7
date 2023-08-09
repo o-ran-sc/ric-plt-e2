@@ -92,6 +92,30 @@
       },
       "revId": "717001e1aded02bca1e6a88f1f87f726c4ebb3e7",
       "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "0bddb4d1_eb4ba00a",
+        "filename": "RIC-E2-TERMINATION/BuildRunName.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 78,
+      "author": {
+        "id": 1000108
+      },
+      "writtenOn": "2023-08-09T06:36:21Z",
+      "side": 1,
+      "message": "Good observation on the 32bytes in RMR. Well, we would get from 11 to 9 (or 10 if we go for full bytes) if we use hex. Giving us that one extra character. Personally I like the type encoding in the prefix like \"gnbcd\", or \"gnbd\".",
+      "parentUuid": "96d15390_8ecf5ca9",
+      "range": {
+        "startLine": 76,
+        "startChar": 39,
+        "endLine": 78,
+        "endChar": 39
+      },
+      "revId": "717001e1aded02bca1e6a88f1f87f726c4ebb3e7",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
     }
   ]
 }
