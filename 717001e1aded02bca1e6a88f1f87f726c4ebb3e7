@@ -116,6 +116,30 @@
       },
       "revId": "717001e1aded02bca1e6a88f1f87f726c4ebb3e7",
       "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "38ef5ee7_c77aed65",
+        "filename": "RIC-E2-TERMINATION/BuildRunName.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 78,
+      "author": {
+        "id": 1002076
+      },
+      "writtenOn": "2023-08-10T13:24:51Z",
+      "side": 1,
+      "message": "Changes done, please review",
+      "parentUuid": "0bddb4d1_eb4ba00a",
+      "range": {
+        "startLine": 76,
+        "startChar": 39,
+        "endLine": 78,
+        "endChar": 39
+      },
+      "revId": "717001e1aded02bca1e6a88f1f87f726c4ebb3e7",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
     }
   ]
 }
