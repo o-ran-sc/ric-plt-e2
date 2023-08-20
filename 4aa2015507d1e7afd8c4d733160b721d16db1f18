@@ -22,6 +22,30 @@
       },
       "revId": "4aa2015507d1e7afd8c4d733160b721d16db1f18",
       "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "c2f79c45_37a96131",
+        "filename": "RIC-E2-TERMINATION/BuildRunName.h",
+        "patchSetId": 5
+      },
+      "lineNbr": 74,
+      "author": {
+        "id": 1002076
+      },
+      "writtenOn": "2023-08-20T12:30:29Z",
+      "side": 1,
+      "message": "Hi,\n\nHad a discussion with Thoralf on below points on e2mgr review request:\nhttps://gerrit.o-ran-sc.org/r/c/ric-plt/e2mgr/+/11565\n\nWe can have following conditions\nFirst condition: if cuid and duid both are present, then consider it as GNB node\nSecond condition: if only cuid is present, then consider it as CU node\nThird condition: if only duid is present, then consider it as DU node\nFourth condition: if cuid and duid both are not present, then consider it as GNB node\n\nAlso there is a limitation on MEID length (32 bytes) (refer above discussion #78), considering which it seems it may not be possible to have both CUID and DUID appended in the RANname because of which we agreed on not appending cuid/duid in ranname in case both are present.\n\nPlease suggest if still cuid/duid needs to be appended in ranname if both are present. Accordingly the implementation needs to be updated in E2Manager and Rnib as well",
+      "parentUuid": "cdcfa64d_37884a90",
+      "range": {
+        "startLine": 74,
+        "startChar": 43,
+        "endLine": 74,
+        "endChar": 50
+      },
+      "revId": "4aa2015507d1e7afd8c4d733160b721d16db1f18",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
     }
   ]
 }
