@@ -94,6 +94,30 @@
       },
       "revId": "4aa2015507d1e7afd8c4d733160b721d16db1f18",
       "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "6a8e0207_5f899642",
+        "filename": "RIC-E2-TERMINATION/BuildRunName.h",
+        "patchSetId": 5
+      },
+      "lineNbr": 74,
+      "author": {
+        "id": 1002076
+      },
+      "writtenOn": "2023-08-21T10:43:20Z",
+      "side": 1,
+      "message": "I completely agree with this Thoralf.\nSure, will add this comment in the source code",
+      "parentUuid": "a8f767d6_d3db0378",
+      "range": {
+        "startLine": 74,
+        "startChar": 43,
+        "endLine": 74,
+        "endChar": 50
+      },
+      "revId": "4aa2015507d1e7afd8c4d733160b721d16db1f18",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
     }
   ]
 }
