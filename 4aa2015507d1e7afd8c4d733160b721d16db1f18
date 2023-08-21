@@ -46,6 +46,30 @@
       },
       "revId": "4aa2015507d1e7afd8c4d733160b721d16db1f18",
       "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "181dbf27_bce9ca6a",
+        "filename": "RIC-E2-TERMINATION/BuildRunName.h",
+        "patchSetId": 5
+      },
+      "lineNbr": 74,
+      "author": {
+        "id": 1000108
+      },
+      "writtenOn": "2023-08-21T06:52:49Z",
+      "side": 1,
+      "message": "Sangama and I discussed this quickly and came to this conclusion. @gunja, what do you think?\n\nIt would be a very weird combination where CU-UP and DU ID are in the same E2 setup request (single E2 connection). There\u0027s a bit of information in TS 38.401 on this, but it leaves deployment options somewhat open. Also note that annex A.1 of the E2GAP spec - even if not an authoritative part of the spec - doesn\u0027t have this case either.\n\nMaybe we can add a comment in the source code that for now we do not support this kind of deployment and handle it as a \"gnb\", like:  \"Note that a deployment where CU-UP and DU are combined (but do not include the CP-CP) and have a single E2 connection is not supported. The combination of CU-CP, CU-UP, and DU we treat as a single gNB and expect it to have only the global gNB ID in its E2 Setup ID\"",
+      "parentUuid": "c2f79c45_37a96131",
+      "range": {
+        "startLine": 74,
+        "startChar": 43,
+        "endLine": 74,
+        "endChar": 50
+      },
+      "revId": "4aa2015507d1e7afd8c4d733160b721d16db1f18",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
     }
   ]
 }
