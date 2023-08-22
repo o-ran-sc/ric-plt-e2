@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "568c4c03_d7192bd9",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 8
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000108
+      },
+      "writtenOn": "2023-08-22T11:17:37Z",
+      "side": 1,
+      "message": "add an artificial patchset #8 to see if that passes CI (this was given as a workaround for the github CI issues). Lets see.",
+      "revId": "8bed5367827214474cfb5d68165d7a67f764380d",
+      "serverId": "84e4e190-e623-4c37-9eda-58b1937c1b53"
+    }
+  ]
+}
