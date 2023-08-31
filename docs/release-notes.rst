@@ -19,7 +19,6 @@
 Release-Notes
 =============
 
-
 This document provides the release notes for the Bronze release of E2Terminator
 
 .. contents::
