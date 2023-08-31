@@ -1,0 +1,8 @@
+Code-Review+2: Thoralf Czichy <thoralf.czichy@nokia.com>
+Verified+1: Thoralf Czichy <thoralf.czichy@nokia.com>
+Verified+1: ORAN Required GHA <releng+oran.required.gha@linuxfoundation.org>
+Submitted-by: Thoralf Czichy <thoralf.czichy@nokia.com>
+Submitted-at: Thu, 31 Aug 2023 13:30:25 +0000
+Reviewed-on: https://gerrit.o-ran-sc.org/r/c/ric-plt/e2/+/11713
+Project: ric-plt/e2
+Branch: refs/heads/master
