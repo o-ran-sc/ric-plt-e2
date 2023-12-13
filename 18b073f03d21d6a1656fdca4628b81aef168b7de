@@ -1,0 +1,10 @@
+Code-Review+2: Thoralf Czichy <thoralf.czichy@nokia.com>
+Verified+1: Thoralf Czichy <thoralf.czichy@nokia.com>
+Verified+1: ORAN Required GHA <releng+oran.required.gha@linuxfoundation.org>
+Code-Review+1: Matthew Watkins <mwatkins@linuxfoundation.org>
+Verified+1: ORAN Jobbuilder <releng+oran-jobbuilder@linuxfoundation.org>
+Submitted-by: Thoralf Czichy <thoralf.czichy@nokia.com>
+Submitted-at: Wed, 13 Dec 2023 15:32:28 +0000
+Reviewed-on: https://gerrit.o-ran-sc.org/r/c/ric-plt/e2/+/12241
+Project: ric-plt/e2
+Branch: refs/heads/master
