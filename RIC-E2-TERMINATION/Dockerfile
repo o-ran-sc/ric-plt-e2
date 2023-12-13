@@ -43,10 +43,10 @@ RUN apt-get install -y libboost-all-dev
 RUN mv /opt/e2/RIC-E2-TERMINATION/CMakeLists.txt /opt/e2/ && cat /opt/e2/RIC-E2-TERMINATION/config/config.conf \
     && wget --content-disposition https://github.com/cgreen-devs/cgreen/releases/download/1.2.0/cgreen_1.2.0_amd64.deb \
     && dpkg -i cgreen_1.2.0_amd64.deb \
-    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/rmr_4.9.1_amd64.deb/download.deb \
-    && dpkg -i rmr_4.9.1_amd64.deb \
-    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/rmr-dev_4.9.1_amd64.deb/download.deb \
-    && dpkg -i rmr-dev_4.9.1_amd64.deb \
+    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/rmr_4.9.4_amd64.deb/download.deb \
+    && dpkg -i rmr_4.9.4_amd64.deb \
+    && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/rmr-dev_4.9.4_amd64.deb/download.deb \
+    && dpkg -i rmr-dev_4.9.4_amd64.deb \
     && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog_0.1.1-1_amd64.deb/download.deb \
     && dpkg -i mdclog_0.1.1-1_amd64.deb \
     && wget --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog-dev_0.1.1-1_amd64.deb/download.deb \
@@ -97,8 +97,8 @@ COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/startup.sh /opt/e2/startup.sh
 #COPY --from=ubuntu /opt/e2/RIC-E2-TERMINATION/tracelibcpp/build/libtracelibcpp.so.0.0.2 /usr/local/lib/libtracelibcpp.so.0.0.2
 
 
-COPY --from=ubuntu /usr/local/lib/librmr_si.so.4.9.1 /usr/local/lib/librmr_si.so.4.9.1
-RUN ln -s librmr_si.so.4.9.1  /usr/local/lib/librmr_si.so.4
+COPY --from=ubuntu /usr/local/lib/librmr_si.so.4.9.3 /usr/local/lib/librmr_si.so.4.9.4
+RUN ln -s librmr_si.so.4.9.4  /usr/local/lib/librmr_si.so.4
 RUN ln -s librmr_si.so.4 /usr/local/lib/librmr_si.so
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libmdclog.so /usr/local/lib/libmdclog.so
