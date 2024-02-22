@@ -53,6 +53,7 @@
 #include <sys/inotify.h>
 #include <csignal>
 #include <future>
+#include <bitset>
 
 #include <rmr/rmr.h>
 #include <rmr/RIC_message_types.h>
@@ -114,7 +115,7 @@ namespace expr = boost::log::expressions;
 
 #define MAXEVENTS 128
 
-#define RECEIVE_SCTP_BUFFER_SIZE (256 * 1024)
+#define RECEIVE_SCTP_BUFFER_SIZE (8 * 1024)
 #define RECEIVE_XAPP_BUFFER_SIZE RECEIVE_SCTP_BUFFER_SIZE
 
 typedef mapWrapper Sctp_Map_t;
@@ -123,6 +124,13 @@ typedef mapWrapper Sctp_Map_t;
 
 #define VOLUME_URL_SIZE 256
 #define KA_MESSAGE_SIZE 2048
+
+enum E2T_Internal_Counters
+{
+    SCTP_ABORT_INITIATED_BY_E2NODE = 0,
+    INVALID_MESSAGE_RECEIVED = 1,
+    E2T_MAX_INTERNAL_COUNTER = 2,
+};
 
 typedef struct sctp_params {
     int      epollTimeOut = -1;
@@ -150,6 +158,7 @@ typedef struct sctp_params {
     Family<Counter> *prometheusFamily;
     Exposer *prometheusExposer = nullptr;
     Counter *e2tCounters[6][2][ProcedureCode_id_RICsubscriptionDeleteRequired + 1] {};
+    Counter *e2tInternalCounters[E2T_Internal_Counters::E2T_MAX_INTERNAL_COUNTER] {};
 } sctp_params_t;
 
 // RAN to RIC
@@ -181,6 +190,7 @@ typedef struct ConnectedCU {
     Counter *counters[6][2][ProcedureCode_id_RICsubscriptionDeleteRequired + 1] {};
     bool isSingleStream = false;
     int singleStreamId = 0;
+    Counter *e2tInternalCounters[E2T_Internal_Counters::E2T_MAX_INTERNAL_COUNTER] {}
 } ConnectedCU_t ;
 
 
@@ -211,6 +221,53 @@ typedef struct ReportingMessages {
     unsigned char base64Data[RECEIVE_SCTP_BUFFER_SIZE * 2] {};
     char buffer[RECEIVE_SCTP_BUFFER_SIZE * 8] {};
 } ReportingMessages_t;
+
+enum E2T_Procedure_States
+{
+    E2_SETUP_PROCEDURE_NOT_INITIATED = 0,
+    E2_SETUP_PROCEDURE_ONGOING = 1,
+    E2_SETUP_PROCEDURE_COMPLETED = 2,
+    RIC_SERVICE_UPDATE_PROCEDURE_ONGOING = 3,
+    RIC_SERVICE_UPDATE_PROCEDURE_COMPLETED = 4,
+    RIC_SUBS_PROCEDURE_ONGOING = 5,
+    RIC_SUBS_PROCEDURE_COMPLETED = 6,
+    RIC_INDICATION_PROCEDURE_ONGOING = 7,
+    RIC_INDICATION_PROCEDURE_COMPLETED = 8,
+    RIC_SUBS_DEL_PROCEDURE_ONGOING = 9,
+    RIC_SUBS_DEL_PROCEDURE_COMPLETED = 10,
+    CONTROL_PROCEDURE_ONGOING = 11,
+    CONTROL_PROCEDURE_COMPLETED = 12,
+    E2_NODE_CONF_UPDATE_PROCEDURE_ONGOING = 13,
+    E2_NODE_CONF_UPDATE_PROCEDURE_COMPLETED = 14,
+    RESET_PROCEDURE_ONGOING = 15,
+    RESET_PROCEDURE_COMPLETED = 16,
+};
+
+struct E2NodeConnectionHandling
+{
+    E2T_Procedure_States e2tProcedureOngoingStatus;
+    long e2SetupProcedureTransactionId;
+};
+
+constexpr int negativeOne = -1;
+constexpr int negativeSix = -6;
+constexpr int negativeSeven = -7;
+constexpr int numberZero = 0;
+constexpr int numberOne = 1;
+constexpr int numberTwo = 2;
+constexpr int numberThree = 3;
+constexpr int numberFour = 4;
+constexpr int numberFive = 5;
+constexpr int numberTwenty = 20;
+
+constexpr uint8_t sendMsgMaxBitPosition = 2;
+constexpr uint8_t sendMsgToE2MBitSetPosition = 0;
+constexpr uint8_t sendMsgToSubMgrBitSetPosition = 1;
+
+constexpr uint8_t requiredIePresentMaxBitSetPosition = 3;
+constexpr uint8_t transactionIdIeBitSetPosition = 0;
+constexpr uint8_t ricRequestIdIeBitSetPosition = 1;
+constexpr uint8_t causeIeBitSetPosition = 2;
 
 cxxopts::ParseResult parse(int argc, char *argv[], sctp_params_t &pSctpParams);
 
@@ -444,4 +501,12 @@ int buildListeningPort(sctp_params_t &sctpParams);
 void buildE2TPrometheusCounters(sctp_params_t &sctpParams);
 
 int fetchStreamId(ConnectedCU_t *peerInfo, ReportingMessages_t &message);
+void removeE2ConnectionEntryFromMap(char* eNBName);
+bool getE2tProcedureOngoingStatus(char *enbName, E2NodeConnectionHandling &e2NodeConnectionHandling);
+void setE2ProcedureOngoingStatus(char *enbName, E2T_Procedure_States state);
+void insertE2ProcedureOngoing(char *enbName, long &transactionID);
+E2T_Procedure_States currentE2tProcedureOngoingStatus(char *enbName);
+void printEntryPresentInMap();
+void handleE2SetupReq(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer, E2AP_PDU_t *pdu, long &transactionID, int streamId, Sctp_Map_t *sctpMap);
+bitset<sendMsgMaxBitPosition> getSendMsgBitSetValue(int procedureCode, bitset<requiredIePresentMaxBitSetPosition> isRequiredIesPresent, char* enbName);
 #endif //X2_SCTP_THREAD_H
