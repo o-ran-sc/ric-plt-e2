@@ -43,7 +43,7 @@ static const asn_ioc_cell_t asn_IOS_RICaction_NotAdmitted_ItemIEs_1_rows[] = {
 static const asn_ioc_set_t asn_IOS_RICaction_NotAdmitted_ItemIEs_1[] = {
 	{ 1, 4, asn_IOS_RICaction_NotAdmitted_ItemIEs_1_rows }
 };
-static const long asn_VAL_24_id_RICsubscription_withCause_Item = 51;
+static const long asn_VAL_24_id_RICsubscription_withCause_Item = 61;
 static const long asn_VAL_24_ignore = 1;
 static const long asn_VAL_24_mandatory = 2;
 static const asn_ioc_cell_t asn_IOS_RICsubscription_withCause_ItemIEs_1_rows[] = {
@@ -374,7 +374,7 @@ static const asn_ioc_cell_t asn_IOS_RICsubscriptionDeleteFailure_IEs_1_rows[] = 
 static const asn_ioc_set_t asn_IOS_RICsubscriptionDeleteFailure_IEs_1[] = {
 	{ 4, 4, asn_IOS_RICsubscriptionDeleteFailure_IEs_1_rows }
 };
-static const long asn_VAL_23_id_RICsubscriptionToBeRemoved = 50;
+static const long asn_VAL_23_id_RICsubscriptionToBeRemoved = 60;
 static const long asn_VAL_23_ignore = 1;
 static const long asn_VAL_23_mandatory = 2;
 static const asn_ioc_cell_t asn_IOS_RICsubscriptionDeleteRequired_IEs_1_rows[] = {
