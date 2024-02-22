@@ -61,6 +61,7 @@ BOOST_LOG_INLINE_GLOBAL_LOGGER_DEFAULT(my_logger, src::logger_mt)
 boost::shared_ptr<sinks::synchronous_sink<sinks::text_file_backend>> boostLogger;
 // double cpuClock = 0.0;
 bool jsonTrace = false;
+std::map<std::string, E2NodeConnectionHandling> connectionHandlingPerE2NodeMap;
 
 char* getinterfaceip()
 {
@@ -642,8 +643,8 @@ int main(const int argc, char **argv) {
 
     auto result = parse(argc, argv, sctpParams);
 
-    if (buildConfiguration(sctpParams) != 0) {
-        exit(-1);
+    if (buildConfiguration(sctpParams) != numberZero) {
+        exit(negativeOne);
     }
 
     //auto registry = std::make_shared<Registry>();
@@ -688,15 +689,15 @@ int main(const int argc, char **argv) {
     std::vector<std::thread> threads(num_cpus);
 //    std::vector<std::thread> threads;
 
-    num_cpus = 3;
-    for (unsigned int i = 0; i < num_cpus; i++) {
+    num_cpus = numberOne;
+    for (unsigned int i = numberZero; i < num_cpus; i++) {
         threads[i] = std::thread(listener, &sctpParams);
 
         cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
         CPU_SET(i, &cpuset);
         int rc = pthread_setaffinity_np(threads[i].native_handle(), sizeof(cpu_set_t), &cpuset);
-        if (rc != 0) {
+        if (rc != numberZero) {
             mdclog_write(MDCLOG_ERR, "Error calling pthread_setaffinity_np: %d", rc);
         }
     }
@@ -896,13 +897,13 @@ void listener(sctp_params_t *params) {
 #else
         auto numOfEvents = 1;
 #endif
-        if (numOfEvents == 0) { // time out
+        if (numOfEvents == numberZero) { // time out
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             if (mdclog_level_get() >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "got epoll timeout");
             }
             continue;
-        } else if (numOfEvents < 0) {
+        } else if (numOfEvents < numberZero) {
             if (errno == EINTR) {
                 if (mdclog_level_get() >= MDCLOG_DEBUG) {
                     mdclog_write(MDCLOG_DEBUG, "got EINTR : %s", strerror(errno));
@@ -918,7 +919,7 @@ void listener(sctp_params_t *params) {
             return;
 #endif
         }
-        for (auto i = 0; i < numOfEvents; i++) {
+        for (auto i = numberZero; i < numOfEvents; i++) {
             if (mdclog_level_get() >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "handling epoll event %d out of %d", i + 1, numOfEvents);
             }
@@ -950,7 +951,7 @@ void listener(sctp_params_t *params) {
                     }
                     peerInfo->sctpParams = params;
                     peerInfo->fileDescriptor = accept(params->listenFD, &in_addr, &in_len);
-                    if (peerInfo->fileDescriptor == -1) {
+                    if (peerInfo->fileDescriptor == negativeOne) {
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
                         if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                             /* We have processed all incoming connections. */
@@ -1218,6 +1219,13 @@ void handleEinprogressMessages(struct epoll_event &event,
         message.message.asnLength = rmrMessageBuffer.sendMessage->len;
         mdclog_write(MDCLOG_ERR, "%s", rmrMessageBuffer.sendMessage->payload);
         message.message.direction = 'N';
+        mdclog_write(MDCLOG_DEBUG, "Checking the peerInfo->enodbName - %s", peerInfo->enodbName);
+        if (peerInfo->e2tInternalCounters[E2T_Internal_Counters::SCTP_ABORT_INITIATED_BY_E2NODE])
+        {
+            mdclog_write(MDCLOG_DEBUG, "Incrementing SCTP_ABORT_INITIATED_BY_E2NODE Counter");
+            peerInfo->e2tInternalCounters[E2T_Internal_Counters::SCTP_ABORT_INITIATED_BY_E2NODE]->Increment();
+            mdclog_write(MDCLOG_DEBUG, "Incremented SCTP_ABORT_INITIATED_BY_E2NODE Counter");
+        }
         if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer) != 0) {
             mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
         }
@@ -1247,7 +1255,7 @@ void handleEinprogressMessages(struct epoll_event &event,
     }
     if (sendSctpMsg(peerInfo, message, params->sctpMap) != 0) {
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
-            mdclog_write(MDCLOG_DEBUG, "Error write to SCTP  %s %d", __func__, __LINE__);
+            mdclog_write(MDCLOG_ERR, "Error write to SCTP  %s %d", __func__, __LINE__);
         }
         return;
     }
@@ -1276,13 +1284,29 @@ void handlepoll_error(struct epoll_event &event,
 
         memcpy(message.message.enodbName, peerInfo->enodbName, sizeof(peerInfo->enodbName));
         message.message.direction = 'N';
+        mdclog_write(MDCLOG_DEBUG, "Checking the peerInfo->enodbName - %s", peerInfo->enodbName);
+        if (peerInfo->e2tInternalCounters[E2T_Internal_Counters::SCTP_ABORT_INITIATED_BY_E2NODE])
+        {
+            mdclog_write(MDCLOG_DEBUG, "Incrementing SCTP_ABORT_INITIATED_BY_E2NODE Counter");
+            peerInfo->e2tInternalCounters[E2T_Internal_Counters::SCTP_ABORT_INITIATED_BY_E2NODE]->Increment();
+            mdclog_write(MDCLOG_DEBUG, "Incremented SCTP_ABORT_INITIATED_BY_E2NODE Counter");
+        }
         if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer) != 0) {
             mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
         }
 #endif
         close(peerInfo->fileDescriptor);
+        mdclog_write(MDCLOG_DEBUG, "Before event.data.ptr %p and data is %d", (void *)event.data.ptr, *((ConnectedCU_t *)event.data.ptr));
+        mdclog_write(MDCLOG_DEBUG, "Erasing Entry from Map for Key %s", peerInfo->enodbName);
+        removeE2ConnectionEntryFromMap(peerInfo->enodbName);
         //params->sctpMap->erase(peerInfo->enodbName);
         cleanHashEntry((ConnectedCU_t *) event.data.ptr, params->sctpMap);
+        if (event.data.ptr != nullptr)
+        {
+            mdclog_write(MDCLOG_DEBUG, "Not assigned event.data.ptr = NULL");
+            event.data.ptr = nullptr;
+        }
+        mdclog_write(MDCLOG_DEBUG, "After event.data.ptr %p", (void *)event.data.ptr);
     } else {
         mdclog_write(MDCLOG_ERR, "epoll error, events %0x on RMR FD", event.events);
     }
@@ -1315,7 +1339,9 @@ int setSocketNoBlocking(int socket) {
  * @param m
  */
 void cleanHashEntry(ConnectedCU_t *val, Sctp_Map_t *m) {
-    if(val != nullptr) {
+    if(val != nullptr)
+    {
+        mdclog_write(MDCLOG_DEBUG, "Inside cleanHashEntry");
         char *dummy;
         auto port = (uint16_t) strtol(val->portNumber, &dummy, 10);
         char searchBuff[2048]{};
@@ -1329,12 +1355,9 @@ void cleanHashEntry(ConnectedCU_t *val, Sctp_Map_t *m) {
             mdclog_write(MDCLOG_DEBUG, "remove key enodbName = %s from %s at line %d", val->enodbName, __FUNCTION__, __LINE__);
             m->erase(val->enodbName);
         }
-#ifndef UNIT_TEST
-        if(val) {
-            free(val);
-            val = nullptr;
-        }
-#endif
+        free(val);
+        val = nullptr;
+        mdclog_write(MDCLOG_DEBUG, "After free");
     }
 }
 
@@ -1375,7 +1398,14 @@ int sendSctpMsg(ConnectedCU_t *peerInfo, ReportingMessages_t &message, Sctp_Map_
             }
 #endif
 #ifndef UNIT_TEST
+            mdclog_write(MDCLOG_DEBUG, "Erasing Entry from Map for Key %s", peerInfo->enodbName);
+            removeE2ConnectionEntryFromMap(peerInfo->enodbName);
             cleanHashEntry(peerInfo, m);
+            if (peerInfo != nullptr)
+            {
+                mdclog_write(MDCLOG_DEBUG, "Not assigned peerInfo = NULL");
+                peerInfo = nullptr;
+            }
             close(fd);
 #endif
             char key[MAX_ENODB_NAME_SIZE * 2];
@@ -1423,7 +1453,30 @@ void getRequestMetaData(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMe
     }
 }
 
+void removeE2ConnectionEntryFromMap(char* enbName)
+{
+    if(connectionHandlingPerE2NodeMap.empty())
+    {
+        mdclog_write(MDCLOG_DEBUG, "connectionHandlingPerE2Node map is empty");
+        return;
+    }
 
+    std::map<std::string, E2NodeConnectionHandling>::iterator itr = connectionHandlingPerE2NodeMap.begin();
+    mdclog_write(MDCLOG_DEBUG, "Iterating Map e2NodeIdConnectionStatusMap");
+    while (itr != connectionHandlingPerE2NodeMap.end())
+    {
+        int result = itr->first.compare(enbName);
+        if (result == 0)
+        {
+            mdclog_write(MDCLOG_DEBUG, "Key %s Found in connectionHandlingPerE2NodeMap Map, Current Procedure is %d", enbName, itr->second.e2tProcedureOngoingStatus);
+            mdclog_write(MDCLOG_DEBUG, "Removing the Entry from map for %s", enbName);
+            connectionHandlingPerE2NodeMap.erase(itr);
+            mdclog_write(MDCLOG_DEBUG, "Deleted the Entry Successfully from map for %s", enbName);
+            break;
+        }
+        ++itr;
+    }
+}
 
 /**
  *
@@ -1503,8 +1556,8 @@ int receiveDataFromSctp(struct epoll_event *events,
         } else if (message.message.asnLength == 0) {
             /* End of file. The remote has closed the connection. */
             if (loglevel >= MDCLOG_INFO) {
-                mdclog_write(MDCLOG_INFO, "END of File Closed connection - descriptor = %d",
-                             message.peerInfo->fileDescriptor);
+                mdclog_write(MDCLOG_INFO, "END of File Closed connection - descriptor = %d and %s",
+                             message.peerInfo->fileDescriptor, message.peerInfo->enodbName);
             }
             done = 1;
             break;
@@ -1603,6 +1656,14 @@ int receiveDataFromSctp(struct epoll_event *events,
                          "%s|CU disconnected unexpectedly",
                          message.peerInfo->enodbName);
         message.message.asndata = rmrMessageBuffer.sendMessage->payload;
+        #ifndef UNIT_TEST
+        if (message.peerInfo->e2tInternalCounters[E2T_Internal_Counters::SCTP_ABORT_INITIATED_BY_E2NODE])
+        {
+            mdclog_write(MDCLOG_DEBUG, "Incrementing SCTP_ABORT_INITIATED_BY_E2NODE Counter");
+            message.peerInfo->e2tInternalCounters[E2T_Internal_Counters::SCTP_ABORT_INITIATED_BY_E2NODE]->Increment();
+            mdclog_write(MDCLOG_DEBUG, "Incremented SCTP_ABORT_INITIATED_BY_E2NODE Counter");
+        }
+        #endif
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         if (sendRequestToXapp(message,
                               RIC_SCTP_CONNECTION_FAILURE,
@@ -1611,6 +1672,8 @@ int receiveDataFromSctp(struct epoll_event *events,
         }
 #endif
 
+        mdclog_write(MDCLOG_DEBUG, "Erasing Entry from Map for Key %s", message.peerInfo->enodbName);
+        removeE2ConnectionEntryFromMap(message.peerInfo->enodbName);
         /* Closing descriptor make epoll remove it from the set of descriptors which are monitored. */
 #ifndef UNIT_TEST
         pthread_mutex_lock(&thread_lock);
@@ -1618,11 +1681,21 @@ int receiveDataFromSctp(struct epoll_event *events,
             mdclog_write(MDCLOG_DEBUG, "Closing connection - descriptor = %d", message.peerInfo->fileDescriptor);
             close(message.peerInfo->fileDescriptor);
             cleanHashEntry((ConnectedCU_t *) events->data.ptr, sctpMap);
+            if (events->data.ptr != nullptr)
+            {
+                mdclog_write(MDCLOG_DEBUG, "Not assigned events->data.ptr = NULL");
+                events->data.ptr = nullptr;
+            }
         }
         pthread_mutex_unlock(&thread_lock);
 #else
         close(message.peerInfo->fileDescriptor);
         cleanHashEntry((ConnectedCU_t *) events->data.ptr, sctpMap);
+        if (events->data.ptr != nullptr)
+        {
+            mdclog_write(MDCLOG_DEBUG, "[SCTP_ABORT]: Not assigned events->data.ptr = NULL");
+            events->data.ptr = nullptr;
+        }
 #endif
     }
     if (loglevel >= MDCLOG_DEBUG) {
@@ -1633,7 +1706,7 @@ int receiveDataFromSctp(struct epoll_event *events,
     }
     return 0;
 }
-
+#ifndef UNIT_TEST
 static void buildAndSendSetupRequest(ReportingMessages_t &message,
                                      RmrMessagesBuffer_t &rmrMessageBuffer,
                                      E2AP_PDU_t *pdu/*,
@@ -1766,6 +1839,7 @@ static void buildAndSendSetupRequest(ReportingMessages_t &message,
 
     return;
 }
+#endif
 
 #if 0
 int RAN_Function_list_To_Vector(RANfunctions_List_t& list, vector <string> &runFunXML_v) {
@@ -2023,8 +2097,18 @@ void buildPrometheusList(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFam
     peerInfo->counters[IN_INITI][MSG_COUNTER][(ProcedureCode_id_RICsubscriptionDeleteRequired)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICsubscriptionDeleteRequired", "Messages"}});
     peerInfo->counters[IN_INITI][BYTES_COUNTER][(ProcedureCode_id_RICsubscriptionDeleteRequired)] = &prometheusFamily->Add({{peerInfo->enodbName, "IN"}, {"RICsubscriptionDeleteRequired", "Bytes"}});
 
+    peerInfo->counters[IN_SUCC][MSG_COUNTER][(ProcedureCode_id_E2connectionUpdate)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"UnsupportedE2ConnectionUpdateAck", "Messages"}});
+    peerInfo->counters[IN_UN_SUCC][MSG_COUNTER][(ProcedureCode_id_E2connectionUpdate)] = &prometheusFamily->Add({{peerInfo->enodbName, "OUT"}, {"UnsupportedE2ConnectionUpdateFail", "Messages"}});
 }
 
+#ifndef UNIT_TEST
+void buildInternalCounterPrometheusList(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFamily)
+{
+    mdclog_write(MDCLOG_DEBUG, "Inside buildInternalCounterPrometheusList");
+    peerInfo->e2tInternalCounters[E2T_Internal_Counters::SCTP_ABORT_INITIATED_BY_E2NODE] = &prometheusFamily->Add({{"NODEB", peerInfo->enodbName}, {"counter", "SctpAbortInitiatedByE2Node"}});
+    peerInfo->e2tInternalCounters[E2T_Internal_Counters::INVALID_MESSAGE_RECEIVED] = &prometheusFamily->Add({{"NODEB", peerInfo->enodbName}, {"counter", "InvalidMessageReceived"}});
+}
+#endif
 /**
  *
  * @param pdu
@@ -2033,21 +2117,24 @@ void buildPrometheusList(ConnectedCU_t *peerInfo, Family<Counter> *prometheusFam
  * @param RANfunctionsAdded_v
  * @return
  */
-int collectSetupRequestData(E2AP_PDU_t *pdu,
-                                     Sctp_Map_t *sctpMap,
-                                     ReportingMessages_t &message /*, vector <string> &RANfunctionsAdded_v*/) {
-    memset(message.peerInfo->enodbName, 0 , MAX_ENODB_NAME_SIZE);
-    for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.count; i++) {
+long collectSetupRequestData(E2AP_PDU_t *pdu,
+                            Sctp_Map_t *sctpMap,
+                            ReportingMessages_t &message /*, vector <string> &RANfunctionsAdded_v*/) {
+    long transactionId = negativeOne;
+    memset(message.peerInfo->enodbName, numberZero , MAX_ENODB_NAME_SIZE);
+    for (auto i = numberZero; i < pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.count; i++) {
         auto *ie = pdu->choice.initiatingMessage->value.choice.E2setupRequest.protocolIEs.list.array[i];
         if (ie->id == ProtocolIE_ID_id_GlobalE2node_ID) {
             // get the ran name for meid
             if (ie->value.present == E2setupRequestIEs__value_PR_GlobalE2node_ID) {
-                if (buildRanName(message.peerInfo->enodbName, ie) < 0) {
+                mdclog_write(MDCLOG_DEBUG, "GnbId is present");
+                #ifndef UNIT_TEST
+                if (buildRanName(message.peerInfo->enodbName, ie) < numberZero) {
                     mdclog_write(MDCLOG_ERR, "Bad param in E2setupRequestIEs GlobalE2node_ID.\n");
                     // no message will be sent
-                    return -1;
+                    return negativeOne;
                 }
-
+                #endif
                 memcpy(message.message.enodbName, message.peerInfo->enodbName, strlen(message.peerInfo->enodbName));
                 sctpMap->setkey(message.message.enodbName, message.peerInfo);
             }
@@ -2062,12 +2149,20 @@ int collectSetupRequestData(E2AP_PDU_t *pdu,
                 }
             }
         } */
+        if (ie->id == ProtocolIE_ID_id_TransactionID) {
+            if (ie->value.present == E2setupRequestIEs__value_PR_TransactionID) {
+                mdclog_write(MDCLOG_DEBUG, "TransactionId is present in E2SetupReq");
+
+                transactionId = ie->value.choice.TransactionID;
+                mdclog_write(MDCLOG_DEBUG, "TransactionId is %ld", transactionId);
+            }
+        }
     }
 //    if (mdclog_level_get() >= MDCLOG_DEBUG) {
 //        mdclog_write(MDCLOG_DEBUG, "Run function vector have %ld entries",
 //                     RANfunctionsAdded_v.size());
 //    }
-    return 0;
+    return transactionId;
 }
 
 int XML_From_PER(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer) {
@@ -2138,6 +2233,7 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
     }
     switch (procedureCode) {
         case ProcedureCode_id_E2setup: {
+
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got E2setup");
             }
@@ -2146,51 +2242,34 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
 //            vector <string> RANfunctionsModified_v;
 //            RANfunctionsAdded_v.clear();
 //            RANfunctionsModified_v.clear();
-            if (collectSetupRequestData(pdu, sctpMap, message) != 0) {
+            long transactionID = collectSetupRequestData(pdu, sctpMap, message);
+            mdclog_write(MDCLOG_DEBUG, "transactionID returned is %ld", transactionID);
+
+            if (transactionID < numberZero)
+            {
+                mdclog_write(MDCLOG_ERR, "Invalid TransactionID or GnbIb");
                 break;
             }
-            struct sctp_status status;
-            int stat_size = sizeof(status);
-            getsockopt( message.peerInfo->fileDescriptor, SOL_SCTP, SCTP_STATUS,(void *)&status, (socklen_t *)&stat_size );
-            if (logLevel >= MDCLOG_DEBUG) {
-                mdclog_write(MDCLOG_DEBUG, "Start from SCTP %d fd", message.peerInfo->fileDescriptor);
-                mdclog_write(MDCLOG_DEBUG, "SCTP status assoc id %d instrms %d outstrms %d", status.sstat_assoc_id,
-                        status.sstat_instrms, status.sstat_outstrms);
-            }
-            if(status.sstat_outstrms == 1 || status.sstat_instrms == 1)
-            {
-                message.peerInfo->isSingleStream = true;
-                message.peerInfo->singleStreamId = streamId;
-                if (status.sstat_outstrms == 1 && status.sstat_instrms == 1){
-                    if (logLevel >= MDCLOG_DEBUG) {
-                        mdclog_write(MDCLOG_DEBUG, "Single SCTP stream is used for sending from now on, assoc id %d streamId %d #instrms %d #outstrms %d, %s",status.sstat_assoc_id, streamId, status.sstat_instrms, status.sstat_outstrms, __FUNCTION__);
-                    }
-                }
-                else {
-                    mdclog_write(MDCLOG_ERR, "Single SCTP stream used for sending messages even if there is a mismatch in number of in & out streams, assoc id %d instrms %d outstrms %d", status.sstat_assoc_id,
-                            status.sstat_instrms, status.sstat_outstrms);
-                }
-            }
 
-            buildPrometheusList(message.peerInfo, message.peerInfo->sctpParams->prometheusFamily);
-
-            string messageName("E2setupRequest");
-            string ieName("E2setupRequestIEs");
-            message.message.messageType = RIC_E2_SETUP_REQ;
-            message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
-            message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment((double)message.message.asnLength);
-
-            // Update E2T instance level metrics
-            message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
-            message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment((double)message.message.asnLength);
-
-            buildAndSendSetupRequest(message, rmrMessageBuffer, pdu);
+            mdclog_write(MDCLOG_DEBUG, "Calling handleE2SetupReq");
+            handleE2SetupReq(message, rmrMessageBuffer, pdu, transactionID, streamId, sctpMap);
             break;
         }
         case ProcedureCode_id_RICserviceUpdate: {
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived)
+            {
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring received RICserviceUpdate");
+                return ;
+            }
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICserviceUpdate %s", message.message.enodbName);
             }
+
+            mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure state is %d", message.message.enodbName, E2_SETUP_PROCEDURE_COMPLETED);
+            setE2ProcedureOngoingStatus(message.message.enodbName, E2_SETUP_PROCEDURE_COMPLETED);
 //            vector <string> RANfunctionsAdded_v;
 //            vector <string> RANfunctionsModified_v;
 //            RANfunctionsAdded_v.clear();
@@ -2211,11 +2290,24 @@ void asnInitiatingRequest(E2AP_PDU_t *pdu,
             message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
             message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment((double)message.message.asnLength);
 #endif
+            #ifndef UNIT_TEST
             buildAndSendSetupRequest(message, rmrMessageBuffer, pdu);
+            #endif
+
+            mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure state is %d", message.message.enodbName, E2_SETUP_PROCEDURE_COMPLETED);
+            setE2ProcedureOngoingStatus(message.message.enodbName, RIC_SERVICE_UPDATE_PROCEDURE_ONGOING);
             break;
         }
 
 case ProcedureCode_id_E2nodeConfigurationUpdate: {
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived)
+            {
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring received E2nodeConfigurationUpdate");
+                return ;
+            }
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got E2nodeConfigurationUpdate %s", message.message.enodbName);
             }
@@ -2236,23 +2328,104 @@ case ProcedureCode_id_E2nodeConfigurationUpdate: {
         }
 
         case ProcedureCode_id_ErrorIndication: {
-            if (logLevel >= MDCLOG_DEBUG) {
-                mdclog_write(MDCLOG_DEBUG, "Got ErrorIndication %s", message.message.enodbName);
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);            
+            if (!isE2SetupRequestReceived){
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring received ErrorIndication");
+                return ;
             }
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
+            
+            asn_fprint(stdout, &asn_DEF_E2AP_PDU, pdu);
+
+            mdclog_write(MDCLOG_INFO, "Got ErrorIndication %s sub id = %d, mtype = %d", message.message.enodbName,
+                        rmrMessageBuffer.sendMessage->sub_id, rmrMessageBuffer.sendMessage->mtype);
+
+            int procedureCode = numberZero;
+            bitset<requiredIePresentMaxBitSetPosition> isRequiredIesPresent(0); // TransactionId==0, RicRequestId==1, Cause==2
+
+            for (auto i = numberZero; i < pdu->choice.initiatingMessage->value.choice.ErrorIndication.protocolIEs.list.count; i++) {
+                ErrorIndication_IEs_t *ie = pdu->choice.initiatingMessage->value.choice.ErrorIndication.protocolIEs.list.array[i];
+                if (ie->id == ProtocolIE_ID_id_TransactionID) {
+                    if (ie->value.present == ErrorIndication_IEs__value_PR_TransactionID) {
+                        mdclog_write(MDCLOG_DEBUG, "TransactionID in ErrorIndication Message is %ld ", ie->value.choice.TransactionID);
+                        if (e2NodeConnectionHandling.e2SetupProcedureTransactionId == ie->value.choice.TransactionID)
+                        {
+                            isRequiredIesPresent.set(transactionIdIeBitSetPosition);
+                        }
+                    }
+                }
+                if (ie->id == ProtocolIE_ID_id_RICrequestID) {        
+                    if (ie->value.present == ErrorIndication_IEs__value_PR_RICrequestID) {
+                        isRequiredIesPresent.set(ricRequestIdIeBitSetPosition);
+                        mdclog_write(MDCLOG_DEBUG, "RIC instance id %ld, RIC requestor id = %ld",
+                                    ie->value.choice.RICrequestID.ricInstanceID,
+                                    ie->value.choice.RICrequestID.ricRequestorID);
+                    }
+                }
+                if (ie->id == ProtocolIE_ID_id_Cause) {
+                    if (ie->value.present == ErrorIndication_IEs__value_PR_Cause) {
+                        isRequiredIesPresent.set(causeIeBitSetPosition);
+                    }
+                }                     
+                if (ie->id == ProtocolIE_ID_id_CriticalityDiagnostics) {
+                    if (ie->value.present == ErrorIndication_IEs__value_PR_CriticalityDiagnostics) {
+                        if (ie->value.choice.CriticalityDiagnostics.procedureCode)
+                        {
+                            procedureCode = *(ie->value.choice.CriticalityDiagnostics.procedureCode);
+                            mdclog_write(MDCLOG_DEBUG, "ProcedureCode Value is %ld", procedureCode);
+                        }                           
+                    } 
+                }
+            }
+
+            // Msg being sent to E2M = 0, Msg being sent to SubMgr = 1
+            bitset<sendMsgMaxBitPosition> sendMsgTo = getSendMsgBitSetValue(procedureCode, isRequiredIesPresent, message.message.enodbName);
+
+            if(sendMsgTo.test(sendMsgToE2MBitSetPosition))
+            {
+                message.message.messageType = RIC_E2_RIC_ERROR_INDICATION;
+                mdclog_write(MDCLOG_INFO, "Sending ErrorIndication Message to E2Manager");
+                #ifndef UNIT_TEST
+                buildAndSendSetupRequest(message, rmrMessageBuffer, pdu);
+                #endif
+            }
+            else if (sendMsgTo.test(sendMsgToSubMgrBitSetPosition))
+            {
+                if (sendRequestToXapp(message, RIC_E2_RAN_ERROR_INDICATION, rmrMessageBuffer) != 0) {
+                    mdclog_write(MDCLOG_ERR, "Subscription successful message failed to send to SubMgr");
+                }
+                else {
+                    mdclog_write(MDCLOG_INFO, "Successfully Sent ErrorIndication Message to SubMgr");                
+                }
+            }
+            else
+            {
+                mdclog_write(MDCLOG_INFO, "No action taken on ErrorIndication Message as TransactionId/Ric RequestID/Cause not present/invalid");      
+            }
+
+            #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_ErrorIndication]->Increment();
             message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_ErrorIndication]->Increment((double)message.message.asnLength);
 
             // Update E2T instance level metrics
             message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_ErrorIndication]->Increment();
             message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_ErrorIndication]->Increment((double)message.message.asnLength);
-#endif
+            #endif
+
+            /*Not to break below functionality which is used to send to Xapp*/
             if (sendRequestToXapp(message, RIC_ERROR_INDICATION, rmrMessageBuffer) != 0) {
                 mdclog_write(MDCLOG_ERR, "RIC_ERROR_INDICATION failed to send to xAPP");
             }
             break;
         }
         case ProcedureCode_id_Reset: {
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived){
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring received Reset");
+                return ;
+            }
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got Reset %s", message.message.enodbName);
             }
@@ -2264,20 +2437,31 @@ case ProcedureCode_id_E2nodeConfigurationUpdate: {
             message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
             message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment((double)message.message.asnLength);
 #endif
-            if (XML_From_PER(message, rmrMessageBuffer) < 0) {
+            if (XML_From_PER(message, rmrMessageBuffer) < numberZero) {
                 break;
             }
 
-            if (sendRequestToXapp(message, RIC_E2_RESET_REQ, rmrMessageBuffer) != 0) {
+            if (sendRequestToXapp(message, RIC_E2_RESET_REQ, rmrMessageBuffer) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "RIC_E2_RESET_REQ message failed to send to xAPP");
             }
             break;
         }
         case ProcedureCode_id_RICindication: {
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived){
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring received RICIndication");
+                return ;
+            }
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICindication %s", message.message.enodbName);
             }
-            for (auto i = 0; i < pdu->choice.initiatingMessage->value.choice.RICindication.protocolIEs.list.count; i++) {
+
+            mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure State is %d", message.message.enodbName, RIC_INDICATION_PROCEDURE_ONGOING);
+            setE2ProcedureOngoingStatus(message.message.enodbName, RIC_INDICATION_PROCEDURE_ONGOING);
+
+            for (auto i = numberZero; i < pdu->choice.initiatingMessage->value.choice.RICindication.protocolIEs.list.count; i++) {
                 auto messageSent = false;
                 RICindication_IEs_t *ie = pdu->choice.initiatingMessage->value.choice.RICindication.protocolIEs.list.array[i];
                 if (logLevel >= MDCLOG_DEBUG) {
@@ -2295,7 +2479,7 @@ case ProcedureCode_id_E2nodeConfigurationUpdate: {
                         rmr_bytes2meid(rmrMessageBuffer.sendMessage,
                                        (unsigned char *)message.message.enodbName,
                                        strlen(message.message.enodbName));
-                        rmrMessageBuffer.sendMessage->state = 0;
+                        rmrMessageBuffer.sendMessage->state = numberZero;
                         rmrMessageBuffer.sendMessage->sub_id = (int)ie->value.choice.RICrequestID.ricInstanceID;
 
                         //ie->value.choice.RICrequestID.ricInstanceID;
@@ -2321,12 +2505,22 @@ case ProcedureCode_id_E2nodeConfigurationUpdate: {
                     }
                 }
                 if (messageSent) {
+                    mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure State is %d", message.message.enodbName, RIC_INDICATION_PROCEDURE_COMPLETED);
+                    setE2ProcedureOngoingStatus(message.message.enodbName, RIC_INDICATION_PROCEDURE_COMPLETED);
                     break;
                 }
             }
             break;
         }
         case ProcedureCode_id_RICsubscriptionDeleteRequired: {
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            mdclog_write(MDCLOG_ERR, "Undefined or not supported message = %ld", procedureCode);
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived){
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring Unsupported Message with procedureCode = %ld", procedureCode);
+                return ;
+            }
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICsubscriptionDeleteRequired %s", message.message.enodbName);
             }
@@ -2345,8 +2539,25 @@ case ProcedureCode_id_E2nodeConfigurationUpdate: {
         }
 
         default: {
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
             mdclog_write(MDCLOG_ERR, "Undefined or not supported message = %ld", procedureCode);
-            message.message.messageType = 0; // no RMR message type yet
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived){
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring Unsupported Message with procedureCode = %ld", procedureCode);
+                return ;
+            }
+            message.message.messageType = numberZero; // no RMR message type yet
+            mdclog_write(MDCLOG_ERR, "Invalid Message Received at E2T");
+            mdclog_write(MDCLOG_ERR, "Counter Incrementing for Invalid Message");
+            #ifndef UNIT_TEST
+            if (message.peerInfo->e2tInternalCounters[E2T_Internal_Counters::INVALID_MESSAGE_RECEIVED])
+            {
+                mdclog_write(MDCLOG_DEBUG, "Incrementing INVALID_MESSAGE_RECEIVED Counter");
+                message.peerInfo->e2tInternalCounters[E2T_Internal_Counters::INVALID_MESSAGE_RECEIVED]->Increment();
+                mdclog_write(MDCLOG_DEBUG, "Incremented INVALID_MESSAGE_RECEIVED Counter");
+            }
+            #endif
 
             buildJsonMessage(message);
 
@@ -2372,6 +2583,14 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
     }
     switch (procedureCode) {
         case ProcedureCode_id_Reset: {
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived)
+            {
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring received Reset message");
+                return ;
+            }
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got Reset %s", message.message.enodbName);
             }
@@ -2383,7 +2602,7 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
             message.peerInfo->sctpParams->e2tCounters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
             message.peerInfo->sctpParams->e2tCounters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment((double)message.message.asnLength);
 #endif
-            if (XML_From_PER(message, rmrMessageBuffer) < 0) {
+            if (XML_From_PER(message, rmrMessageBuffer) < numberZero) {
                 break;
             }
             if (sendRequestToXapp(message, RIC_E2_RESET_RESP, rmrMessageBuffer) != 0) {
@@ -2392,10 +2611,17 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
             break;
         }
         case ProcedureCode_id_RICcontrol: {
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived){
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring received RICcontrol");
+                return ;
+            }
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICcontrol %s", message.message.enodbName);
             }
-            for (auto i = 0;
+            for (auto i = numberZero;
                  i < pdu->choice.successfulOutcome->value.choice.RICcontrolAcknowledge.protocolIEs.list.count; i++) {
                 auto messageSent = false;
                 RICcontrolAcknowledge_IEs_t *ie = pdu->choice.successfulOutcome->value.choice.RICcontrolAcknowledge.protocolIEs.list.array[i];
@@ -2408,7 +2634,7 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
                     }
                     if (ie->value.present == RICcontrolAcknowledge_IEs__value_PR_RICrequestID) {
                         message.message.messageType = rmrMessageBuffer.sendMessage->mtype = RIC_CONTROL_ACK;
-                        rmrMessageBuffer.sendMessage->state = 0;
+                        rmrMessageBuffer.sendMessage->state = numberZero;
 //                        rmrMessageBuffer.sendMessage->sub_id = (int) ie->value.choice.RICrequestID.ricRequestorID;
                         rmrMessageBuffer.sendMessage->sub_id = (int)ie->value.choice.RICrequestID.ricInstanceID;
 
@@ -2433,6 +2659,8 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
                     }
                 }
                 if (messageSent) {
+                    mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure State is %d", message.message.enodbName, CONTROL_PROCEDURE_COMPLETED);
+                    setE2ProcedureOngoingStatus(message.message.enodbName, CONTROL_PROCEDURE_COMPLETED);
                     break;
                 }
             }
@@ -2440,6 +2668,13 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
             break;
         }
         case ProcedureCode_id_RICsubscription: {
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived){
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring received RICsubscription");
+                return ;
+            }
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICsubscription %s", message.message.enodbName);
             }
@@ -2451,15 +2686,27 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
             message.peerInfo->sctpParams->e2tCounters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscription]->Increment();
             message.peerInfo->sctpParams->e2tCounters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscription]->Increment((double)message.message.asnLength);
 #endif
-            if (sendRequestToXapp(message, RIC_SUB_RESP, rmrMessageBuffer) != 0) {
+            if (sendRequestToXapp(message, RIC_SUB_RESP, rmrMessageBuffer) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "Subscription successful message failed to send to xAPP");
             }
+            mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure State is %d", message.message.enodbName, RIC_INDICATION_PROCEDURE_ONGOING);
+            setE2ProcedureOngoingStatus(message.message.enodbName, RIC_INDICATION_PROCEDURE_ONGOING);
             break;
         }
         case ProcedureCode_id_RICsubscriptionDelete: {
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived){
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring received RICsubscriptionDelete");
+                return ;
+            }
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICsubscriptionDelete %s", message.message.enodbName);
             }
+
+            mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure state is %d", message.message.enodbName, RIC_SUBS_DEL_PROCEDURE_COMPLETED);
+            setE2ProcedureOngoingStatus(message.message.enodbName, RIC_SUBS_DEL_PROCEDURE_COMPLETED);
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
             message.peerInfo->counters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment((double)message.message.asnLength);
@@ -2468,14 +2715,44 @@ void asnSuccessfulMsg(E2AP_PDU_t *pdu,
             message.peerInfo->sctpParams->e2tCounters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
             message.peerInfo->sctpParams->e2tCounters[IN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment((double)message.message.asnLength);
 #endif
-            if (sendRequestToXapp(message, RIC_SUB_DEL_RESP, rmrMessageBuffer) != 0) {
+            if (sendRequestToXapp(message, RIC_SUB_DEL_RESP, rmrMessageBuffer) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "Subscription delete successful message failed to send to xAPP");
             }
+            mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure State is %d", message.message.enodbName, RIC_INDICATION_PROCEDURE_ONGOING);
+            setE2ProcedureOngoingStatus(message.message.enodbName, RIC_INDICATION_PROCEDURE_ONGOING);
             break;
         }
         default: {
-            mdclog_write(MDCLOG_WARN, "Undefined or not supported message = %ld", procedureCode);
-            message.message.messageType = 0; // no RMR message type yet
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            mdclog_write(MDCLOG_ERR, "Undefined or not supported message = %ld", procedureCode);
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived){
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring Unsupported Message with procedureCode = %ld", procedureCode);
+                return ;
+            }
+            message.message.messageType = numberZero; // no RMR message type yet
+            if (procedureCode == ProcedureCode_id_E2connectionUpdate)
+            {
+                mdclog_write(MDCLOG_ERR, "Unsupported message E2Connection Update Ack Received at E2T, procedureCode = %ld", procedureCode);
+                
+                mdclog_write(MDCLOG_ERR, "Counter Incrementing for Unsupported E2Connection Update Ack Message");
+                #ifndef UNIT_TEST
+                message.peerInfo->counters[IN_SUCC][MSG_COUNTER][ProcedureCode_id_E2connectionUpdate]->Increment();
+                #endif
+            } 
+            else {
+                mdclog_write(MDCLOG_ERR, "Invalid Message Received at E2T");
+                mdclog_write(MDCLOG_ERR, "Counter Incrementing for Invalid Message");
+                #ifndef UNIT_TEST
+                if (message.peerInfo->e2tInternalCounters[E2T_Internal_Counters::INVALID_MESSAGE_RECEIVED])
+                {
+                    mdclog_write(MDCLOG_DEBUG, "Incrementing INVALID_MESSAGE_RECEIVED Counter");
+                    message.peerInfo->e2tInternalCounters[E2T_Internal_Counters::INVALID_MESSAGE_RECEIVED]->Increment();
+                    mdclog_write(MDCLOG_DEBUG, "Incremented INVALID_MESSAGE_RECEIVED Counter");
+                }
+                #endif
+            }
             buildJsonMessage(message);
 
             break;
@@ -2500,6 +2777,14 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
     }
     switch (procedureCode) {
         case ProcedureCode_id_RICcontrol: {
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived)
+            {
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring received RICcontrol");
+                return ;
+            }
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICcontrol %s", message.message.enodbName);
             }
@@ -2545,6 +2830,13 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
             break;
         }
         case ProcedureCode_id_RICsubscription: {
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived){
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring received RICsubscription");
+                return ;
+            }
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICsubscription %s", message.message.enodbName);
             }
@@ -2562,6 +2854,13 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
             break;
         }
         case ProcedureCode_id_RICsubscriptionDelete: {
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived){
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring received RICsubscriptionDelete");
+                return ;
+            }
             if (logLevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Got RICsubscriptionDelete %s", message.message.enodbName);
             }
@@ -2579,14 +2878,297 @@ void asnUnSuccsesfulMsg(E2AP_PDU_t *pdu,
             break;
         }
         default: {
-            mdclog_write(MDCLOG_WARN, "Undefined or not supported message = %ld", procedureCode);
-            message.message.messageType = 0; // no RMR message type yet
-#if !(defined(UNIT_TEST) || defined(MODULE_TEST))
+            struct E2NodeConnectionHandling e2NodeConnectionHandling;
+            mdclog_write(MDCLOG_ERR, "Undefined or not supported message = %ld", procedureCode);
+            bool isE2SetupRequestReceived = getE2tProcedureOngoingStatus(message.message.enodbName, e2NodeConnectionHandling);
+            mdclog_write(MDCLOG_DEBUG, "Value of isE2SetupRequestReceived is %s", isE2SetupRequestReceived == true ? "true" : "false");
+            if (!isE2SetupRequestReceived){
+                mdclog_write(MDCLOG_WARN, "E2Setup procedure is not initiated, ignoring Unsupported Message with procedureCode = %ld", procedureCode);
+                return ;
+            }
+            
+            message.message.messageType = numberZero; // no RMR message type yet
+            if (procedureCode == ProcedureCode_id_E2connectionUpdate)
+            {
+                mdclog_write(MDCLOG_ERR, "Unsupported message E2Connection Update Failure Received at E2T, procedureCode = %ld", procedureCode);
+                
+                mdclog_write(MDCLOG_ERR, "Counter Incrementing for Unsupported E2Connection Update Failure Message");
+                #ifndef UNIT_TEST
+                message.peerInfo->counters[IN_UN_SUCC][MSG_COUNTER][ProcedureCode_id_E2connectionUpdate]->Increment();
+                #endif
+            }
+            else {
+                mdclog_write(MDCLOG_ERR, "Invalid Message Received at E2T");
+                mdclog_write(MDCLOG_ERR, "Counter Incrementing for Invalid Message");
+                #ifndef UNIT_TEST
+                if (message.peerInfo->e2tInternalCounters[E2T_Internal_Counters::INVALID_MESSAGE_RECEIVED])
+                {
+                    mdclog_write(MDCLOG_DEBUG, "Incrementing INVALID_MESSAGE_RECEIVED Counter");
+                    message.peerInfo->e2tInternalCounters[E2T_Internal_Counters::INVALID_MESSAGE_RECEIVED]->Increment();
+                    mdclog_write(MDCLOG_DEBUG, "Incremented INVALID_MESSAGE_RECEIVED Counter");
+                }
+                #endif
+            }
             buildJsonMessage(message);
-#endif
             break;
         }
     }
+}
+
+bool getE2tProcedureOngoingStatus(char *enbName, E2NodeConnectionHandling &e2NodeConnectionHandling)
+{
+    mdclog_write(MDCLOG_DEBUG, "Inside getE2tProcedureOngoingStatus, Checking for enb %s", enbName);
+    if(strcmp(enbName, "") == 0)
+    {
+        mdclog_write(MDCLOG_DEBUG, "enbName is empty");
+        return false;
+    }
+    else if(connectionHandlingPerE2NodeMap.empty())
+    {
+        mdclog_write(MDCLOG_DEBUG, "connectionHandlingPerE2Node map is empty");
+        return false;
+    }
+    else
+    {
+        std::map<std::string, E2NodeConnectionHandling>::iterator itr = connectionHandlingPerE2NodeMap.begin();
+        while (itr != connectionHandlingPerE2NodeMap.end())
+        {
+            int result = itr->first.compare(enbName);
+            if (result == 0)
+            {
+                mdclog_write(MDCLOG_DEBUG, "enb name in map :%s, status :%d", itr->first.c_str(), itr->second.e2tProcedureOngoingStatus);
+                e2NodeConnectionHandling = itr->second;
+                return true;
+                break;
+            }
+            ++itr;
+        }
+    }
+    return false;
+}
+
+void setE2ProcedureOngoingStatus(char *enbName, E2T_Procedure_States state)
+{
+    printEntryPresentInMap();
+    if(connectionHandlingPerE2NodeMap.empty())
+    {
+        mdclog_write(MDCLOG_DEBUG, "connectionHandlingPerE2Node map is empty");
+        return;
+    }
+    else
+    {
+        mdclog_write(MDCLOG_DEBUG, "Entry Present in connectionHandlingPerE2NodeMap Map");
+        std::map<std::string, E2NodeConnectionHandling>::iterator itr = connectionHandlingPerE2NodeMap.begin();
+        while(itr != connectionHandlingPerE2NodeMap.end())
+        {
+            int result = itr->first.compare(enbName);
+            if (result == 0)
+            {
+                mdclog_write(MDCLOG_DEBUG, "Key %s Found in connectionHandlingPerE2NodeMap Map, Current Procedure is %d", enbName, itr->second.e2tProcedureOngoingStatus);
+                itr->second.e2tProcedureOngoingStatus = state;
+                mdclog_write(MDCLOG_DEBUG, "Current procedure updated to %d", itr->second.e2tProcedureOngoingStatus);
+                break;
+            }
+            ++itr; 
+        }
+    }
+}
+
+void insertE2SetupProcedureOngoing(char *enbName, long &transactionID)
+{
+    struct E2NodeConnectionHandling e2NodeConnectionHandling;
+    e2NodeConnectionHandling.e2tProcedureOngoingStatus = E2_SETUP_PROCEDURE_ONGOING;
+    e2NodeConnectionHandling.e2SetupProcedureTransactionId = transactionID;
+
+    std::string key(enbName);
+    printEntryPresentInMap();
+    if(connectionHandlingPerE2NodeMap.empty())
+    {
+        mdclog_write(MDCLOG_DEBUG, "connectionHandlingPerE2Node map is empty");
+        mdclog_write(MDCLOG_DEBUG, "Inserting %s to connectionHandlingPerE2NodeMap Map", enbName);
+
+        connectionHandlingPerE2NodeMap.insert(std::make_pair(key, e2NodeConnectionHandling));
+
+        mdclog_write(MDCLOG_DEBUG, "Default Value after Inserting Key for %s - Value is {e2tProcedureOngoingStatus is %d, e2SetupProcedureTransactionId: %ld}", 
+                key.c_str(),
+                e2NodeConnectionHandling.e2tProcedureOngoingStatus,
+                e2NodeConnectionHandling.e2SetupProcedureTransactionId);
+        return;
+    }
+    else
+    {
+        mdclog_write(MDCLOG_DEBUG, "Entry Present in connectionHandlingPerE2NodeMap Map");
+        std::map<std::string, E2NodeConnectionHandling>::iterator itr = connectionHandlingPerE2NodeMap.begin();
+        bool enodebNameFound = false;
+        while(itr != connectionHandlingPerE2NodeMap.end())
+        {
+            int result = itr->first.compare(enbName);
+            if (result == 0)
+            {
+                enodebNameFound = true;
+                break;
+            }
+            ++itr;
+        }
+        if (enodebNameFound == false)
+        {
+            mdclog_write(MDCLOG_DEBUG, "Inserting %s to connectionHandlingPerE2NodeMap Map", enbName);
+            connectionHandlingPerE2NodeMap.insert(std::make_pair(key, e2NodeConnectionHandling));
+
+            mdclog_write(MDCLOG_DEBUG, "Default Value after Inserting Key for %s - Value is {e2tProcedureOngoingStatus is %d, e2SetupProcedureTransactionId: %ld}", 
+                key.c_str(),
+                e2NodeConnectionHandling.e2tProcedureOngoingStatus,
+                e2NodeConnectionHandling.e2SetupProcedureTransactionId);
+        }
+        else
+        {
+            mdclog_write(MDCLOG_DEBUG, "Processing E2Setup Req received for same gnb - %s", enbName);
+            setE2ProcedureOngoingStatus(enbName, E2_SETUP_PROCEDURE_ONGOING);
+        }
+    }
+}
+
+E2T_Procedure_States currentE2tProcedureOngoingStatus(char *enbName)
+{
+    printEntryPresentInMap();
+    if(connectionHandlingPerE2NodeMap.empty())
+    {
+        mdclog_write(MDCLOG_DEBUG, "connectionHandlingPerE2Node map is empty");
+        return E2_SETUP_PROCEDURE_NOT_INITIATED;
+    }
+    else
+    {
+        mdclog_write(MDCLOG_DEBUG, "Entry Present in connectionHandlingPerE2NodeMap Map");
+        std::map<std::string, E2NodeConnectionHandling>::iterator itr = connectionHandlingPerE2NodeMap.begin();
+        while(itr != connectionHandlingPerE2NodeMap.end())
+        {
+            int result = itr->first.compare(enbName);
+            if (result == 0)
+            {
+                mdclog_write(MDCLOG_DEBUG, "Key %s Found in connectionHandlingPerE2NodeMap Map, Current Procedure is %d", enbName, itr->second.e2tProcedureOngoingStatus);
+                mdclog_write(MDCLOG_DEBUG, "%s Entry has found", enbName);
+                return itr->second.e2tProcedureOngoingStatus;
+            }
+            ++itr;
+        }
+        mdclog_write(MDCLOG_DEBUG, "No Key %s Found in connectionHandlingPerE2NodeMap Map", enbName);
+        return E2_SETUP_PROCEDURE_NOT_INITIATED;
+    }
+}
+
+bitset<sendMsgMaxBitPosition> getSendMsgBitSetValue(int procedureCode, bitset<requiredIePresentMaxBitSetPosition> isRequiredIesPresent, char* enbName)
+{
+    bitset<sendMsgMaxBitPosition> sendMsgTo(0); // Msg being sent to E2M = 0, Msg being sent to SubMgr = 1
+    switch(procedureCode)
+    {
+        case numberZero:
+        {
+            E2T_Procedure_States currentProcedureOngoing = currentE2tProcedureOngoingStatus(enbName); 
+            if ((currentProcedureOngoing == E2_SETUP_PROCEDURE_COMPLETED || 
+                 currentProcedureOngoing == RIC_SERVICE_UPDATE_PROCEDURE_ONGOING) &&
+                 (isRequiredIesPresent.test(transactionIdIeBitSetPosition)))
+            {
+                sendMsgTo.set(sendMsgToE2MBitSetPosition);
+            }
+            else if ((currentProcedureOngoing == RIC_SUBS_PROCEDURE_ONGOING) &&
+                      isRequiredIesPresent.test(ricRequestIdIeBitSetPosition) && isRequiredIesPresent.test(causeIeBitSetPosition))
+            {
+                sendMsgTo.set(sendMsgToSubMgrBitSetPosition);
+            }        
+            break;
+        }
+        case ProcedureCode_id_E2setup:
+        case ProcedureCode_id_RICserviceUpdate:
+        {
+            if(isRequiredIesPresent.test(transactionIdIeBitSetPosition))
+            {
+                sendMsgTo.set(sendMsgToE2MBitSetPosition);
+            }
+            break;
+
+        }
+        case ProcedureCode_id_RICsubscription:
+        {
+            if(isRequiredIesPresent.test(ricRequestIdIeBitSetPosition) && isRequiredIesPresent.test(causeIeBitSetPosition))
+            {
+                sendMsgTo.set(sendMsgToSubMgrBitSetPosition);
+            }
+            break;
+        }
+        default:
+        {
+            mdclog_write(MDCLOG_ERR, "Invalid procedure code received");
+        }
+    }
+    return sendMsgTo;
+}
+
+void printEntryPresentInMap()
+{
+    mdclog_write(MDCLOG_DEBUG, "Inside printEntryPresentInMap");
+    if(connectionHandlingPerE2NodeMap.empty())
+    {
+        mdclog_write(MDCLOG_DEBUG, "connectionHandlingPerE2Node map is empty");
+        return;
+    }
+    else
+    {
+        mdclog_write(MDCLOG_DEBUG, "Entry Present in Map");
+        std::map<std::string, E2NodeConnectionHandling>::iterator it = connectionHandlingPerE2NodeMap.begin();
+        while (it != connectionHandlingPerE2NodeMap.end())
+        {
+            mdclog_write(MDCLOG_DEBUG, "Key -> { enb name in map : %s }, Value -> { e2tProcedureOngoingStatus is %d, e2SetupProcedureTransactionId is %ld }", it->first.c_str(), it->second.e2tProcedureOngoingStatus, it->second.e2SetupProcedureTransactionId);
+            ++it;
+        }
+        mdclog_write(MDCLOG_DEBUG, "All entries currently present in connectionHandlingPerE2NodeMap are printed successfully");
+    }
+}
+
+void handleE2SetupReq(ReportingMessages_t &message, RmrMessagesBuffer_t &rmrMessageBuffer, E2AP_PDU_t *pdu, long &transactionID, int streamId, Sctp_Map_t *sctpMap)
+{
+    auto logLevel = mdclog_level_get();
+
+    #ifndef UNIT_TEST
+    buildPrometheusList(message.peerInfo, message.peerInfo->sctpParams->prometheusFamily);
+    buildInternalCounterPrometheusList(message.peerInfo, message.peerInfo->sctpParams->prometheusFamily);
+    #endif
+
+    struct sctp_status status;
+    int stat_size = sizeof(status);
+    getsockopt( message.peerInfo->fileDescriptor, SOL_SCTP, SCTP_STATUS,(void *)&status, (socklen_t *)&stat_size );
+
+    if (logLevel >= MDCLOG_DEBUG) {
+        mdclog_write(MDCLOG_DEBUG, "Start from SCTP %d fd", message.peerInfo->fileDescriptor);
+        mdclog_write(MDCLOG_DEBUG, "SCTP status assoc id %d instrms %d outstrms %d", status.sstat_assoc_id,
+                status.sstat_instrms, status.sstat_outstrms);
+    }
+    if(status.sstat_outstrms == numberOne || status.sstat_instrms == numberOne)
+    {
+        message.peerInfo->isSingleStream = true;
+        message.peerInfo->singleStreamId = streamId;
+        if (status.sstat_outstrms == numberOne && status.sstat_instrms == numberOne){
+            if (logLevel >= MDCLOG_DEBUG) {
+                mdclog_write(MDCLOG_DEBUG, "Single SCTP stream is used for sending from now on, assoc id %d streamId %d #instrms %d #outstrms %d, %s",status.sstat_assoc_id, streamId, status.sstat_instrms, status.sstat_outstrms, __FUNCTION__);
+            }
+        }
+        else {
+            mdclog_write(MDCLOG_ERR, "Single SCTP stream used for sending messages even if there is a mismatch in number of in & out streams, assoc id %d instrms %d outstrms %d", status.sstat_assoc_id,
+                status.sstat_instrms, status.sstat_outstrms);
+        }
+    }
+
+    string messageName("E2setupRequest");
+    string ieName("E2setupRequestIEs");
+    message.message.messageType = RIC_E2_SETUP_REQ;
+    #ifndef UNIT_TEST
+    message.peerInfo->counters[IN_INITI][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
+    message.peerInfo->counters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment((double)message.message.asnLength);
+
+    buildAndSendSetupRequest(message, rmrMessageBuffer, pdu); //UT - Segmentation Fault Happening.
+    #endif
+
+    mdclog_write(MDCLOG_DEBUG, "Called insertE2ProcedureOngoing: EnbName is %s and transactionID is %ld", message.message.enodbName, transactionID);
+    insertE2SetupProcedureOngoing(message.message.enodbName, transactionID);
 }
 
 /**
@@ -2603,7 +3185,7 @@ int sendRequestToXapp(ReportingMessages_t &message,
                    (unsigned char *)message.message.enodbName,
                    strlen(message.message.enodbName));
     message.message.messageType = rmrMmessageBuffer.sendMessage->mtype = requestId;
-    rmrMmessageBuffer.sendMessage->state = 0;
+    rmrMmessageBuffer.sendMessage->state = numberZero;
     static unsigned char tx[32];
     snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
     rmr_bytes2xact(rmrMmessageBuffer.sendMessage, tx, strlen((const char *) tx));
@@ -2624,6 +3206,7 @@ void getRmrContext(sctp_params_t &pSctpParams) {
         return;
     }
 
+    rmr_set_low_latency(pSctpParams.rmrCtx);
     rmr_set_stimeout(pSctpParams.rmrCtx, 0);    // disable retries for any send operation
     // we need to find that routing table exist and we can run
     if (mdclog_level_get() >= MDCLOG_INFO) {
@@ -2738,7 +3321,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
     if (rmrMessageBuffer.rcvMessage == nullptr) {
         //we have error
         mdclog_write(MDCLOG_ERR, "RMR Allocation message, %s", strerror(errno));
-        return -1;
+        return negativeOne;
     }
 
 //    if (loglevel >= MDCLOG_DEBUG) {
@@ -2760,9 +3343,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
 #ifdef UNIT_TEST
     rmrMessageBuffer.rcvMessage->state = 0;
 #endif
-    if (rmrMessageBuffer.rcvMessage->state != 0) {
+    if (rmrMessageBuffer.rcvMessage->state != numberZero) {
         mdclog_write(MDCLOG_ERR, "RMR Receiving message with stat = %d", rmrMessageBuffer.rcvMessage->state);
-        return -1;
+        return negativeOne;
     }
     rmr_get_meid(rmrMessageBuffer.rcvMessage, (unsigned char *)message.message.enodbName);
     message.peerInfo = (ConnectedCU_t *) sctpMap->find(message.message.enodbName);
@@ -2778,12 +3361,12 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
     break;
 #endif
                 mdclog_write(MDCLOG_ERR, "Failed to send message no CU entry %s", message.message.enodbName);
-                return -1;
+                return negativeOne;
         }
     }
 
     if (rmrMessageBuffer.rcvMessage->mtype != RIC_HEALTH_CHECK_REQ) {
-        num_of_XAPP_messages.fetch_add(1, std::memory_order_release);
+        num_of_XAPP_messages.fetch_add(numberOne, std::memory_order_release);
 
     }
     switch (rmrMessageBuffer.rcvMessage->mtype) {
@@ -2791,7 +3374,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_E2_SETUP_RESP");
             }
-            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+            if (PER_FromXML(message, rmrMessageBuffer) != numberZero) {
                 break;
             }
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
@@ -2802,17 +3385,19 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, numberZero, sctpMap) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_SETUP_RESP");
-                return -6;
+                return negativeSix;
             }
+            mdclog_write(MDCLOG_DEBUG, "Successfully Sent E2_SETUP_RESP to E2Node");
+            setE2ProcedureOngoingStatus(message.message.enodbName, E2_SETUP_PROCEDURE_COMPLETED);
             break;
         }
         case RIC_E2_SETUP_FAILURE : {
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_E2_SETUP_FAILURE");
             }
-            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+            if (PER_FromXML(message, rmrMessageBuffer) != numberZero) {
                 break;
             }
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
@@ -2823,10 +3408,13 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_E2setup]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_E2setup]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, numberZero, sctpMap) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_SETUP_FAILURE");
-                return -6;
+                return negativeSix;
             }
+
+            mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure State is %d", message.message.enodbName, E2_SETUP_PROCEDURE_COMPLETED);
+            setE2ProcedureOngoingStatus(message.message.enodbName, E2_SETUP_PROCEDURE_COMPLETED);
             break;
         }
 
@@ -2834,7 +3422,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_E2NODE_CONFIG_UPDATE_ACK");
             }
-            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+            if (PER_FromXML(message, rmrMessageBuffer) != numberZero) {
                 break;
             }
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
@@ -2845,7 +3433,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, numberZero, sctpMap) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2NODE_CONFIG_UPDATE_ACK");
                 return -6;
             }
@@ -2856,7 +3444,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_E2NODE_CONFIG_UPDATE_FAILURE");
             }
-            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+            if (PER_FromXML(message, rmrMessageBuffer) != numberZero) {
                 break;
             }
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
@@ -2867,7 +3455,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_E2nodeConfigurationUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, numberZero, sctpMap) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2NODE_CONFIG_UPDATE_FAILURE");
                 return -6;
             }
@@ -2886,9 +3474,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             message.peerInfo->sctpParams->e2tCounters[IN_INITI][MSG_COUNTER][ProcedureCode_id_ErrorIndication]->Increment();
             message.peerInfo->sctpParams->e2tCounters[IN_INITI][BYTES_COUNTER][ProcedureCode_id_ErrorIndication]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, numberZero, sctpMap) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_ERROR_INDICATION");
-                return -6;
+                return negativeSix;
             }
             break;
         }
@@ -2896,6 +3484,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_SUB_REQ");
             }
+
+            mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure state is %d", message.message.enodbName, E2_SETUP_PROCEDURE_COMPLETED);
+            setE2ProcedureOngoingStatus(message.message.enodbName, E2_SETUP_PROCEDURE_COMPLETED);
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscription]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscription]->Increment(rmrMessageBuffer.rcvMessage->len);
@@ -2904,16 +3495,21 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscription]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscription]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, numberZero, sctpMap) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SUB_REQ");
-                return -6;
+                return negativeSix;
             }
+            mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure state", message.message.enodbName);
+            setE2ProcedureOngoingStatus(message.message.enodbName, RIC_SUBS_PROCEDURE_ONGOING);
             break;
         }
         case RIC_SUB_DEL_REQ: {
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_SUB_DEL_REQ");
             }
+
+            mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure state is %d", message.message.enodbName, E2_SETUP_PROCEDURE_COMPLETED);
+            setE2ProcedureOngoingStatus(message.message.enodbName, E2_SETUP_PROCEDURE_COMPLETED);
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment(rmrMessageBuffer.rcvMessage->len);
@@ -2922,16 +3518,20 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICsubscriptionDelete]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, numberZero, sctpMap) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SUB_DEL_REQ");
-                return -6;
+                return negativeSix;
             }
+            mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure State is %d", message.message.enodbName, RIC_SUBS_DEL_PROCEDURE_ONGOING);
+            setE2ProcedureOngoingStatus(message.message.enodbName, RIC_SUBS_DEL_PROCEDURE_ONGOING);
             break;
         }
         case RIC_CONTROL_REQ: {
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_CONTROL_REQ");
             }
+            mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure state is %d", message.message.enodbName, E2_SETUP_PROCEDURE_COMPLETED);
+            setE2ProcedureOngoingStatus(message.message.enodbName, E2_SETUP_PROCEDURE_COMPLETED);
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
             message.peerInfo->counters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICcontrol]->Increment();
             message.peerInfo->counters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICcontrol]->Increment(rmrMessageBuffer.rcvMessage->len);
@@ -2940,17 +3540,19 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICcontrol]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICcontrol]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, numberZero, sctpMap) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_CONTROL_REQ");
-                return -6;
+                return negativeSix;
             }
+            mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Proedure State is %d", message.message.enodbName, CONTROL_PROCEDURE_ONGOING);
+            setE2ProcedureOngoingStatus(message.message.enodbName, CONTROL_PROCEDURE_ONGOING);
             break;
         }
         case RIC_SERVICE_QUERY: {
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_SERVICE_QUERY");
             }
-            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+            if (PER_FromXML(message, rmrMessageBuffer) != numberZero) {
                 break;
             }
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
@@ -2961,17 +3563,19 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][MSG_COUNTER][ProcedureCode_id_RICserviceQuery]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_INITI][BYTES_COUNTER][ProcedureCode_id_RICserviceQuery]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, numberZero, sctpMap) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SERVICE_QUERY");
-                return -6;
+                return negativeSix;
             }
+            mdclog_write(MDCLOG_DEBUG, "EnbName is %s New Procedure state is %d", message.message.enodbName, E2_SETUP_PROCEDURE_COMPLETED);
+            setE2ProcedureOngoingStatus(message.message.enodbName, RIC_SERVICE_UPDATE_PROCEDURE_ONGOING);
             break;
         }
         case RIC_SERVICE_UPDATE_ACK: {
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_SERVICE_UPDATE_ACK");
             }
-            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+            if (PER_FromXML(message, rmrMessageBuffer) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "error in PER_FromXML");
                 break;
             }
@@ -2986,9 +3590,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "Before sending to CU");
             }
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, numberZero, sctpMap) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SERVICE_UPDATE_ACK");
-                return -6;
+                return negativeSix;
             }
             break;
         }
@@ -2996,7 +3600,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_SERVICE_UPDATE_FAILURE");
             }
-            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+            if (PER_FromXML(message, rmrMessageBuffer) != numberZero) {
                 break;
             }
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
@@ -3007,9 +3611,9 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][MSG_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_UN_SUCC][BYTES_COUNTER][ProcedureCode_id_RICserviceUpdate]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, numberZero, sctpMap) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_SERVICE_UPDATE_FAILURE");
-                return -6;
+                return negativeSix;
             }
             break;
         }
@@ -3017,7 +3621,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_E2_RESET_REQ");
             }
-            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+            if (PER_FromXML(message, rmrMessageBuffer) != numberZero) {
                 break;
             }
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
@@ -3038,7 +3642,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (loglevel >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "RIC_E2_RESET_RESP");
             }
-            if (PER_FromXML(message, rmrMessageBuffer) != 0) {
+            if (PER_FromXML(message, rmrMessageBuffer) != numberZero) {
                 break;
             }
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
@@ -3049,7 +3653,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][MSG_COUNTER][ProcedureCode_id_Reset]->Increment();
             message.peerInfo->sctpParams->e2tCounters[OUT_SUCC][BYTES_COUNTER][ProcedureCode_id_Reset]->Increment(rmrMessageBuffer.rcvMessage->len);
 #endif
-            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, 0, sctpMap) != 0) {
+            if (sendDirectionalSctpMsg(rmrMessageBuffer, message, numberZero, sctpMap) != numberZero) {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_E2_RESET_RESP");
                 return -6;
             }
@@ -3079,7 +3683,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
                                      peerInfo->enodbName);
                     message.message.asndata = rmrMessageBuffer.sendMessage->payload;
                     mdclog_write(MDCLOG_INFO, "%s", message.message.asndata);
-                    if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer) != 0) {
+                    if (sendRequestToXapp(message, RIC_SCTP_CONNECTION_FAILURE, rmrMessageBuffer) != numberZero) {
                         mdclog_write(MDCLOG_ERR, "SCTP_CONNECTION_FAIL message failed to send to xAPP");
                     }
                     free(peerInfo);
@@ -3097,7 +3701,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
                               (unsigned char *)rmrMessageBuffer.ka_message,
                               rmrMessageBuffer.ka_message_len);
             rmrMessageBuffer.sendMessage->mtype = E2_TERM_KEEP_ALIVE_RESP;
-            rmrMessageBuffer.sendMessage->state = 0;
+            rmrMessageBuffer.sendMessage->state = numberZero;
             static unsigned char tx[32];
             auto txLen = snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
             rmr_bytes2xact(rmrMessageBuffer.sendMessage, tx, txLen);
@@ -3107,7 +3711,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (rmrMessageBuffer.sendMessage == nullptr) {
                 rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
                 mdclog_write(MDCLOG_ERR, "Failed to send E2_TERM_KEEP_ALIVE_RESP RMR message returned NULL");
-            } else if (rmrMessageBuffer.sendMessage->state != 0)  {
+            } else if (rmrMessageBuffer.sendMessage->state != numberZero)  {
                 mdclog_write(MDCLOG_ERR, "Failed to send E2_TERM_KEEP_ALIVE_RESP, on RMR state = %d ( %s)",
                              rmrMessageBuffer.sendMessage->state, translateRmrErrorMessages(rmrMessageBuffer.sendMessage->state).c_str());
             } else if (loglevel >= MDCLOG_DEBUG) {
@@ -3117,13 +3721,13 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             break;
         }
         case RIC_HEALTH_CHECK_REQ: {
-            static int counter = 0;
+            static int counter = numberZero;
             // send message back
             rmr_bytes2payload(rmrMessageBuffer.rcvMessage,
                               (unsigned char *)"OK",
-                              2);
+                              numberTwo);
             rmrMessageBuffer.rcvMessage->mtype = RIC_HEALTH_CHECK_RESP;
-            rmrMessageBuffer.rcvMessage->state = 0;
+            rmrMessageBuffer.rcvMessage->state = numberZero;
             static unsigned char tx[32];
             auto txLen = snprintf((char *) tx, sizeof tx, "%15ld", transactionCounter++);
             rmr_bytes2xact(rmrMessageBuffer.rcvMessage, tx, txLen);
@@ -3132,10 +3736,10 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             if (rmrMessageBuffer.rcvMessage == nullptr) {
                 rmrMessageBuffer.rcvMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_HEALTH_CHECK_RESP RMR message returned NULL");
-            } else if (rmrMessageBuffer.rcvMessage->state != 0)  {
+            } else if (rmrMessageBuffer.rcvMessage->state != numberZero)  {
                 mdclog_write(MDCLOG_ERR, "Failed to send RIC_HEALTH_CHECK_RESP, on RMR state = %d ( %s)",
                              rmrMessageBuffer.rcvMessage->state, translateRmrErrorMessages(rmrMessageBuffer.rcvMessage->state).c_str());
-            } else if (loglevel >= MDCLOG_DEBUG && (++counter % 100 == 0)) {
+            } else if (loglevel >= MDCLOG_DEBUG && (++counter % 100 == numberZero)) {
                 mdclog_write(MDCLOG_DEBUG, "Got %d RIC_HEALTH_CHECK_REQ Request send : OK", counter);
             }
 
@@ -3143,7 +3747,7 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
         }
 
         default:
-            mdclog_write(MDCLOG_WARN, "Message Type : %d is not supported", rmrMessageBuffer.rcvMessage->mtype);
+            mdclog_write(MDCLOG_ERR, "Message Type : %d is not supported", rmrMessageBuffer.rcvMessage->mtype);
             message.message.asndata = rmrMessageBuffer.rcvMessage->payload;
             message.message.asnLength = rmrMessageBuffer.rcvMessage->len;
             message.message.time.tv_nsec = ts.tv_nsec;
@@ -3153,12 +3757,12 @@ int receiveXappMessages(Sctp_Map_t *sctpMap,
             buildJsonMessage(message);
 
 
-            return -7;
+            return negativeSeven;
     }
     if (mdclog_level_get() >= MDCLOG_DEBUG) {
         mdclog_write(MDCLOG_DEBUG, "EXIT OK from %s", __FUNCTION__);
     }
-    return 0;
+    return numberZero;
 }
 
 /**
@@ -3200,6 +3804,7 @@ int sendMessagetoCu(Sctp_Map_t *sctpMap,
                     int failedMesgId) {
     // get the FD
     message.message.messageType = messageBuffer.rcvMessage->mtype;
+    mdclog_write(MDCLOG_DEBUG, "message.message.messageType is %d", message.message.messageType);
     auto rc = sendSctpMsg(message.peerInfo, message, sctpMap);
     return rc;
 }
@@ -3225,7 +3830,7 @@ int addToEpoll(int epoll_fd,
     struct epoll_event event{};
     event.data.ptr = peerInfo;
     event.events = events;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, peerInfo->fileDescriptor, &event) < 0) {
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, peerInfo->fileDescriptor, &event) < numberZero) {
 #if !(defined(UNIT_TEST) || defined(MODULE_TEST))
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
             mdclog_write(MDCLOG_DEBUG, "epoll_ctl EPOLL_CTL_ADD (may check not to quit here), %s, %s %d",
@@ -3233,9 +3838,16 @@ int addToEpoll(int epoll_fd,
         }
         close(peerInfo->fileDescriptor);
         if (enodbName != nullptr) {
+            mdclog_write(MDCLOG_DEBUG, "Erasing Entry from Map for Key %s", enodbName);
+            removeE2ConnectionEntryFromMap(enodbName);
             cleanHashEntry(peerInfo, sctpMap);
-            char key[MAX_ENODB_NAME_SIZE * 2];
-            snprintf(key, MAX_ENODB_NAME_SIZE * 2, "msg:%s|%d", enodbName, msgType);
+            if (peerInfo != nullptr)
+            {
+                mdclog_write(MDCLOG_DEBUG, "Not assigned peerInfo = NULL");
+                peerInfo = nullptr;
+            }
+            char key[MAX_ENODB_NAME_SIZE * numberTwo];
+            snprintf(key, MAX_ENODB_NAME_SIZE * numberTwo, "msg:%s|%d", enodbName, msgType);
             if (mdclog_level_get() >= MDCLOG_DEBUG) {
                 mdclog_write(MDCLOG_DEBUG, "remove key = %s from %s at line %d", key, __FUNCTION__, __LINE__);
             }
@@ -3246,13 +3858,13 @@ int addToEpoll(int epoll_fd,
                 sctpMap->erase(key);
             }
         } else {
-            peerInfo->enodbName[0] = 0;
+            peerInfo->enodbName[numberZero] = numberZero;
         }
         mdclog_write(MDCLOG_ERR, "epoll_ctl EPOLL_CTL_ADD (may check not to quit here)");
-        return -1;
+        return negativeOne;
 #endif
     }
-    return 0;
+    return numberZero;
 }
 
 /**
@@ -3275,15 +3887,22 @@ int modifyToEpoll(int epoll_fd,
     struct epoll_event event{};
     event.data.ptr = peerInfo;
     event.events = events;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, peerInfo->fileDescriptor, &event) < 0) {
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, peerInfo->fileDescriptor, &event) < numberZero) {
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
             mdclog_write(MDCLOG_DEBUG, "epoll_ctl EPOLL_CTL_MOD (may check not to quit here), %s, %s %d",
                          strerror(errno), __func__, __LINE__);
         }
         close(peerInfo->fileDescriptor);
+        mdclog_write(MDCLOG_DEBUG, "Erasing Entry from Map for Key %s", enodbName);
+        removeE2ConnectionEntryFromMap(enodbName);
         cleanHashEntry(peerInfo, sctpMap);
-        char key[MAX_ENODB_NAME_SIZE * 2];
-        snprintf(key, MAX_ENODB_NAME_SIZE * 2, "msg:%s|%d", enodbName, msgType);
+        if (peerInfo != nullptr)
+        {
+            mdclog_write(MDCLOG_DEBUG, "Not assigned peerInfo = NULL");
+            peerInfo = nullptr;
+        }
+        char key[MAX_ENODB_NAME_SIZE * numberTwo];
+        snprintf(key, MAX_ENODB_NAME_SIZE * numberTwo, "msg:%s|%d", enodbName, msgType);
         if (mdclog_level_get() >= MDCLOG_DEBUG) {
             mdclog_write(MDCLOG_DEBUG, "remove key = %s from %s at line %d", key, __FUNCTION__, __LINE__);
         }
@@ -3294,9 +3913,9 @@ int modifyToEpoll(int epoll_fd,
             sctpMap->erase(key);
         }
         mdclog_write(MDCLOG_ERR, "epoll_ctl EPOLL_CTL_ADD (may check not to quit here)");
-        return -1;
+        return negativeOne;
     }
-    return 0;
+    return numberZero;
 }
 
 
@@ -3310,14 +3929,14 @@ int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &m
     if (rmrMessageBuffer.sendMessage == nullptr) {
         rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
         mdclog_write(MDCLOG_ERR, "RMR failed send message returned with NULL pointer");
-        return -1;
+        return negativeOne;
     }
 
-    if (rmrMessageBuffer.sendMessage->state != 0) {
+    if (rmrMessageBuffer.sendMessage->state != numberZero) {
         char meid[RMR_MAX_MEID]{};
         if (rmrMessageBuffer.sendMessage->state == RMR_ERR_RETRY) {
-            usleep(5);
-            rmrMessageBuffer.sendMessage->state = 0;
+            usleep(numberFive);
+            rmrMessageBuffer.sendMessage->state = numberZero;
             mdclog_write(MDCLOG_INFO, "RETRY sending Message type %d to Xapp from %s",
                          rmrMessageBuffer.sendMessage->mtype,
                          rmr_get_meid(rmrMessageBuffer.sendMessage, (unsigned char *)meid));
@@ -3327,8 +3946,8 @@ int sendRmrMessage(RmrMessagesBuffer_t &rmrMessageBuffer, ReportingMessages_t &m
             if (rmrMessageBuffer.sendMessage == nullptr) {
                 mdclog_write(MDCLOG_ERR, "RMR failed send message returned with NULL pointer");
                 rmrMessageBuffer.sendMessage = rmr_alloc_msg(rmrMessageBuffer.rmrCtx, RECEIVE_XAPP_BUFFER_SIZE);
-                return -1;
-            } else if (rmrMessageBuffer.sendMessage->state != 0) {
+                return negativeOne;
+            } else if (rmrMessageBuffer.sendMessage->state != numberZero) {
                 mdclog_write(MDCLOG_ERR,
                              "Message state %s while sending request %d to Xapp from %s after retry of 10 microseconds",
                              translateRmrErrorMessages(rmrMessageBuffer.sendMessage->state).c_str(),
@@ -3475,15 +4094,15 @@ int fetchStreamId(ConnectedCU_t *peerInfo, ReportingMessages_t &message)
         case RIC_SERVICE_QUERY:
         case RIC_SERVICE_UPDATE_ACK:
         case RIC_SERVICE_UPDATE_FAILURE:
-            streamId = 0;
+            streamId = numberZero;
             break;
         case RIC_SUB_REQ:
         case RIC_SUB_DEL_REQ:
         case RIC_CONTROL_REQ:
-            streamId = 1;
+            streamId = numberOne;
             break;
         default:
-            streamId = 0;
+            streamId = numberZero;
             break;
     }
     if (loglevel >= MDCLOG_DEBUG) {
