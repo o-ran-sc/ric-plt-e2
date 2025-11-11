@@ -46,12 +46,12 @@ using namespace prometheus;
 //#endif
 
 // need to expose without the include of gcov
-extern "C" void __gcov_flush(void);
+extern "C" void __gcov_dump(void);
 #define LOG_FILE_CONFIG_MAP "CONFIG_MAP_NAME"
 #define E2AP_PPID 70 // as per E2GAP chapter 6.1
 
 static void catch_function(int signal) {
-    __gcov_flush();
+    __gcov_dump();
     exit(signal);
 }
 

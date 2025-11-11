@@ -20,7 +20,7 @@
 #   This source code is part of the near-RT RIC (RAN Intelligent Controller)
 #   platform project (RICP).
 #
-FROM nexus3.o-ran-sc.org:10002/o-ran-sc/bldr-ubuntu20-c-go:1.0.0 as ubuntu
+FROM nexus3.o-ran-sc.org:10002/o-ran-sc/bldr-ubuntu22-c-go:1.0.0 as ubuntu
 
 WORKDIR /opt/e2/
 
@@ -84,7 +84,7 @@ RUN if [$BUILD_TYPE == "Debug"] ; then make e2_coverage ; fi
 #    && cd /usr/local/lib/ && find / -type f -name "libyaml-cpp.a" -exec cp {} libyaml-cpp.a \; \
 #    && find / -type f -name "libopentracing.a" -exec cp {} libopentracing.a \; && cd /opt/e2/RIC-E2-TERMINATION && ls nlohmann  \
 
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 RUN apt-get update && apt-get install -y net-tools iputils-ping curl tcpdump && mkdir -p /opt/e2/config
 
 COPY --from=ubuntu /opt/e2/e2 /opt/e2/e2
@@ -119,7 +119,7 @@ COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libtbbmalloc_proxy.so /usr/local/li
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libtbbmalloc_proxy.so.2 /usr/local/libtbbmalloc_proxy.so.2
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_log_setup.so /usr/lib/libboost_log_setup.so
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_log_setup.so.1.71.0 /usr/lib/libboost_log_setup.so.1.71.0
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_log_setup.so.1.74.0 /usr/lib/libboost_log_setup.so.1.74.0
 #COPY --from=ubuntu /usr/local/lib/libpistache.so  /usr/local/lib/libpistache.so
 #COPY --from=ubuntu /usr/local/lib/libpistache.so.0  /usr/local/lib/libpistache.so.0
 #COPY --from=ubuntu /usr/local/lib/libpistache.so.0.0.001-git20191031  /usr/local/lib/libpistache.so.0.0.001-git20191031
@@ -128,32 +128,32 @@ ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ='Asia/Kolkata'
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_log.so /usr/lib/libboost_log.so
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_log.so.1.71.0 /usr/lib/libboost_log.so.1.71.0
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_log.so.1.74.0 /usr/lib/libboost_log.so.1.74.0
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_thread.so /usr/lib/libboost_thread.so
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_thread.so.1.71.0 /usr/lib/libboost_thread.so.1.71.0
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_thread.so.1.74.0 /usr/lib/libboost_thread.so.1.74.0
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_filesystem.so /usr/lib/libboost_filesystem.so
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_filesystem.so.1.71.0 /usr/lib/libboost_filesystem.so.1.71.0
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_filesystem.so.1.74.0 /usr/lib/libboost_filesystem.so.1.74.0
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_regex.so /usr/lib/libboost_regex.so
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_regex.so.1.71.0 /usr/lib/libboost_regex.so.1.71.0
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libboost_regex.so.1.74.0 /usr/lib/libboost_regex.so.1.74.0
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicui18n.so /usr/lib/libicui18n.so
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicui18n.so.66.1 /usr/lib/libicui18n.so.66.1
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicui18n.so.66 /usr/lib/libicui18n.so.66
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicui18n.so.70.1 /usr/lib/libicui18n.so.70.1
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicui18n.so.70 /usr/lib/libicui18n.so.70
 
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicuuc.so /usr/lib/libicuuc.so
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicuuc.so.66.1 /usr/lib/libicuuc.so.66.1
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicuuc.so.66 /usr/lib/libicuuc.so.66
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicuuc.so.70.1 /usr/lib/libicuuc.so.70.1
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicuuc.so.70 /usr/lib/libicuuc.so.70
  
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicudata.so /usr/lib/libicudata.so
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicudata.so.66.1 /usr/lib/libicudata.so.66.1
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicudata.so.66 /usr/lib/libicudata.so.66
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicudata.so.70.1 /usr/lib/libicudata.so.70.1
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libicudata.so.70 /usr/lib/libicudata.so.70
  
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/libstdc++.so.6
  
-COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so.4.6.0 /usr/lib/libcurl-gnutls.so.4.6.0
+COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so.4.7.0 /usr/lib/libcurl-gnutls.so.4.7.0
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so.4 /usr/lib/libcurl-gnutls.so.4
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libcurl-gnutls.so /usr/lib/libcurl-gnutls.so
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libsctp.so.1 /usr/lib/libsctp.so.1
